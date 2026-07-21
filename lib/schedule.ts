@@ -13,6 +13,21 @@ export function buildScheduleEvents(): ScheduleEvent[] {
 
   for (const r of getReservations()) {
     if (r.status === "CANCELLED") continue;
+
+    // Standalone swingline movement — one event on its value date.
+    if (r.kind === "SWINGLINE") {
+      events.push({
+        date: r.valueDate,
+        type: "SWINGLINE_DRAW",
+        amount: r.amount,
+        sellerId: r.sellerId,
+        obligorId: r.obligorId,
+        refId: r.id,
+        label: `Swingline ${r.swinglineDirection === "INCREASE" ? "increase" : "reduction"} ${r.id}`,
+      });
+      continue;
+    }
+
     events.push({
       date: r.valueDate,
       type: "FUNDING",

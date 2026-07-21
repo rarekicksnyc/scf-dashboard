@@ -210,16 +210,27 @@ export function reservationConsumedForLimit(limit: Limit): number {
       return sum(active.filter((r) => r.sellerId === limit.entityId));
     case "OBLIGOR":
       return sum(active.filter((r) => r.obligorId === limit.entityId));
-    case "SWINGLINE":
-      // A swingline is a core limit: every reservation against an entity that
-      // has one draws on it.
-      if (limit.entityType === "SELLER") {
-        return sum(active.filter((r) => r.sellerId === limit.entityId));
+    case "SWINGLINE": {
+      // A swingline is a core limit. Discount reservations draw it; standalone
+      // SWINGLINE reservations adjust it (reduction draws down available,
+      // increase releases it).
+      const matches = (r: Reservation) =>
+        limit.entityType === "SELLER"
+          ? r.sellerId === limit.entityId
+          : limit.entityType === "OBLIGOR"
+            ? r.obligorId === limit.entityId
+            : false;
+      let total = 0;
+      for (const r of active) {
+        if (!matches(r)) continue;
+        if (r.kind === "SWINGLINE") {
+          total += r.swinglineDirection === "INCREASE" ? -r.amount : r.amount;
+        } else {
+          total += r.amount; // discount reservation draws the swingline
+        }
       }
-      if (limit.entityType === "OBLIGOR") {
-        return sum(active.filter((r) => r.obligorId === limit.entityId));
-      }
-      return 0;
+      return total;
+    }
     // ASR is consumed at actual discounting, not by forward reservations; and
     // investor/insurance capacity is a funding-side control, not a reservation.
     default:

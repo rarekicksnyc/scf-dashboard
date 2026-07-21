@@ -240,6 +240,8 @@ export interface LimitView {
 // Invoices + batch results
 // ---------------------------------------------------------------------------
 
+export type PcgFlag = "Y" | "N" | "N/A";
+
 export interface Invoice {
   invoiceNumber: string;
   sellerId: string;
@@ -249,6 +251,8 @@ export interface Invoice {
   issueDate: string; // ISO
   dueDate: string; // ISO
   requestedDiscountDate: string; // ISO
+  sellerPcg?: PcgFlag; // seller parent company guarantee
+  obligorPcg?: PcgFlag; // obligor parent company guarantee
 }
 
 // ---------------------------------------------------------------------------
@@ -261,15 +265,22 @@ export interface Invoice {
 
 export type ReservationStatus = "RESERVED" | "FUNDED" | "MATURED" | "CANCELLED";
 
+// DISCOUNT = a forward discount that draws seller + obligor (+ swinglines).
+// SWINGLINE = a standalone swingline movement on a single entity, no pricing.
+export type ReservationKind = "DISCOUNT" | "SWINGLINE";
+export type SwinglineDirection = "REDUCTION" | "INCREASE";
+
 export interface Reservation {
   id: string;
-  sellerId: string;
+  kind?: ReservationKind; // undefined = DISCOUNT (backward compatible)
+  swinglineDirection?: SwinglineDirection; // for kind = SWINGLINE
+  sellerId: string; // for SWINGLINE, exactly one of sellerId/obligorId is set
   obligorId: string;
   amount: number;
   currency: Currency;
   valueDate: string; // expected value / funding date (ISO)
   maturityDate: string; // expected maturity / repayment date (ISO)
-  pricingBps: number; // pricing in basis points
+  pricingBps: number; // pricing in basis points (0 for swingline movements)
   tenorDays: number; // maturityDate - valueDate
   usesSwingline: boolean;
   status: ReservationStatus;

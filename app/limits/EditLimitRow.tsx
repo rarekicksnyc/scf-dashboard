@@ -80,18 +80,18 @@ export default function EditLimitRow({
     <tr>
       <td>{view.limit.id}</td>
       <td>{entityName}</td>
-      <td style={{ width: 100 }}>
+      <td style={{ width: 150 }}>
         <input style={cell} value={cdl} onChange={(e) => setCdl(e.target.value)} placeholder="8-digit" title={err ?? undefined} />
       </td>
-      <td style={{ width: 120 }}><input style={cell} type="number" value={approved} onChange={(e) => setApproved(e.target.value)} /></td>
+      <td style={{ width: 190 }}><input style={cell} type="number" value={approved} onChange={(e) => setApproved(e.target.value)} /></td>
       <td className="num">{mm(view.outstanding)}</td>
       <td className="num">{mm(view.reserved)}</td>
       <td className="num">{mm(view.available)}</td>
       <td className="num">{pct(view.utilizationPct)}</td>
       <td><UtilBar view={view} /></td>
-      <td style={{ width: 70 }}><input style={cell} type="number" value={tenor} onChange={(e) => setTenor(e.target.value)} /></td>
-      <td style={{ width: 130 }}><input style={cell} type="date" value={expiry} onChange={(e) => setExpiry(e.target.value)} /></td>
-      <td style={{ width: 110 }}>
+      <td style={{ width: 100 }}><input style={cell} type="number" value={tenor} onChange={(e) => setTenor(e.target.value)} /></td>
+      <td style={{ width: 160 }}><input style={cell} type="date" value={expiry} onChange={(e) => setExpiry(e.target.value)} /></td>
+      <td style={{ width: 120 }}>
         <select style={cell} value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
           <option value="ACTIVE">ACTIVE</option>
           <option value="SUSPENDED">SUSPENDED</option>

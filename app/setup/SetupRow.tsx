@@ -55,10 +55,10 @@ export default function SetupRow(props: SetupRowProps) {
   return (
     <tr>
       <td>{props.name}</td>
-      <td style={{ width: 130 }}>
+      <td style={{ width: 150 }}>
         <input style={inputStyle} value={cdl} onChange={(e) => setCdl(e.target.value)} />
       </td>
-      <td style={{ width: 140 }}>
+      <td style={{ width: 200 }}>
         <input
           style={inputStyle}
           type="number"
@@ -72,7 +72,7 @@ export default function SetupRow(props: SetupRowProps) {
           {swlOn ? "On" : "Off"}
         </label>
       </td>
-      <td style={{ width: 140 }}>
+      <td style={{ width: 200 }}>
         <input
           style={{ ...inputStyle, opacity: swlOn ? 1 : 0.5 }}
           type="number"

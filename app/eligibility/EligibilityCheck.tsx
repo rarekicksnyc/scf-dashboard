@@ -41,7 +41,7 @@ const DECISION_BADGE: Record<string, { cls: string; label: string }> = {
 };
 
 const field = { display: "flex", flexDirection: "column" as const, gap: 4, fontSize: 12 };
-const input = { border: "1px solid var(--border)", borderRadius: 6, padding: "7px 8px", fontSize: 13 };
+const input = { border: "1px solid var(--border)", borderRadius: 6, padding: "7px 8px", fontSize: 13, width: "100%" };
 
 export default function EligibilityCheck({
   sellers,
@@ -116,7 +116,7 @@ export default function EligibilityCheck({
       <div className="panel">
         <h2>Transaction</h2>
         <div style={{ padding: 18 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12 }}>
             <label style={field}>Seller
               <select style={input} value={f.sellerId} onChange={(e) => set("sellerId", e.target.value)}>
                 {sellers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}

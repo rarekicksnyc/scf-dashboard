@@ -664,4 +664,21 @@ export const reservations: Reservation[] = [
     createdAt: "2026-07-20T09:15:00.000Z",
     createdBy: "u_ops",
   },
+  {
+    id: "RSV-00005",
+    kind: "SWINGLINE",
+    swinglineDirection: "REDUCTION",
+    sellerId: "SELLER001",
+    obligorId: "", // swingline movements are single-entity
+    amount: 4_000_000,
+    currency: "USD",
+    valueDate: "2026-08-10",
+    maturityDate: "2026-09-25",
+    pricingBps: 0,
+    tenorDays: 46,
+    usesSwingline: true,
+    status: "RESERVED",
+    createdAt: "2026-07-20T09:20:00.000Z",
+    createdBy: "u_ops",
+  },
 ];

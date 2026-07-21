@@ -138,6 +138,7 @@ export default async function BatchDetailPage({
               <tr>
                 <th>Invoice</th>
                 <th>Obligor</th>
+                <th>PCG S/O</th>
                 <th className="num">Amount</th>
                 <th className="num">Tenor</th>
                 {CHECK_COLUMNS.map((c) => (
@@ -154,6 +155,9 @@ export default async function BatchDetailPage({
                   <tr key={`${r.invoice.invoiceNumber}-${i}`}>
                     <td>{r.invoice.invoiceNumber}</td>
                     <td>{obligor?.name ?? r.invoice.obligorId}</td>
+                    <td className="muted">
+                      {(r.invoice.sellerPcg ?? "—")} / {(r.invoice.obligorPcg ?? "—")}
+                    </td>
                     <td className="num">{mm(r.invoice.amount)}</td>
                     <td className="num">{r.tenorDays}d</td>
                     {CHECK_COLUMNS.map((c) => (

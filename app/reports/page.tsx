@@ -1,6 +1,8 @@
 import { REPORTS } from "@/lib/reports";
-import { getBatches } from "@/lib/data/store";
+import { getBatches, allSellers, allObligors, getSeller, getObligor } from "@/lib/data/store";
+import { fundedDeals } from "@/lib/deals";
 import { currentUserCan } from "@/lib/auth";
+import TransactionReport, { type TxnRow } from "./TransactionReport";
 
 export const dynamic = "force-dynamic";
 
@@ -17,12 +19,24 @@ export default async function ReportsPage() {
   const canPayment = await currentUserCan("GENERATE_PAYMENT_FILE");
   const batches = getBatches();
 
+  const txnRows: TxnRow[] = fundedDeals({}).map((d) => ({
+    ...d,
+    sellerName: getSeller(d.sellerId)?.name ?? d.sellerId,
+    obligorName: getObligor(d.obligorId)?.name ?? d.obligorId,
+  }));
+
   return (
     <>
       <h1 className="page-title">Reports</h1>
       <p className="page-sub">
         Portfolio and control reports, exported as CSV from live data.
       </p>
+
+      <TransactionReport
+        deals={txnRows}
+        sellers={allSellers().map((s) => ({ id: s.id, name: s.name }))}
+        obligors={allObligors().map((o) => ({ id: o.id, name: o.name }))}
+      />
 
       <div className="panel">
         <h2>Standard reports</h2>

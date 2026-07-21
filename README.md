@@ -172,6 +172,15 @@ single `checkDiscount(txn)` entry point.
   against it (no per-transaction toggle) — and always consumes it.
 - **Multiple investors and insurers per deal**: distribution and insurance each
   take one or more allocations (add/remove rows), checked and totalled per party.
+- **Reservations run the full eligibility engine**: every discount reservation is
+  evaluated by the same comprehensive `checkDiscount` used on the Eligibility
+  screen (seller facility, obligor, ASR sublimit, pricing floor, tenor, …). It
+  auto-books when it clears; only a REJECTED/EXCEPTION result triggers the
+  soft-warning path.
+- **Swingline reservations**: a swingline movement can be booked as its own
+  reservation — single entity (seller XOR obligor), no pricing, with a direction
+  (reduction draws down available; increase releases it). It folds into the same
+  swingline availability the engine reads (reductions add, increases subtract).
 - **Reservation soft-warning exceptions**: when a reservation does not clear, the
   booker can override with a documented reason and an optional resolve-by date;
   the reservation is booked and flagged in the list with a ⚠ marker whose tooltip

@@ -28,6 +28,46 @@ export interface ReservationDecision {
   checks: CheckResult[];
 }
 
+// A standalone swingline movement on one entity. A REDUCTION draws down the
+// available swingline (must fit); an INCREASE releases capacity (always clears).
+export function checkSwinglineReservation(
+  entityType: "SELLER" | "OBLIGOR",
+  entityId: string,
+  amount: number,
+  direction: "REDUCTION" | "INCREASE",
+): ReservationDecision {
+  const checks: CheckResult[] = [];
+  const swl = entitySwingline(entityType, entityId);
+  if (!swl) {
+    checks.push({
+      checkName: "SWINGLINE_CHECK",
+      status: "FAIL",
+      severity: "RED",
+      message: `${entityType === "SELLER" ? "Seller" : "Obligor"} has no swingline configured.`,
+    });
+    return { decision: "BLOCK", checks };
+  }
+  const v = viewLimit(swl);
+  if (direction === "INCREASE") {
+    checks.push({
+      checkName: "SWINGLINE_CHECK",
+      status: "PASS",
+      severity: "GREEN",
+      message: `Increase releases ${mm(amount)} of swingline capacity.`,
+    });
+  } else {
+    checks.push(
+      capacityCheck("SWINGLINE_CHECK", v.available, v.approvedLimit, v.consumed, v.limit.warnThreshold, amount),
+    );
+  }
+  const decision = checks.some((c) => c.severity === "RED")
+    ? "BLOCK"
+    : checks.some((c) => c.severity === "YELLOW" || c.severity === "ORANGE")
+      ? "WARN"
+      : "OK";
+  return { decision, checks };
+}
+
 function mm(n: number): string {
   return `$${(n / 1_000_000).toLocaleString("en-US", { maximumFractionDigits: 2 })}MM`;
 }

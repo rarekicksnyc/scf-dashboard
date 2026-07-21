@@ -1,11 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import type { ExposureRow } from "@/lib/exposure";
 import { mm, pct } from "@/lib/format";
 import { UtilBar } from "./components";
 
 function Table({ rows, kind }: { rows: ExposureRow[]; kind: string }) {
+  const base = kind === "Seller" ? "sellers" : "obligors";
   return (
     <div className="table-scroll">
       <table>
@@ -15,6 +17,7 @@ function Table({ rows, kind }: { rows: ExposureRow[]; kind: string }) {
             <th>CDL</th>
             <th className="num">Limit</th>
             <th className="num">Swingline</th>
+            <th className="num">Swingline booked</th>
             <th className="num">Outstanding</th>
             <th className="num">Future reservation</th>
             <th className="num">Available</th>
@@ -25,7 +28,7 @@ function Table({ rows, kind }: { rows: ExposureRow[]; kind: string }) {
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={9} className="muted" style={{ padding: 16 }}>
+              <td colSpan={10} className="muted" style={{ padding: 16 }}>
                 No matches.
               </td>
             </tr>
@@ -33,7 +36,9 @@ function Table({ rows, kind }: { rows: ExposureRow[]; kind: string }) {
             rows.map((r) => (
               <tr key={r.id}>
                 <td>
-                  {r.name}
+                  <Link href={`/${base}/${r.id}`} style={{ color: "var(--brand)", fontWeight: 600 }}>
+                    {r.name}
+                  </Link>
                   {r.status !== "ACTIVE" && (
                     <span className="badge orange" style={{ marginLeft: 6 }}>
                       {r.status}
@@ -56,6 +61,9 @@ function Table({ rows, kind }: { rows: ExposureRow[]; kind: string }) {
                   ) : (
                     <span className="muted">none</span>
                   )}
+                </td>
+                <td className="num">
+                  {r.swingline ? mm(r.swingline.consumed) : <span className="muted">—</span>}
                 </td>
                 <td className="num">{r.main ? mm(r.main.outstanding) : "—"}</td>
                 <td className="num">{r.main ? mm(r.main.reserved) : "—"}</td>

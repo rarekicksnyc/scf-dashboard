@@ -7,11 +7,13 @@ export default function UploadPanel() {
   const router = useRouter();
   const [csv, setCsv] = useState("");
   const [fileName, setFileName] = useState("upload.csv");
+  const [xlsxBase64, setXlsxBase64] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function loadSample() {
     setError(null);
+    setXlsxBase64(null);
     const res = await fetch("/api/sample");
     const text = await res.text();
     setCsv(text);
@@ -21,18 +23,33 @@ export default function UploadPanel() {
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    setError(null);
     setFileName(file.name);
-    setCsv(await file.text());
+    if (/\.xlsx?$/i.test(file.name) && !file.name.toLowerCase().endsWith(".csv")) {
+      // Excel: read binary → base64.
+      const buf = await file.arrayBuffer();
+      let bin = "";
+      const bytes = new Uint8Array(buf);
+      for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+      setXlsxBase64(btoa(bin));
+      setCsv(`(Excel file loaded: ${file.name} — ${bytes.length.toLocaleString()} bytes)`);
+    } else {
+      setXlsxBase64(null);
+      setCsv(await file.text());
+    }
   }
 
   async function submit() {
     setBusy(true);
     setError(null);
     try {
+      const payload = xlsxBase64
+        ? { fileBase64: xlsxBase64, fileName }
+        : { csv, fileName };
       const res = await fetch("/api/batches", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ csv, fileName }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -47,6 +64,8 @@ export default function UploadPanel() {
     }
   }
 
+  const canSubmit = xlsxBase64 !== null || csv.trim().length > 0;
+
   return (
     <div className="panel">
       <h2>Upload invoice batch</h2>
@@ -57,31 +76,35 @@ export default function UploadPanel() {
             Load sample batch
           </button>
           <label className="btn secondary" style={{ cursor: "pointer" }}>
-            Choose CSV…
+            Choose CSV / Excel…
             <input
               type="file"
-              accept=".csv,text/csv"
+              accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               onChange={onFile}
               style={{ display: "none" }}
             />
           </label>
-          <button
-            className="btn"
-            onClick={submit}
-            disabled={busy || csv.trim().length === 0}
-            type="button"
-          >
+          <button className="btn" onClick={submit} disabled={busy || !canSubmit} type="button">
             {busy ? "Running eligibility…" : "Run eligibility"}
           </button>
         </div>
+        <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
+          Accepts CSV or Excel (.xlsx), one row per invoice (a single invoice is
+          fine). Recognized columns: seller, seller PCG, obligor, obligor PCG,
+          invoice amount, invoice number (optional), plus currency / dates if
+          present. Seller and obligor match by id, name, or CDL.
+        </div>
         <textarea
           value={csv}
-          onChange={(e) => setCsv(e.target.value)}
-          placeholder="Paste CSV here, load the sample, or choose a file. Columns: invoice_number, seller_id, obligor_id, invoice_amount, currency, issue_date, due_date, requested_discount_date"
+          onChange={(e) => {
+            setCsv(e.target.value);
+            setXlsxBase64(null);
+          }}
+          placeholder="Paste CSV here, load the sample, or choose a CSV/Excel file."
           spellCheck={false}
           style={{
             width: "100%",
-            minHeight: 180,
+            minHeight: 160,
             fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
             fontSize: 12,
             border: "1px solid var(--border)",

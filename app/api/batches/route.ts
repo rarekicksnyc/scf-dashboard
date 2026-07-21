@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { parseInvoiceCsv } from "@/lib/csv";
+import { parseCsvFlexible, parseXlsx } from "@/lib/upload";
 import { runBatch } from "@/lib/engine";
 import {
   getBatches,
@@ -31,19 +31,26 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json().catch(() => null);
-  if (!body || typeof body.csv !== "string") {
+  if (!body || (typeof body.csv !== "string" && typeof body.fileBase64 !== "string")) {
     return NextResponse.json(
-      { error: "Expected JSON body { csv: string, fileName?: string }." },
+      { error: "Expected { csv } or { fileBase64 } (with fileName)." },
       { status: 400 },
     );
   }
 
-  const { invoices, errors } = parseInvoiceCsv(body.csv);
-  if (errors.length > 0 && invoices.length === 0) {
-    return NextResponse.json({ error: errors.join(" ") }, { status: 422 });
-  }
+  // .xlsx arrives base64-encoded; CSV/paste arrives as text. Both go through the
+  // same flexible mapping.
+  const parsed =
+    typeof body.fileBase64 === "string"
+      ? parseXlsx(body.fileBase64)
+      : parseCsvFlexible(body.csv);
+  const { invoices } = parsed;
+  const errors = parsed.warnings;
   if (invoices.length === 0) {
-    return NextResponse.json({ error: "No invoice rows found." }, { status: 422 });
+    return NextResponse.json(
+      { error: errors.length ? errors.join(" ") : "No invoice rows found." },
+      { status: 422 },
+    );
   }
 
   const seq = getBatches().length + 1;
