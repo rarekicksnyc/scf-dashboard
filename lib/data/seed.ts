@@ -1,0 +1,650 @@
+import type {
+  Program,
+  Seller,
+  Obligor,
+  Limit,
+  Utilization,
+  Investor,
+  InsurancePolicy,
+  Reservation,
+  SellerObligorLimit,
+  ParticipationAgreement,
+  InsuranceBuyerSublimit,
+  InsuranceCountryLimit,
+  User,
+  Role,
+  Permission,
+} from "@/lib/types";
+
+// Demo users (stand-in for SSO identities) and the default role → permission
+// map. Both are seeded into the store so they can be edited at runtime on the
+// Roles & Access screen.
+export const users: User[] = [
+  { id: "u_ops", name: "Dana Okafor", role: "OPERATIONS" },
+  { id: "u_credit", name: "Sam Reyes", role: "CREDIT_OFFICER" },
+  { id: "u_product", name: "Riley Chen", role: "PRODUCT_MANAGER" },
+  { id: "u_rm", name: "Priya Nair", role: "RELATIONSHIP_MANAGER" },
+  { id: "u_risk", name: "Morgan Diallo", role: "RISK_MANAGER" },
+  { id: "u_admin", name: "Alex Novak", role: "ADMIN" },
+  { id: "u_viewer", name: "Jordan Blake", role: "VIEWER" },
+];
+
+export const rolePermissions: Record<Role, Permission[]> = {
+  OPERATIONS: ["UPLOAD_BATCH", "VIEW_REPORTS", "VIEW_AUDIT", "GENERATE_PAYMENT_FILE"],
+  CREDIT_OFFICER: ["APPROVE_EXCEPTION", "CHANGE_LIMIT", "VIEW_REPORTS", "VIEW_AUDIT"],
+  PRODUCT_MANAGER: ["UPLOAD_BATCH", "APPROVE_EXCEPTION", "VIEW_REPORTS", "VIEW_AUDIT"],
+  RELATIONSHIP_MANAGER: ["UPLOAD_BATCH", "VIEW_REPORTS"],
+  RISK_MANAGER: ["APPROVE_EXCEPTION", "CHANGE_LIMIT", "VIEW_REPORTS", "VIEW_AUDIT"],
+  ADMIN: [
+    "UPLOAD_BATCH",
+    "APPROVE_EXCEPTION",
+    "CHANGE_LIMIT",
+    "VIEW_REPORTS",
+    "VIEW_AUDIT",
+    "GENERATE_PAYMENT_FILE",
+    "MANAGE_ROLES",
+  ],
+  VIEWER: ["VIEW_REPORTS", "VIEW_AUDIT"],
+};
+
+// ---------------------------------------------------------------------------
+// Demo data for a single seller-led discounting program. Numbers are chosen to
+// exercise the engine: e.g. SELLER001 has $50MM of seller headroom but only
+// $20MM of ASR headroom, so a large batch passes the seller limit and fails
+// ASR — the exact case that makes an independent ASR control worth having.
+// ---------------------------------------------------------------------------
+
+export const programs: Program[] = [
+  {
+    id: "PRG001",
+    name: "Seller-Led Discounting Program",
+    productType: "SELLER_LED_DISCOUNTING",
+    baseCurrency: "USD",
+    maxTenorDays: 180,
+    status: "ACTIVE",
+  },
+];
+
+export const sellers: Seller[] = [
+  {
+    id: "SELLER001",
+    name: "Meridian Components Inc",
+    cdl: "CUS-100482",
+    status: "ACTIVE",
+    eligible: true,
+    programId: "PRG001",
+    currency: "USD",
+    internalRating: "BBB",
+    asrRating: "3",
+    asrExpiry: "2026-12-31",
+    borrowerRating: "BBB",
+    borrowerRatingExpiry: "2027-03-31",
+    guarantor: "Meridian Holdings LLC",
+    gcarsNumber: "GC-88213",
+    minPricingBps: 90,
+    rrlEnabled: true,
+    rrlLimit: 20_000_000,
+    rrlExpiry: "2026-12-31",
+    documents: [
+      { type: "MASTER_RECEIVABLES_PURCHASE_AGREEMENT", status: "RECEIVED" },
+      { type: "ASSIGNMENT_NOTICE", status: "RECEIVED" },
+      { type: "KYB_REFRESH", status: "RECEIVED", expiryDate: "2027-01-31" },
+    ],
+  },
+  {
+    id: "SELLER002",
+    name: "Atlas Textiles Ltd",
+    cdl: "CUS-100517",
+    status: "ACTIVE",
+    eligible: true,
+    programId: "PRG001",
+    currency: "USD",
+    internalRating: "BB+",
+    asrRating: "4B",
+    asrExpiry: "2026-12-31",
+    borrowerRating: "BB+",
+    borrowerRatingExpiry: "2026-08-31",
+    guarantor: "None",
+    gcarsNumber: "GC-88240",
+    minPricingBps: 110,
+    rrlEnabled: false,
+    rrlLimit: 0,
+    rrlExpiry: "",
+    documents: [
+      { type: "MASTER_RECEIVABLES_PURCHASE_AGREEMENT", status: "RECEIVED" },
+      { type: "ASSIGNMENT_NOTICE", status: "MISSING" },
+      { type: "KYB_REFRESH", status: "RECEIVED", expiryDate: "2026-09-30" },
+    ],
+  },
+];
+
+export const obligors: Obligor[] = [
+  {
+    id: "OBL001",
+    name: "Global Retail Corp",
+    cdl: "CUS-200341",
+    status: "ACTIVE",
+    eligible: true,
+    country: "US",
+    sector: "Retail",
+    internalRating: "A-",
+    hasGuarantee: true,
+    guaranteeEligible: true,
+  },
+  {
+    id: "OBL002",
+    name: "Northwind Manufacturing",
+    cdl: "CUS-200358",
+    status: "ACTIVE",
+    eligible: true,
+    country: "US",
+    sector: "Industrials",
+    internalRating: "BBB",
+    hasGuarantee: false,
+    guaranteeEligible: false,
+  },
+  {
+    id: "OBL003",
+    name: "Pacific Distribution Co",
+    cdl: "CUS-200362",
+    status: "ACTIVE",
+    eligible: true,
+    country: "US",
+    sector: "Logistics",
+    internalRating: "BB",
+    hasGuarantee: true,
+    guaranteeEligible: false,
+  },
+  {
+    id: "OBL004",
+    name: "Cedar Foods Group",
+    cdl: "CUS-200377",
+    status: "WATCHLIST",
+    eligible: false,
+    country: "US",
+    sector: "Consumer",
+    internalRating: "B+",
+    hasGuarantee: false,
+    guaranteeEligible: false,
+  },
+];
+
+export const investors: Investor[] = [
+  {
+    id: "INV-A",
+    name: "Meridian Capital Partners",
+    status: "ACTIVE",
+    currency: "USD",
+    eligibleObligorIds: ["OBL001", "OBL002"],
+    minTenorDays: 30,
+    maxTenorDays: 180,
+    minTicket: 1_000_000,
+    maxTicket: 10_000_000,
+    pricingFloorBps: 100,
+  },
+  {
+    id: "INV-B",
+    name: "Harborline Funding LLC",
+    status: "ACTIVE",
+    currency: "USD",
+    eligibleObligorIds: ["OBL001"],
+    minTenorDays: 30,
+    maxTenorDays: 120,
+    minTicket: 1_000_000,
+    maxTicket: 8_000_000,
+    pricingFloorBps: 115,
+  },
+];
+
+export const insurancePolicies: InsurancePolicy[] = [
+  {
+    id: "POL-1",
+    insurerName: "Atradius",
+    policyNumber: "ATR-2026-0091",
+    coveragePercent: 0.9,
+    coveredObligorIds: ["OBL001", "OBL002", "OBL003"],
+    maxTenorDays: 180,
+    effectiveDate: "2026-01-01",
+    expiryDate: "2026-12-31",
+    recourseToSeller: true,
+    status: "ACTIVE",
+  },
+];
+
+// ASR approved-obligor sublimits per seller. Note OBL001 (master line $40MM)
+// is approved at $30MM under SELLER001's ASR but only $15MM under SELLER002's —
+// the "different limit under different sellers" case. A transaction must fit
+// under BOTH the master obligor line and the seller's ASR sublimit.
+export const sellerObligorLimits: SellerObligorLimit[] = [
+  { sellerId: "SELLER001", obligorId: "OBL001", approvedLimit: 30_000_000, maxTenorDays: 150 },
+  { sellerId: "SELLER001", obligorId: "OBL002", approvedLimit: 20_000_000, maxTenorDays: 150 },
+  { sellerId: "SELLER001", obligorId: "OBL003", approvedLimit: 12_000_000, maxTenorDays: 90 },
+  // OBL004 is intentionally NOT on SELLER001's ASR approved list.
+  { sellerId: "SELLER002", obligorId: "OBL001", approvedLimit: 15_000_000, maxTenorDays: 120 },
+  { sellerId: "SELLER002", obligorId: "OBL003", approvedLimit: 8_000_000, maxTenorDays: 90 },
+];
+
+export const participationAgreements: ParticipationAgreement[] = [
+  { investorId: "INV-A", sellerId: "SELLER001", executed: true },
+  { investorId: "INV-A", sellerId: "SELLER002", executed: true },
+  { investorId: "INV-B", sellerId: "SELLER001", executed: true },
+  { investorId: "INV-B", sellerId: "SELLER002", executed: false }, // not executed
+];
+
+export const insuranceBuyerSublimits: InsuranceBuyerSublimit[] = [
+  { policyId: "POL-1", obligorId: "OBL001", sublimit: 20_000_000 },
+  { policyId: "POL-1", obligorId: "OBL002", sublimit: 15_000_000 },
+  { policyId: "POL-1", obligorId: "OBL003", sublimit: 10_000_000 },
+];
+
+export const insuranceCountryLimits: InsuranceCountryLimit[] = [
+  { policyId: "POL-1", country: "US", limit: 40_000_000 },
+];
+
+// Limits are the approved ceilings. Available capacity is never stored here —
+// it is derived from these plus the matching Utilization row.
+export const limits: Limit[] = [
+  // Seller relationship limit — generous headroom.
+  {
+    id: "LMT-SEL-001",
+    type: "SELLER",
+    entityType: "SELLER",
+    entityId: "SELLER001",
+    programId: "PRG001",
+    currency: "USD",
+    approvedLimit: 100_000_000,
+    maxTenorDays: 150,
+    effectiveDate: "2026-01-01",
+    expiryDate: "2026-12-31",
+    status: "ACTIVE",
+    warnThreshold: 0.85,
+    exceptionThreshold: 1.0,
+  },
+  // ASR limit — the binding constraint for SELLER001 (only $20MM free).
+  {
+    id: "LMT-ASR-001",
+    type: "ASR",
+    entityType: "SELLER",
+    entityId: "SELLER001",
+    programId: "PRG001",
+    currency: "USD",
+    approvedLimit: 75_000_000,
+    maxTenorDays: 120,
+    effectiveDate: "2026-01-01",
+    expiryDate: "2026-12-31",
+    status: "ACTIVE",
+    warnThreshold: 0.85,
+    exceptionThreshold: 1.0,
+  },
+  // Seller + ASR for SELLER002.
+  {
+    id: "LMT-SEL-002",
+    type: "SELLER",
+    entityType: "SELLER",
+    entityId: "SELLER002",
+    programId: "PRG001",
+    currency: "USD",
+    approvedLimit: 40_000_000,
+    maxTenorDays: 120,
+    effectiveDate: "2026-01-01",
+    expiryDate: "2026-12-31",
+    status: "ACTIVE",
+    warnThreshold: 0.85,
+    exceptionThreshold: 1.0,
+  },
+  {
+    id: "LMT-ASR-002",
+    type: "ASR",
+    entityType: "SELLER",
+    entityId: "SELLER002",
+    programId: "PRG001",
+    currency: "USD",
+    approvedLimit: 30_000_000,
+    maxTenorDays: 120,
+    effectiveDate: "2026-01-01",
+    expiryDate: "2026-08-18", // near-term — exercises the 30-day expiry flag
+    status: "ACTIVE",
+    warnThreshold: 0.85,
+    exceptionThreshold: 1.0,
+  },
+  // Obligor concentration limits.
+  {
+    id: "LMT-OBL-001",
+    type: "OBLIGOR",
+    entityType: "OBLIGOR",
+    entityId: "OBL001",
+    programId: "PRG001",
+    currency: "USD",
+    approvedLimit: 40_000_000,
+    maxTenorDays: 180,
+    effectiveDate: "2026-01-01",
+    expiryDate: "2026-12-31",
+    status: "ACTIVE",
+    warnThreshold: 0.85,
+    exceptionThreshold: 1.0,
+  },
+  {
+    id: "LMT-OBL-002",
+    type: "OBLIGOR",
+    entityType: "OBLIGOR",
+    entityId: "OBL002",
+    programId: "PRG001",
+    currency: "USD",
+    approvedLimit: 25_000_000,
+    maxTenorDays: 150,
+    effectiveDate: "2026-01-01",
+    expiryDate: "2026-09-12", // near-term — exercises the 60-day expiry flag
+    status: "ACTIVE",
+    warnThreshold: 0.85,
+    exceptionThreshold: 1.0,
+  },
+  {
+    id: "LMT-OBL-003",
+    type: "OBLIGOR",
+    entityType: "OBLIGOR",
+    entityId: "OBL003",
+    programId: "PRG001",
+    currency: "USD",
+    approvedLimit: 15_000_000,
+    maxTenorDays: 90, // tight obligor tenor — will bind on longer invoices
+    effectiveDate: "2026-01-01",
+    expiryDate: "2026-12-31",
+    status: "ACTIVE",
+    warnThreshold: 0.85,
+    exceptionThreshold: 1.0,
+  },
+  {
+    id: "LMT-OBL-004",
+    type: "OBLIGOR",
+    entityType: "OBLIGOR",
+    entityId: "OBL004",
+    programId: "PRG001",
+    currency: "USD",
+    approvedLimit: 10_000_000,
+    maxTenorDays: 120,
+    effectiveDate: "2026-01-01",
+    expiryDate: "2026-12-31",
+    status: "ACTIVE",
+    warnThreshold: 0.85,
+    exceptionThreshold: 1.0,
+  },
+  // Per-entity swinglines — temporary bank funding caps. Not every line carries
+  // one (toggled on the setup screen): SELLER001 + OBL001 + OBL003 have them;
+  // SELLER002, OBL002, OBL004 do not.
+  {
+    id: "LMT-SWL-SELLER001",
+    type: "SWINGLINE",
+    entityType: "SELLER",
+    entityId: "SELLER001",
+    programId: "PRG001",
+    currency: "USD",
+    approvedLimit: 30_000_000,
+    maxTenorDays: 45,
+    effectiveDate: "2026-01-01",
+    expiryDate: "2026-12-31",
+    status: "ACTIVE",
+    warnThreshold: 0.85,
+    exceptionThreshold: 1.0,
+  },
+  {
+    id: "LMT-SWL-OBL001",
+    type: "SWINGLINE",
+    entityType: "OBLIGOR",
+    entityId: "OBL001",
+    programId: "PRG001",
+    currency: "USD",
+    approvedLimit: 10_000_000,
+    maxTenorDays: 45,
+    effectiveDate: "2026-01-01",
+    expiryDate: "2026-12-31",
+    status: "ACTIVE",
+    warnThreshold: 0.85,
+    exceptionThreshold: 1.0,
+  },
+  {
+    id: "LMT-SWL-OBL003",
+    type: "SWINGLINE",
+    entityType: "OBLIGOR",
+    entityId: "OBL003",
+    programId: "PRG001",
+    currency: "USD",
+    approvedLimit: 5_000_000,
+    maxTenorDays: 45,
+    effectiveDate: "2026-01-01",
+    expiryDate: "2026-07-15", // already lapsed — exercises the EXPIRED flag
+    status: "ACTIVE",
+    warnThreshold: 0.85,
+    exceptionThreshold: 1.0,
+  },
+  // Investor distribution capacity.
+  {
+    id: "LMT-INV-A",
+    type: "INVESTOR",
+    entityType: "INVESTOR",
+    entityId: "INV-A",
+    programId: "PRG001",
+    currency: "USD",
+    approvedLimit: 40_000_000,
+    maxTenorDays: 180,
+    effectiveDate: "2026-01-01",
+    expiryDate: "2026-12-31",
+    status: "ACTIVE",
+    warnThreshold: 0.85,
+    exceptionThreshold: 1.0,
+  },
+  {
+    id: "LMT-INV-B",
+    type: "INVESTOR",
+    entityType: "INVESTOR",
+    entityId: "INV-B",
+    programId: "PRG001",
+    currency: "USD",
+    approvedLimit: 25_000_000,
+    maxTenorDays: 120,
+    effectiveDate: "2026-01-01",
+    expiryDate: "2026-12-31",
+    status: "ACTIVE",
+    warnThreshold: 0.85,
+    exceptionThreshold: 1.0,
+  },
+  // Insurance policy capacity — coveragePercent drives the insured amount.
+  {
+    id: "LMT-INS-1",
+    type: "INSURANCE",
+    entityType: "INSURER_POLICY",
+    entityId: "POL-1",
+    programId: "PRG001",
+    currency: "USD",
+    approvedLimit: 50_000_000,
+    maxTenorDays: 180,
+    effectiveDate: "2026-01-01",
+    expiryDate: "2026-12-31",
+    status: "ACTIVE",
+    warnThreshold: 0.85,
+    exceptionThreshold: 1.0,
+    coveragePercent: 0.9,
+  },
+];
+
+export const utilizations: Utilization[] = [
+  // SELLER001 seller: $50MM consumed of $100MM → $50MM free.
+  {
+    limitId: "LMT-SEL-001",
+    fundedOutstanding: 42_000_000,
+    pendingApproved: 8_000_000,
+    pendingSettlement: 0,
+    pendingRequested: 0,
+    confirmedRepayments: 0,
+  },
+  // SELLER001 ASR: $54MM consumed of $75MM → only $21MM free (binding).
+  {
+    limitId: "LMT-ASR-001",
+    fundedOutstanding: 44_000_000,
+    pendingApproved: 0,
+    pendingSettlement: 10_000_000,
+    pendingRequested: 0,
+    confirmedRepayments: 0,
+  },
+  {
+    limitId: "LMT-SEL-002",
+    fundedOutstanding: 12_000_000,
+    pendingApproved: 0,
+    pendingSettlement: 0,
+    pendingRequested: 0,
+    confirmedRepayments: 0,
+  },
+  {
+    limitId: "LMT-ASR-002",
+    fundedOutstanding: 8_000_000,
+    pendingApproved: 0,
+    pendingSettlement: 0,
+    pendingRequested: 0,
+    confirmedRepayments: 0,
+  },
+  {
+    limitId: "LMT-OBL-001",
+    fundedOutstanding: 10_000_000,
+    pendingApproved: 0,
+    pendingSettlement: 0,
+    pendingRequested: 0,
+    confirmedRepayments: 0,
+  },
+  {
+    limitId: "LMT-OBL-002",
+    fundedOutstanding: 20_000_000,
+    pendingApproved: 0,
+    pendingSettlement: 0,
+    pendingRequested: 0,
+    confirmedRepayments: 0,
+  },
+  {
+    limitId: "LMT-OBL-003",
+    fundedOutstanding: 13_500_000, // only $1.5MM free
+    pendingApproved: 0,
+    pendingSettlement: 0,
+    pendingRequested: 0,
+    confirmedRepayments: 0,
+  },
+  {
+    limitId: "LMT-OBL-004",
+    fundedOutstanding: 2_000_000,
+    pendingApproved: 0,
+    pendingSettlement: 0,
+    pendingRequested: 0,
+    confirmedRepayments: 0,
+  },
+  {
+    limitId: "LMT-SWL-SELLER001",
+    fundedOutstanding: 18_000_000, // $12MM base swingline headroom
+    pendingApproved: 0,
+    pendingSettlement: 0,
+    pendingRequested: 0,
+    confirmedRepayments: 0,
+  },
+  {
+    limitId: "LMT-SWL-OBL001",
+    fundedOutstanding: 2_000_000,
+    pendingApproved: 0,
+    pendingSettlement: 0,
+    pendingRequested: 0,
+    confirmedRepayments: 0,
+  },
+  {
+    limitId: "LMT-SWL-OBL003",
+    fundedOutstanding: 0,
+    pendingApproved: 0,
+    pendingSettlement: 0,
+    pendingRequested: 0,
+    confirmedRepayments: 0,
+  },
+  {
+    limitId: "LMT-INV-A",
+    fundedOutstanding: 15_000_000, // $25MM free
+    pendingApproved: 0,
+    pendingSettlement: 0,
+    pendingRequested: 0,
+    confirmedRepayments: 0,
+  },
+  {
+    limitId: "LMT-INV-B",
+    fundedOutstanding: 5_000_000, // $20MM free
+    pendingApproved: 0,
+    pendingSettlement: 0,
+    pendingRequested: 0,
+    confirmedRepayments: 0,
+  },
+  {
+    limitId: "LMT-INS-1",
+    fundedOutstanding: 20_000_000, // $30MM insured capacity free
+    pendingApproved: 0,
+    pendingSettlement: 0,
+    pendingRequested: 0,
+    confirmedRepayments: 0,
+  },
+];
+
+// Forward-booked reservations. Each marks exposure against both its seller and
+// obligor (and both swinglines when usesSwingline). Dated around 2026-07 to
+// 2026-11 so they populate the schedule calendar.
+export const reservations: Reservation[] = [
+  {
+    id: "RSV-00001",
+    sellerId: "SELLER001",
+    obligorId: "OBL001",
+    amount: 3_000_000,
+    currency: "USD",
+    valueDate: "2026-07-28",
+    maturityDate: "2026-10-26",
+    pricingBps: 120,
+    tenorDays: 90,
+    usesSwingline: true,
+    status: "RESERVED",
+    createdAt: "2026-07-20T09:00:00.000Z",
+    createdBy: "u_ops",
+  },
+  {
+    id: "RSV-00002",
+    sellerId: "SELLER001",
+    obligorId: "OBL002",
+    amount: 2_000_000,
+    currency: "USD",
+    valueDate: "2026-08-06",
+    maturityDate: "2026-11-04",
+    pricingBps: 135,
+    tenorDays: 90,
+    usesSwingline: false,
+    status: "RESERVED",
+    createdAt: "2026-07-20T09:05:00.000Z",
+    createdBy: "u_ops",
+  },
+  {
+    id: "RSV-00003",
+    sellerId: "SELLER002",
+    obligorId: "OBL001",
+    amount: 2_000_000,
+    currency: "USD",
+    valueDate: "2026-08-18",
+    maturityDate: "2026-10-17",
+    pricingBps: 110,
+    tenorDays: 60,
+    usesSwingline: false,
+    status: "RESERVED",
+    createdAt: "2026-07-20T09:10:00.000Z",
+    createdBy: "u_ops",
+  },
+  {
+    id: "RSV-00004",
+    sellerId: "SELLER002",
+    obligorId: "OBL002",
+    amount: 2_000_000,
+    currency: "USD",
+    valueDate: "2026-07-31",
+    maturityDate: "2026-09-29",
+    pricingBps: 150,
+    tenorDays: 60,
+    usesSwingline: false,
+    status: "RESERVED",
+    createdAt: "2026-07-20T09:15:00.000Z",
+    createdBy: "u_ops",
+  },
+];

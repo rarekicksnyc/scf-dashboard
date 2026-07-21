@@ -1,0 +1,2 @@
+invoice_number,seller_id,obligor_id,invoice_amount,currency,issue_date,due_date,requested_discount_date
+INV-0001,SELLER001,OBL001,1000000,USD,2026-07-01,2026-10-01,2026-07-20

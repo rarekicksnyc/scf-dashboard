@@ -1,0 +1,234 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import type { LimitType } from "@/lib/types";
+
+interface Opt {
+  id: string;
+  name: string;
+}
+type Mode = "LIMIT" | "SELLER" | "OBLIGOR" | "ASR_SUBLIMIT";
+
+const input = {
+  border: "1px solid var(--border)",
+  borderRadius: 6,
+  padding: "7px 8px",
+  fontSize: 13,
+};
+const field = { display: "flex", flexDirection: "column" as const, gap: 4, fontSize: 12 };
+
+const LIMIT_TYPES: LimitType[] = [
+  "SELLER",
+  "ASR",
+  "OBLIGOR",
+  "SWINGLINE",
+  "INVESTOR",
+  "INSURANCE",
+];
+
+export default function AddToRegistry({
+  sellers,
+  obligors,
+  investors,
+  policies,
+}: {
+  sellers: Opt[];
+  obligors: Opt[];
+  investors: Opt[];
+  policies: Opt[];
+}) {
+  const router = useRouter();
+  const [mode, setMode] = useState<Mode>("LIMIT");
+  const [limitType, setLimitType] = useState<LimitType>("ASR");
+  const [f, setF] = useState({
+    entityId: "",
+    name: "",
+    cdl: "",
+    country: "US",
+    sellerId: sellers[0]?.id ?? "",
+    obligorId: obligors[0]?.id ?? "",
+    approvedLimit: "25000000",
+    maxTenorDays: "150",
+    expiryDate: "2026-12-31",
+  });
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  function set<K extends keyof typeof f>(k: K, v: (typeof f)[K]) {
+    setF((s) => ({ ...s, [k]: v }));
+  }
+
+  // Which entities are valid for the chosen limit type, with their entityType.
+  const entityOptions = useMemo(() => {
+    const S = (o: Opt) => ({ ...o, entityType: "SELLER" as const });
+    const O = (o: Opt) => ({ ...o, entityType: "OBLIGOR" as const });
+    switch (limitType) {
+      case "SELLER":
+      case "ASR":
+        return sellers.map(S);
+      case "OBLIGOR":
+        return obligors.map(O);
+      case "SWINGLINE":
+        return [...sellers.map(S), ...obligors.map(O)];
+      case "INVESTOR":
+        return investors.map((o) => ({ ...o, entityType: "INVESTOR" as const }));
+      case "INSURANCE":
+        return policies.map((o) => ({ ...o, entityType: "INSURER_POLICY" as const }));
+      default:
+        return [];
+    }
+  }, [limitType, sellers, obligors, investors, policies]);
+
+  async function submit() {
+    setBusy(true);
+    setMsg(null);
+    let body: Record<string, unknown> = { kind: mode };
+    if (mode === "LIMIT") {
+      const ent = entityOptions.find((e) => e.id === f.entityId) ?? entityOptions[0];
+      if (!ent) {
+        setMsg({ ok: false, text: "No entity available for this limit type." });
+        setBusy(false);
+        return;
+      }
+      body = {
+        kind: "LIMIT",
+        type: limitType,
+        entityType: ent.entityType,
+        entityId: ent.id,
+        approvedLimit: Number(f.approvedLimit),
+        maxTenorDays: Number(f.maxTenorDays),
+        expiryDate: f.expiryDate,
+      };
+    } else if (mode === "SELLER" || mode === "OBLIGOR") {
+      body = {
+        kind: mode,
+        name: f.name,
+        cdl: f.cdl,
+        country: f.country,
+        approvedLimit: Number(f.approvedLimit),
+        maxTenorDays: Number(f.maxTenorDays),
+        expiryDate: f.expiryDate,
+      };
+    } else {
+      body = {
+        kind: "ASR_SUBLIMIT",
+        sellerId: f.sellerId,
+        obligorId: f.obligorId,
+        approvedLimit: Number(f.approvedLimit),
+        maxTenorDays: Number(f.maxTenorDays),
+      };
+    }
+    const res = await fetch("/api/registry", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    setBusy(false);
+    if (!res.ok) {
+      setMsg({ ok: false, text: data.error ?? "Failed." });
+      return;
+    }
+    setMsg({ ok: true, text: "Added to the register." });
+    router.refresh();
+  }
+
+  const amountLabel =
+    mode === "SELLER"
+      ? "Credit limit (USD)"
+      : mode === "OBLIGOR"
+        ? "Master limit (USD)"
+        : mode === "ASR_SUBLIMIT"
+          ? "Sublimit (USD)"
+          : "Approved limit (USD)";
+
+  return (
+    <div className="panel">
+      <h2>Add to register</h2>
+      <div style={{ padding: 18 }}>
+        {msg && <div className={`notice ${msg.ok ? "ok" : "err"}`}>{msg.text}</div>}
+
+        <div className="tabs" style={{ marginBottom: 14 }}>
+          {(["LIMIT", "SELLER", "OBLIGOR", "ASR_SUBLIMIT"] as Mode[]).map((m) => (
+            <button
+              key={m}
+              type="button"
+              className={`tab ${mode === m ? "on" : ""}`}
+              style={{ background: "none", border: "none", cursor: "pointer" }}
+              onClick={() => setMode(m)}
+            >
+              {m === "LIMIT" ? "New limit" : m === "SELLER" ? "New seller" : m === "OBLIGOR" ? "New obligor" : "ASR sublimit"}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 }}>
+          {mode === "LIMIT" && (
+            <>
+              <label style={field}>Limit type
+                <select style={input} value={limitType} onChange={(e) => setLimitType(e.target.value as LimitType)}>
+                  {LIMIT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </label>
+              <label style={field}>Entity
+                <select style={input} value={f.entityId} onChange={(e) => set("entityId", e.target.value)}>
+                  {entityOptions.map((e) => (
+                    <option key={`${e.entityType}-${e.id}`} value={e.id}>{e.name}</option>
+                  ))}
+                </select>
+              </label>
+            </>
+          )}
+
+          {(mode === "SELLER" || mode === "OBLIGOR") && (
+            <>
+              <label style={field}>Name
+                <input style={input} value={f.name} onChange={(e) => set("name", e.target.value)} />
+              </label>
+              <label style={field}>CDL
+                <input style={input} value={f.cdl} onChange={(e) => set("cdl", e.target.value)} placeholder="CUS-XXXXXX" />
+              </label>
+              {mode === "OBLIGOR" && (
+                <label style={field}>Country
+                  <input style={input} value={f.country} onChange={(e) => set("country", e.target.value)} />
+                </label>
+              )}
+            </>
+          )}
+
+          {mode === "ASR_SUBLIMIT" && (
+            <>
+              <label style={field}>Seller
+                <select style={input} value={f.sellerId} onChange={(e) => set("sellerId", e.target.value)}>
+                  {sellers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </label>
+              <label style={field}>Obligor
+                <select style={input} value={f.obligorId} onChange={(e) => set("obligorId", e.target.value)}>
+                  {obligors.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                </select>
+              </label>
+            </>
+          )}
+
+          <label style={field}>{amountLabel}
+            <input style={input} type="number" value={f.approvedLimit} onChange={(e) => set("approvedLimit", e.target.value)} />
+          </label>
+          <label style={field}>Max tenor (days)
+            <input style={input} type="number" value={f.maxTenorDays} onChange={(e) => set("maxTenorDays", e.target.value)} />
+          </label>
+          {mode !== "ASR_SUBLIMIT" && (
+            <label style={field}>Expiry date
+              <input style={input} type="date" value={f.expiryDate} onChange={(e) => set("expiryDate", e.target.value)} />
+            </label>
+          )}
+        </div>
+
+        <button className="btn" style={{ marginTop: 14 }} onClick={submit} disabled={busy} type="button">
+          {busy ? "Adding…" : "Add to register"}
+        </button>
+      </div>
+    </div>
+  );
+}
