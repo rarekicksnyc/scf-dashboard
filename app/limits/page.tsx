@@ -67,6 +67,7 @@ export default async function LimitsRegisterPage() {
                 <tr>
                   <th>Limit</th>
                   <th>Entity</th>
+                  <th>CDL</th>
                   <th className="num">Approved</th>
                   <th className="num">Outstanding</th>
                   <th className="num">Reserved</th>

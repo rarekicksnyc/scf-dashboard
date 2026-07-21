@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { LimitType } from "@/lib/types";
 
 interface Opt {
   id: string;
   name: string;
+  cdl?: string;
 }
 type Mode = "LIMIT" | "SELLER" | "OBLIGOR" | "ASR_SUBLIMIT";
 
@@ -80,6 +81,15 @@ export default function AddToRegistry({
     }
   }, [limitType, sellers, obligors, investors, policies]);
 
+  // In New-limit mode, prefill the CDL from the selected entity (sellers and
+  // obligors carry one; investor/insurance lines need a fresh CDL input).
+  useEffect(() => {
+    if (mode !== "LIMIT") return;
+    const first = entityOptions[0];
+    setF((s) => ({ ...s, entityId: first?.id ?? "", cdl: first?.cdl ?? "" }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, limitType]);
+
   async function submit() {
     setBusy(true);
     setMsg(null);
@@ -94,6 +104,7 @@ export default function AddToRegistry({
       body = {
         kind: "LIMIT",
         type: limitType,
+        cdl: f.cdl,
         entityType: ent.entityType,
         entityId: ent.id,
         approvedLimit: Number(f.approvedLimit),
@@ -172,11 +183,21 @@ export default function AddToRegistry({
                 </select>
               </label>
               <label style={field}>Entity
-                <select style={input} value={f.entityId} onChange={(e) => set("entityId", e.target.value)}>
+                <select
+                  style={input}
+                  value={f.entityId}
+                  onChange={(e) => {
+                    const opt = entityOptions.find((o) => o.id === e.target.value);
+                    setF((s) => ({ ...s, entityId: e.target.value, cdl: opt?.cdl ?? s.cdl }));
+                  }}
+                >
                   {entityOptions.map((e) => (
                     <option key={`${e.entityType}-${e.id}`} value={e.id}>{e.name}</option>
                   ))}
                 </select>
+              </label>
+              <label style={field}>CDL (8-digit)
+                <input style={input} value={f.cdl} onChange={(e) => set("cdl", e.target.value)} placeholder="e.g. 10048201" />
               </label>
             </>
           )}
@@ -186,8 +207,8 @@ export default function AddToRegistry({
               <label style={field}>Name
                 <input style={input} value={f.name} onChange={(e) => set("name", e.target.value)} />
               </label>
-              <label style={field}>CDL
-                <input style={input} value={f.cdl} onChange={(e) => set("cdl", e.target.value)} placeholder="CUS-XXXXXX" />
+              <label style={field}>CDL (8-digit)
+                <input style={input} value={f.cdl} onChange={(e) => set("cdl", e.target.value)} placeholder="e.g. 10048201" />
               </label>
               {mode === "OBLIGOR" && (
                 <label style={field}>Country

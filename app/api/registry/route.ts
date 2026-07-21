@@ -26,6 +26,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Expected a 'kind'." }, { status: 400 });
   }
 
+  // Any record that books exposure needs an 8-digit CDL.
+  const isCdl = (v: unknown) => typeof v === "string" && /^\d{8}$/.test(v);
+
   try {
     let audit = "";
     let created: unknown;
@@ -34,18 +37,22 @@ export async function POST(request: Request) {
       if (!b.type || !b.entityType || !b.entityId || !(Number(b.approvedLimit) >= 0)) {
         return NextResponse.json({ error: "Missing limit fields." }, { status: 422 });
       }
+      if (!isCdl(b.cdl)) {
+        return NextResponse.json({ error: "A CDL is required — an 8-digit customer code." }, { status: 422 });
+      }
       created = addLimit({
         type: b.type,
+        cdl: b.cdl,
         entityType: b.entityType,
         entityId: b.entityId,
         approvedLimit: Number(b.approvedLimit),
         maxTenorDays: Number(b.maxTenorDays) || 90,
         expiryDate: b.expiryDate || "2026-12-31",
       });
-      audit = `Added ${b.type} limit ${Number(b.approvedLimit).toLocaleString()} for ${b.entityId}.`;
+      audit = `Added ${b.type} limit ${Number(b.approvedLimit).toLocaleString()} (CDL ${b.cdl}) for ${b.entityId}.`;
     } else if (b.kind === "SELLER") {
-      if (!b.name || !b.cdl) {
-        return NextResponse.json({ error: "Seller needs name and CDL." }, { status: 422 });
+      if (!b.name || !isCdl(b.cdl)) {
+        return NextResponse.json({ error: "Seller needs a name and an 8-digit CDL." }, { status: 422 });
       }
       created = addSeller({
         name: b.name,
@@ -56,8 +63,8 @@ export async function POST(request: Request) {
       });
       audit = `Added seller ${b.name} (${b.cdl}) with credit limit ${Number(b.approvedLimit).toLocaleString()}.`;
     } else if (b.kind === "OBLIGOR") {
-      if (!b.name || !b.cdl) {
-        return NextResponse.json({ error: "Obligor needs name and CDL." }, { status: 422 });
+      if (!b.name || !isCdl(b.cdl)) {
+        return NextResponse.json({ error: "Obligor needs a name and an 8-digit CDL." }, { status: 422 });
       }
       created = addObligor({
         name: b.name,

@@ -23,11 +23,18 @@ export async function PATCH(
     maxTenorDays?: number;
     expiryDate?: string;
     status?: EntityStatus;
+    cdl?: string;
   } = {};
   if (b.approvedLimit != null && Number(b.approvedLimit) >= 0) patch.approvedLimit = Number(b.approvedLimit);
   if (b.maxTenorDays != null && Number(b.maxTenorDays) >= 0) patch.maxTenorDays = Number(b.maxTenorDays);
   if (typeof b.expiryDate === "string") patch.expiryDate = b.expiryDate;
   if (typeof b.status === "string") patch.status = b.status as EntityStatus;
+  if (typeof b.cdl === "string") {
+    if (!/^\d{8}$/.test(b.cdl)) {
+      return NextResponse.json({ error: "CDL must be an 8-digit customer code." }, { status: 422 });
+    }
+    patch.cdl = b.cdl;
+  }
 
   const updated = updateLimit(id, patch);
   if (!updated) {

@@ -211,11 +211,13 @@ export function reservationConsumedForLimit(limit: Limit): number {
     case "OBLIGOR":
       return sum(active.filter((r) => r.obligorId === limit.entityId));
     case "SWINGLINE":
+      // A swingline is a core limit: every reservation against an entity that
+      // has one draws on it.
       if (limit.entityType === "SELLER") {
-        return sum(active.filter((r) => r.usesSwingline && r.sellerId === limit.entityId));
+        return sum(active.filter((r) => r.sellerId === limit.entityId));
       }
       if (limit.entityType === "OBLIGOR") {
-        return sum(active.filter((r) => r.usesSwingline && r.obligorId === limit.entityId));
+        return sum(active.filter((r) => r.obligorId === limit.entityId));
       }
       return 0;
     // ASR is consumed at actual discounting, not by forward reservations; and
@@ -371,7 +373,7 @@ export function setUserRole(userId: string, role: Role): void {
 
 export function updateLimit(
   id: string,
-  patch: Partial<Pick<Limit, "approvedLimit" | "maxTenorDays" | "expiryDate" | "status">>,
+  patch: Partial<Pick<Limit, "approvedLimit" | "maxTenorDays" | "expiryDate" | "status" | "cdl">>,
 ): Limit | undefined {
   const l = store.limits.find((x) => x.id === id);
   if (!l) return undefined;
@@ -379,6 +381,7 @@ export function updateLimit(
   if (patch.maxTenorDays != null) l.maxTenorDays = patch.maxTenorDays;
   if (patch.expiryDate != null) l.expiryDate = patch.expiryDate;
   if (patch.status != null) l.status = patch.status;
+  if (patch.cdl != null) l.cdl = patch.cdl;
   return l;
 }
 
@@ -437,6 +440,7 @@ export function setLimitAmount(limitId: string, amount: number): void {
 
 export interface NewLimitInput {
   type: LimitType;
+  cdl: string;
   entityType: Limit["entityType"];
   entityId: string;
   approvedLimit: number;
@@ -450,6 +454,7 @@ export function addLimit(input: NewLimitInput): Limit {
   const limit: Limit = {
     id: `LMT-${input.type}-${String(seq).padStart(3, "0")}`,
     type: input.type,
+    cdl: input.cdl,
     entityType: input.entityType,
     entityId: input.entityId,
     programId: "PRG001",
@@ -498,6 +503,7 @@ export function addSeller(input: {
   store.sellers.push(seller);
   addLimit({
     type: "SELLER",
+    cdl: input.cdl,
     entityType: "SELLER",
     entityId: id,
     approvedLimit: input.creditLimit,
@@ -531,6 +537,7 @@ export function addObligor(input: {
   store.obligors.push(obligor);
   addLimit({
     type: "OBLIGOR",
+    cdl: input.cdl,
     entityType: "OBLIGOR",
     entityId: id,
     approvedLimit: input.masterLimit,
@@ -592,9 +599,14 @@ export function setEntitySwingline(
   if (!enabled) return;
   const entity =
     entityType === "SELLER" ? getSeller(entityId) : undefined;
+  const cdl =
+    entityType === "SELLER"
+      ? (getSeller(entityId)?.cdl ?? "")
+      : (getObligor(entityId)?.cdl ?? "");
   store.limits.push({
     id: `LMT-SWL-${entityId}`,
     type: "SWINGLINE",
+    cdl,
     entityType,
     entityId,
     programId: entity?.programId ?? "PRG001",

@@ -25,7 +25,6 @@ export default function ReservationForm({
     valueDate: "2026-08-15",
     maturityDate: "2026-11-13",
     pricingBps: "125",
-    usesSwingline: false,
   });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -138,10 +137,6 @@ export default function ReservationForm({
           <label style={field}>
             Pricing (bps)
             <input style={input} type="number" value={form.pricingBps} onChange={(e) => set("pricingBps", e.target.value)} />
-          </label>
-          <label style={{ ...field, flexDirection: "row", alignItems: "center", gap: 8, marginTop: 20 }}>
-            <input type="checkbox" checked={form.usesSwingline} onChange={(e) => set("usesSwingline", e.target.checked)} />
-            Draws swingline
           </label>
         </div>
         {!blockedReasons && (

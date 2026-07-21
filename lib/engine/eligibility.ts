@@ -131,15 +131,14 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
       expired(seller.asrExpiry, txn.valueDate) ? "ORANGE" : "GREEN",
       expired(seller.asrExpiry, txn.valueDate) ? "ASR rating expired — refresh required." : "ASR rating current.");
 
-    // Seller swingline (only if the transaction draws swingline)
+    // Seller swingline — a core limit: if the seller line carries one, every
+    // transaction against it draws on the swingline, so it is always tested.
     const ssw = entitySwingline("SELLER", seller.id);
-    if (!txn.usesSwingline) {
-      add("SELLER", "Seller swingline", "Applies when drawn", "does not draw swingline", "GREY", "Transaction does not draw swingline.");
-    } else if (ssw) {
+    if (ssw) {
       const v = viewLimit(ssw);
       capacity("SELLER", "Seller swingline", v.available, v.approvedLimit, v.consumed, advanceAmount);
     } else {
-      add("SELLER", "Seller swingline", "Swingline configured", "draws swingline", "ORANGE", "Transaction draws swingline but seller has none configured.");
+      add("SELLER", "Seller swingline", "Not configured", "—", "GREY", "Seller has no swingline (not applicable).");
     }
 
     // RRL — only counted when enabled
@@ -198,14 +197,13 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
       add("OBLIGOR", "Obligor master limit", "Active obligor limit", "—", "RED", "No active obligor limit.");
     }
 
+    // Obligor swingline — same rule: always tested when the obligor has one.
     const osw = entitySwingline("OBLIGOR", obligor.id);
-    if (!txn.usesSwingline) {
-      add("OBLIGOR", "Obligor swingline", "Applies when drawn", "does not draw swingline", "GREY", "Transaction does not draw swingline.");
-    } else if (osw) {
+    if (osw) {
       const v = viewLimit(osw);
       capacity("OBLIGOR", "Obligor swingline", v.available, v.approvedLimit, v.consumed, advanceAmount);
     } else {
-      add("OBLIGOR", "Obligor swingline", "Swingline configured", "draws swingline", "GREY", "Obligor has no swingline (not applicable).");
+      add("OBLIGOR", "Obligor swingline", "Not configured", "—", "GREY", "Obligor has no swingline (not applicable).");
     }
   }
 
@@ -239,34 +237,45 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
   add("TRANSACTION", "Funded (advance) amount", `${(txn.advanceRate * 100).toFixed(1)}% of ${mm(txn.invoiceAmount)}`, mm(advanceAmount), "GREEN",
     "Funded amount limits are checked against.");
 
-  // ---------------- DISTRIBUTION ----------------
+  // ---------------- DISTRIBUTION (one or more investors) ----------------
   if (txn.distributed) {
-    const investor = txn.investorId ? getInvestor(txn.investorId) : undefined;
-    const part = txn.participationAmount ?? 0;
-    if (!investor) {
-      add("DISTRIBUTION", "Investor", "Selected investor", txn.investorId ?? "—", "RED", "Distributed deal requires an investor.");
-    } else if (seller) {
-      const pa = participationAgreement(investor.id, seller.id);
-      add("DISTRIBUTION", "Participation agreement", "Executed agreement", pa?.executed ? "Executed" : "Not executed",
-        pa?.executed ? "GREEN" : "RED",
-        pa?.executed ? "Executed participation agreement on file." : "No executed participation agreement for this investor/seller.");
-
+    const allocations = txn.investorAllocations ?? [];
+    if (allocations.length === 0) {
+      add("DISTRIBUTION", "Investor allocation", "At least one investor", "none", "RED", "Distributed deal requires at least one investor.");
+    }
+    let partTotal = 0;
+    for (const a of allocations) {
+      partTotal += a.amount;
+      const investor = getInvestor(a.investorId);
+      const tag = investor?.name ?? a.investorId;
+      if (!investor) {
+        add("DISTRIBUTION", `Investor — ${tag}`, "Known investor", a.investorId, "RED", "Unknown investor.");
+        continue;
+      }
+      if (seller) {
+        const pa = participationAgreement(investor.id, seller.id);
+        add("DISTRIBUTION", `Participation agreement — ${tag}`, "Executed agreement", pa?.executed ? "Executed" : "Not executed",
+          pa?.executed ? "GREEN" : "RED",
+          pa?.executed ? "Executed participation agreement on file." : "No executed participation agreement for this investor/seller.");
+      }
       const il = findLimit("INVESTOR", investor.id);
       if (il) {
         const v = viewLimit(il);
-        capacity("DISTRIBUTION", "Investor approved limit", v.available, v.approvedLimit, v.consumed, part);
+        capacity("DISTRIBUTION", `Investor limit — ${tag}`, v.available, v.approvedLimit, v.consumed, a.amount);
       }
-      add("DISTRIBUTION", "Investor pricing", `${investor.pricingFloorBps}bps floor`, `${txn.pricingBps}bps`,
+      add("DISTRIBUTION", `Investor pricing — ${tag}`, `${investor.pricingFloorBps}bps floor`, `${txn.pricingBps}bps`,
         txn.pricingBps < investor.pricingFloorBps ? "RED" : "GREEN",
         txn.pricingBps < investor.pricingFloorBps ? "Below investor pricing floor." : "At/above investor pricing floor.");
-      add("DISTRIBUTION", "Investor tenor", `${investor.minTenorDays}–${investor.maxTenorDays}d`, `${tenorDays}d`,
+      add("DISTRIBUTION", `Investor tenor — ${tag}`, `${investor.minTenorDays}–${investor.maxTenorDays}d`, `${tenorDays}d`,
         tenorDays < investor.minTenorDays || tenorDays > investor.maxTenorDays ? "RED" : "GREEN",
         tenorDays < investor.minTenorDays || tenorDays > investor.maxTenorDays ? "Tenor outside investor band." : "Within investor tenor band.");
-      const pctOfAdvance = advanceAmount > 0 ? (part / advanceAmount) * 100 : 0;
-      add("DISTRIBUTION", "Participation amount", `≤ funded ${mm(advanceAmount)}`, `${mm(part)} (${pctOfAdvance.toFixed(1)}%)`,
-        part > advanceAmount ? "RED" : "GREEN",
-        part > advanceAmount ? "Participation exceeds the funded amount." : `Participation is ${pctOfAdvance.toFixed(1)}% of the funded amount.`);
     }
+    const pctOfAdvance = advanceAmount > 0 ? (partTotal / advanceAmount) * 100 : 0;
+    add("DISTRIBUTION", "Total participation", `≤ funded ${mm(advanceAmount)}`, `${mm(partTotal)} (${pctOfAdvance.toFixed(1)}%)`,
+      partTotal > advanceAmount ? "RED" : "GREEN",
+      partTotal > advanceAmount
+        ? "Total participation exceeds the funded amount."
+        : `${allocations.length} investor(s), ${pctOfAdvance.toFixed(1)}% of funded distributed.`);
   }
 
   // ---------------- INSURANCE ----------------

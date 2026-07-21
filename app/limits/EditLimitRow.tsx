@@ -24,20 +24,24 @@ export default function EditLimitRow({
   canEdit: boolean;
 }) {
   const router = useRouter();
+  const [cdl, setCdl] = useState(view.limit.cdl);
   const [approved, setApproved] = useState(String(view.approvedLimit));
   const [tenor, setTenor] = useState(String(view.limit.maxTenorDays));
   const [expiry, setExpiry] = useState(view.limit.expiryDate);
   const [status, setStatus] = useState(view.limit.status);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
   async function save() {
     setBusy(true);
     setSaved(false);
-    await fetch(`/api/limits/${view.limit.id}`, {
+    setErr(null);
+    const res = await fetch(`/api/limits/${view.limit.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
+        cdl,
         approvedLimit: Number(approved),
         maxTenorDays: Number(tenor),
         expiryDate: expiry,
@@ -45,6 +49,10 @@ export default function EditLimitRow({
       }),
     });
     setBusy(false);
+    if (!res.ok) {
+      setErr((await res.json()).error ?? "Failed");
+      return;
+    }
     setSaved(true);
     router.refresh();
   }
@@ -54,6 +62,7 @@ export default function EditLimitRow({
       <tr>
         <td>{view.limit.id}</td>
         <td>{entityName}</td>
+        <td><code style={{ fontSize: 12 }}>{view.limit.cdl || "—"}</code></td>
         <td className="num">{mm(view.approvedLimit)}</td>
         <td className="num">{mm(view.outstanding)}</td>
         <td className="num">{mm(view.reserved)}</td>
@@ -71,6 +80,9 @@ export default function EditLimitRow({
     <tr>
       <td>{view.limit.id}</td>
       <td>{entityName}</td>
+      <td style={{ width: 100 }}>
+        <input style={cell} value={cdl} onChange={(e) => setCdl(e.target.value)} placeholder="8-digit" title={err ?? undefined} />
+      </td>
       <td style={{ width: 120 }}><input style={cell} type="number" value={approved} onChange={(e) => setApproved(e.target.value)} /></td>
       <td className="num">{mm(view.outstanding)}</td>
       <td className="num">{mm(view.reserved)}</td>
@@ -90,6 +102,7 @@ export default function EditLimitRow({
         <button className="btn" style={{ padding: "4px 10px", fontSize: 12 }} onClick={save} disabled={busy} type="button">
           {busy ? "…" : saved ? "Saved ✓" : "Save"}
         </button>
+        {err && <div className="check-pill red" style={{ marginTop: 3 }}>{err}</div>}
       </td>
     </tr>
   );

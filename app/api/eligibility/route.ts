@@ -23,12 +23,18 @@ export async function POST(request: Request) {
     valueDate: b.valueDate ?? "2026-08-01",
     maturityDate: b.maturityDate ?? "2026-11-01",
     pricingBps: Number(b.pricingBps) || 0,
-    usesSwingline: Boolean(b.usesSwingline),
     distributed: Boolean(b.distributed),
-    investorId: b.investorId,
-    participationAmount: b.participationAmount ? Number(b.participationAmount) : undefined,
+    investorAllocations: Array.isArray(b.investorAllocations)
+      ? b.investorAllocations
+          .filter((a) => a && a.investorId)
+          .map((a) => ({ investorId: a.investorId, amount: Number(a.amount) || 0 }))
+      : undefined,
     insured: Boolean(b.insured),
-    insurerAllocations: b.insurerAllocations,
+    insurerAllocations: Array.isArray(b.insurerAllocations)
+      ? b.insurerAllocations
+          .filter((a) => a && a.policyId)
+          .map((a) => ({ policyId: a.policyId, amount: Number(a.amount) || 0 }))
+      : undefined,
   };
 
   return NextResponse.json(checkDiscount(txn));

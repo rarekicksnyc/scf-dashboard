@@ -165,6 +165,13 @@ single `checkDiscount(txn)` entry point.
 - **Eligibility "does not clear"**: a capacity breach now FAILS and reports the
   max performable (e.g. "only $50MM of $60MM is within the limit") rather than a
   soft exception.
+- **CDL on every limit**: every limit books against an 8-digit CDL customer code;
+  it is required whenever a new limit is added and is editable in the register.
+- **Swingline is a core limit**: if a seller/obligor line carries a swingline,
+  every transaction and reservation against it always draws on and is tested
+  against it (no per-transaction toggle) — and always consumes it.
+- **Multiple investors and insurers per deal**: distribution and insurance each
+  take one or more allocations (add/remove rows), checked and totalled per party.
 - **Reservation soft-warning exceptions**: when a reservation does not clear, the
   booker can override with a documented reason and an optional resolve-by date;
   the reservation is booked and flagged in the list with a ⚠ marker whose tooltip

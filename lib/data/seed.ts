@@ -69,7 +69,7 @@ export const sellers: Seller[] = [
   {
     id: "SELLER001",
     name: "Meridian Components Inc",
-    cdl: "CUS-100482",
+    cdl: "10048201",
     status: "ACTIVE",
     eligible: true,
     programId: "PRG001",
@@ -94,7 +94,7 @@ export const sellers: Seller[] = [
   {
     id: "SELLER002",
     name: "Atlas Textiles Ltd",
-    cdl: "CUS-100517",
+    cdl: "10051702",
     status: "ACTIVE",
     eligible: true,
     programId: "PRG001",
@@ -122,7 +122,7 @@ export const obligors: Obligor[] = [
   {
     id: "OBL001",
     name: "Global Retail Corp",
-    cdl: "CUS-200341",
+    cdl: "20034101",
     status: "ACTIVE",
     eligible: true,
     country: "US",
@@ -134,7 +134,7 @@ export const obligors: Obligor[] = [
   {
     id: "OBL002",
     name: "Northwind Manufacturing",
-    cdl: "CUS-200358",
+    cdl: "20035801",
     status: "ACTIVE",
     eligible: true,
     country: "US",
@@ -146,7 +146,7 @@ export const obligors: Obligor[] = [
   {
     id: "OBL003",
     name: "Pacific Distribution Co",
-    cdl: "CUS-200362",
+    cdl: "20036201",
     status: "ACTIVE",
     eligible: true,
     country: "US",
@@ -158,7 +158,7 @@ export const obligors: Obligor[] = [
   {
     id: "OBL004",
     name: "Cedar Foods Group",
-    cdl: "CUS-200377",
+    cdl: "20037701",
     status: "WATCHLIST",
     eligible: false,
     country: "US",
@@ -243,7 +243,7 @@ export const insuranceCountryLimits: InsuranceCountryLimit[] = [
 
 // Limits are the approved ceilings. Available capacity is never stored here —
 // it is derived from these plus the matching Utilization row.
-export const limits: Limit[] = [
+const rawLimits: Omit<Limit, "cdl">[] = [
   // Seller relationship limit — generous headroom.
   {
     id: "LMT-SEL-001",
@@ -393,7 +393,7 @@ export const limits: Limit[] = [
     entityId: "OBL001",
     programId: "PRG001",
     currency: "USD",
-    approvedLimit: 10_000_000,
+    approvedLimit: 30_000_000,
     maxTenorDays: 45,
     effectiveDate: "2026-01-01",
     expiryDate: "2026-12-31",
@@ -466,6 +466,23 @@ export const limits: Limit[] = [
   },
 ];
 
+// Every limit books exposure against a CDL (8-digit customer code). Entity-
+// linked limits inherit their entity's CDL; investor/insurance lines get their
+// own booking code. New limits added at runtime require an explicit CDL input.
+const LIMIT_CDL: Record<string, string> = {
+  "INV-A": "30010101",
+  "INV-B": "30010201",
+  "POL-1": "40020101",
+};
+
+function cdlForLimit(l: Omit<Limit, "cdl">): string {
+  if (l.entityType === "SELLER") return sellers.find((s) => s.id === l.entityId)?.cdl ?? "";
+  if (l.entityType === "OBLIGOR") return obligors.find((o) => o.id === l.entityId)?.cdl ?? "";
+  return LIMIT_CDL[l.entityId] ?? "";
+}
+
+export const limits: Limit[] = rawLimits.map((l) => ({ ...l, cdl: cdlForLimit(l) }));
+
 export const utilizations: Utilization[] = [
   // SELLER001 seller: $50MM consumed of $100MM → $50MM free.
   {
@@ -535,7 +552,7 @@ export const utilizations: Utilization[] = [
   },
   {
     limitId: "LMT-SWL-SELLER001",
-    fundedOutstanding: 18_000_000, // $12MM base swingline headroom
+    fundedOutstanding: 5_000_000, // core limit — always drawn; left with headroom
     pendingApproved: 0,
     pendingSettlement: 0,
     pendingRequested: 0,
@@ -612,7 +629,7 @@ export const reservations: Reservation[] = [
     maturityDate: "2026-11-04",
     pricingBps: 135,
     tenorDays: 90,
-    usesSwingline: false,
+    usesSwingline: true, // SELLER001 carries a swingline
     status: "RESERVED",
     createdAt: "2026-07-20T09:05:00.000Z",
     createdBy: "u_ops",
@@ -627,7 +644,7 @@ export const reservations: Reservation[] = [
     maturityDate: "2026-10-17",
     pricingBps: 110,
     tenorDays: 60,
-    usesSwingline: false,
+    usesSwingline: true, // OBL001 carries a swingline
     status: "RESERVED",
     createdAt: "2026-07-20T09:10:00.000Z",
     createdBy: "u_ops",

@@ -195,6 +195,7 @@ export interface SellerObligorLimit {
 export interface Limit {
   id: string;
   type: LimitType;
+  cdl: string; // customer identification code this limit books exposure against
   entityType: EntityType;
   entityId: string; // sellerId / obligorId / programId / investorId / policyId
   programId?: string;
@@ -311,6 +312,11 @@ export interface InsurerAllocation {
   amount: number; // insured amount allocated to this policy
 }
 
+export interface InvestorAllocation {
+  investorId: string;
+  amount: number; // participation amount for this investor
+}
+
 export interface DiscountTransaction {
   sellerId: string;
   obligorId: string;
@@ -322,12 +328,10 @@ export interface DiscountTransaction {
   valueDate: string;
   maturityDate: string;
   pricingBps: number;
-  usesSwingline: boolean; // whether the transaction draws swingline funding
-  // Distribution
+  // Distribution — one or more investors
   distributed: boolean;
-  investorId?: string;
-  participationAmount?: number; // investor's $ of the invoice
-  // Insurance
+  investorAllocations?: InvestorAllocation[];
+  // Insurance — one or more insurers
   insured: boolean;
   insurerAllocations?: InsurerAllocation[];
 }

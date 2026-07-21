@@ -64,14 +64,16 @@ export default function EligibilityCheck({
     valueDate: "2026-08-01",
     maturityDate: "2026-11-01",
     pricingBps: "125",
-    usesSwingline: false,
     distributed: false,
-    investorId: investors[0]?.id ?? "",
-    participationAmount: "4000000",
     insured: false,
-    policyId: policies[0]?.id ?? "",
-    insuredAmount: "5000000",
   });
+  // Multiple investors / insurers can share one deal.
+  const [investorAllocs, setInvestorAllocs] = useState<{ investorId: string; amount: string }[]>([
+    { investorId: investors[0]?.id ?? "", amount: "4000000" },
+  ]);
+  const [insurerAllocs, setInsurerAllocs] = useState<{ policyId: string; amount: string }[]>([
+    { policyId: policies[0]?.id ?? "", amount: "5000000" },
+  ]);
   const [report, setReport] = useState<EligibilityReport | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -91,13 +93,13 @@ export default function EligibilityCheck({
       valueDate: f.valueDate,
       maturityDate: f.maturityDate,
       pricingBps: Number(f.pricingBps),
-      usesSwingline: f.usesSwingline,
       distributed: f.distributed,
-      investorId: f.investorId,
-      participationAmount: Number(f.participationAmount),
+      investorAllocations: f.distributed
+        ? investorAllocs.map((a) => ({ investorId: a.investorId, amount: Number(a.amount) }))
+        : undefined,
       insured: f.insured,
       insurerAllocations: f.insured
-        ? [{ policyId: f.policyId, amount: Number(f.insuredAmount) }]
+        ? insurerAllocs.map((a) => ({ policyId: a.policyId, amount: Number(a.amount) }))
         : undefined,
     };
     const res = await fetch("/api/eligibility", {
@@ -150,46 +152,70 @@ export default function EligibilityCheck({
             <label style={field}>Pricing (bps)
               <input style={input} type="number" value={f.pricingBps} onChange={(e) => set("pricingBps", e.target.value)} />
             </label>
-            <label style={{ ...field, flexDirection: "row", alignItems: "center", gap: 8, marginTop: 20 }}>
-              <input type="checkbox" checked={f.usesSwingline} onChange={(e) => set("usesSwingline", e.target.checked)} />
-              Draws swingline
-            </label>
           </div>
 
           <div style={{ display: "flex", gap: 24, marginTop: 16, flexWrap: "wrap" }}>
-            <div>
+            <div style={{ flex: 1, minWidth: 300 }}>
               <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600 }}>
                 <input type="checkbox" checked={f.distributed} onChange={(e) => set("distributed", e.target.checked)} />
-                Distributed
+                Distributed (one or more investors)
               </label>
               {f.distributed && (
-                <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-                  <label style={field}>Investor
-                    <select style={input} value={f.investorId} onChange={(e) => set("investorId", e.target.value)}>
-                      {investors.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
-                    </select>
-                  </label>
-                  <label style={field}>Participation (USD)
-                    <input style={input} type="number" value={f.participationAmount} onChange={(e) => set("participationAmount", e.target.value)} />
-                  </label>
+                <div style={{ marginTop: 8 }}>
+                  {investorAllocs.map((a, i) => (
+                    <div key={i} style={{ display: "flex", gap: 8, marginBottom: 6, alignItems: "flex-end" }}>
+                      <label style={{ ...field, flex: 1 }}>Investor
+                        <select style={input} value={a.investorId}
+                          onChange={(e) => setInvestorAllocs((rows) => rows.map((r, j) => j === i ? { ...r, investorId: e.target.value } : r))}>
+                          {investors.map((iv) => <option key={iv.id} value={iv.id}>{iv.name}</option>)}
+                        </select>
+                      </label>
+                      <label style={field}>Participation (USD)
+                        <input style={input} type="number" value={a.amount}
+                          onChange={(e) => setInvestorAllocs((rows) => rows.map((r, j) => j === i ? { ...r, amount: e.target.value } : r))} />
+                      </label>
+                      {investorAllocs.length > 1 && (
+                        <button className="btn secondary" style={{ padding: "6px 9px" }} type="button"
+                          onClick={() => setInvestorAllocs((rows) => rows.filter((_, j) => j !== i))}>✕</button>
+                      )}
+                    </div>
+                  ))}
+                  <button className="btn secondary" style={{ padding: "5px 10px", fontSize: 12 }} type="button"
+                    onClick={() => setInvestorAllocs((rows) => [...rows, { investorId: investors[0]?.id ?? "", amount: "1000000" }])}>
+                    + Add investor
+                  </button>
                 </div>
               )}
             </div>
-            <div>
+            <div style={{ flex: 1, minWidth: 300 }}>
               <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600 }}>
                 <input type="checkbox" checked={f.insured} onChange={(e) => set("insured", e.target.checked)} />
-                Insured
+                Insured (one or more insurers)
               </label>
               {f.insured && (
-                <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-                  <label style={field}>Policy
-                    <select style={input} value={f.policyId} onChange={(e) => set("policyId", e.target.value)}>
-                      {policies.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
-                  </label>
-                  <label style={field}>Insured amount (USD)
-                    <input style={input} type="number" value={f.insuredAmount} onChange={(e) => set("insuredAmount", e.target.value)} />
-                  </label>
+                <div style={{ marginTop: 8 }}>
+                  {insurerAllocs.map((a, i) => (
+                    <div key={i} style={{ display: "flex", gap: 8, marginBottom: 6, alignItems: "flex-end" }}>
+                      <label style={{ ...field, flex: 1 }}>Policy
+                        <select style={input} value={a.policyId}
+                          onChange={(e) => setInsurerAllocs((rows) => rows.map((r, j) => j === i ? { ...r, policyId: e.target.value } : r))}>
+                          {policies.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                      </label>
+                      <label style={field}>Insured amount (USD)
+                        <input style={input} type="number" value={a.amount}
+                          onChange={(e) => setInsurerAllocs((rows) => rows.map((r, j) => j === i ? { ...r, amount: e.target.value } : r))} />
+                      </label>
+                      {insurerAllocs.length > 1 && (
+                        <button className="btn secondary" style={{ padding: "6px 9px" }} type="button"
+                          onClick={() => setInsurerAllocs((rows) => rows.filter((_, j) => j !== i))}>✕</button>
+                      )}
+                    </div>
+                  ))}
+                  <button className="btn secondary" style={{ padding: "5px 10px", fontSize: 12 }} type="button"
+                    onClick={() => setInsurerAllocs((rows) => [...rows, { policyId: policies[0]?.id ?? "", amount: "1000000" }])}>
+                    + Add insurer
+                  </button>
                 </div>
               )}
             </div>

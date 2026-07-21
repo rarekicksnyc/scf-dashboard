@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getReservations, addReservation, addAudit } from "@/lib/data/store";
+import { getReservations, addReservation, addAudit, entitySwingline } from "@/lib/data/store";
 import { checkReservation } from "@/lib/engine/reservation";
 import { getCurrentUser, roleHas } from "@/lib/auth";
 import { mm } from "@/lib/format";
@@ -38,7 +38,11 @@ export async function POST(request: Request) {
       { status: 422 },
     );
   }
-  const usesSwingline = Boolean(b.usesSwingline);
+  // Swingline is a core limit: the reservation draws on it whenever the seller
+  // or obligor line has one (no per-transaction choice).
+  const usesSwingline =
+    Boolean(entitySwingline("SELLER", b.sellerId)) ||
+    Boolean(entitySwingline("OBLIGOR", b.obligorId));
   const override = Boolean(b.override);
   const comment = typeof b.comment === "string" ? b.comment.trim() : "";
 
@@ -47,7 +51,6 @@ export async function POST(request: Request) {
     obligorId: b.obligorId,
     amount,
     tenorDays,
-    usesSwingline,
   });
   const failing = decision.checks.filter((c) => c.severity === "RED");
   const blocked = decision.decision === "BLOCK";

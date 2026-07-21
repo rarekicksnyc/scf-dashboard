@@ -79,8 +79,8 @@ export default async function SetupPage() {
       </p>
 
       <AddToRegistry
-        sellers={allSellers().map((s) => ({ id: s.id, name: s.name }))}
-        obligors={allObligors().map((o) => ({ id: o.id, name: o.name }))}
+        sellers={allSellers().map((s) => ({ id: s.id, name: s.name, cdl: s.cdl }))}
+        obligors={allObligors().map((o) => ({ id: o.id, name: o.name, cdl: o.cdl }))}
         investors={activeInvestors().map((i) => ({ id: i.id, name: i.name }))}
         policies={activePolicies().map((p) => ({
           id: p.id,

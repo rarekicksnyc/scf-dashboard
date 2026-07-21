@@ -21,7 +21,6 @@ export interface ReservationInput {
   obligorId: string;
   amount: number;
   tenorDays: number;
-  usesSwingline: boolean;
 }
 
 export interface ReservationDecision {
@@ -129,44 +128,21 @@ export function checkReservation(input: ReservationInput): ReservationDecision {
     );
   }
 
-  if (input.usesSwingline) {
-    const ss = entitySwingline("SELLER", input.sellerId);
-    if (ss) {
-      const v = viewLimit(ss);
-      checks.push(
-        capacityCheck(
-          "SELLER_SWINGLINE_CHECK",
-          v.available,
-          v.approvedLimit,
-          v.consumed,
-          v.limit.warnThreshold,
-          input.amount,
-        ),
-      );
-    }
-    const os = entitySwingline("OBLIGOR", input.obligorId);
-    if (os) {
-      const v = viewLimit(os);
-      checks.push(
-        capacityCheck(
-          "OBLIGOR_SWINGLINE_CHECK",
-          v.available,
-          v.approvedLimit,
-          v.consumed,
-          v.limit.warnThreshold,
-          input.amount,
-        ),
-      );
-    }
-    if (!ss && !os) {
-      checks.push({
-        checkName: "SWINGLINE_CHECK",
-        status: "EXCEPTION",
-        severity: "ORANGE",
-        message:
-          "Reservation draws swingline but neither the seller nor the obligor has a swingline limit configured.",
-      });
-    }
+  // Swingline is a core limit: if the seller or obligor line carries one, the
+  // reservation always draws on it, so it is always tested.
+  const ss = entitySwingline("SELLER", input.sellerId);
+  if (ss) {
+    const v = viewLimit(ss);
+    checks.push(
+      capacityCheck("SELLER_SWINGLINE_CHECK", v.available, v.approvedLimit, v.consumed, v.limit.warnThreshold, input.amount),
+    );
+  }
+  const os = entitySwingline("OBLIGOR", input.obligorId);
+  if (os) {
+    const v = viewLimit(os);
+    checks.push(
+      capacityCheck("OBLIGOR_SWINGLINE_CHECK", v.available, v.approvedLimit, v.consumed, v.limit.warnThreshold, input.amount),
+    );
   }
 
   // Max tenor — tightest of seller / obligor limit tenors.
