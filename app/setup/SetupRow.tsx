@@ -20,6 +20,7 @@ const inputStyle = {
   padding: "8px 10px",
   fontSize: 14,
   width: "100%",
+  boxSizing: "border-box" as const,
 };
 
 export default function SetupRow(props: SetupRowProps) {
@@ -70,12 +71,12 @@ export default function SetupRow(props: SetupRowProps) {
   return (
     <tr>
       <td>{props.name}</td>
-      <td style={{ width: 180 }}>
-        <input style={inputStyle} value={cdl} onChange={(e) => setCdl(e.target.value)} />
+      <td>
+        <input style={{ ...inputStyle, minWidth: 140 }} value={cdl} onChange={(e) => setCdl(e.target.value)} />
       </td>
-      <td style={{ width: 240 }}>
+      <td>
         <input
-          style={inputStyle}
+          style={{ ...inputStyle, minWidth: 160 }}
           type="number"
           value={limitAmount}
           onChange={(e) => setLimitAmount(e.target.value)}
@@ -87,9 +88,9 @@ export default function SetupRow(props: SetupRowProps) {
           {swlOn ? "On" : "Off"}
         </label>
       </td>
-      <td style={{ width: 240 }}>
+      <td>
         <input
-          style={{ ...inputStyle, opacity: swlOn ? 1 : 0.5 }}
+          style={{ ...inputStyle, minWidth: 160, opacity: swlOn ? 1 : 0.5 }}
           type="number"
           value={swlAmt}
           disabled={!swlOn}

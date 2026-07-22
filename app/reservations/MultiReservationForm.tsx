@@ -23,8 +23,11 @@ interface Row {
 
 const SEV: Record<string, string> = { GREEN: "green", YELLOW: "yellow", ORANGE: "orange", RED: "red", GREY: "grey" };
 
-const cell = { border: "1px solid var(--border)", borderRadius: 6, padding: "8px 10px", fontSize: 14, width: "100%" };
+const cell = { border: "1px solid var(--border)", borderRadius: 6, padding: "8px 10px", fontSize: 14, width: "100%", boxSizing: "border-box" as const };
 const numCell = { ...cell, textAlign: "right" as const };
+// Real pixel min-widths so boxes never collapse under the global width:100% /
+// auto-layout table (a td `width` is only a hint the browser can shrink).
+const mw = (min: number, num = false) => ({ ...(num ? numCell : cell), minWidth: min });
 
 export default function MultiReservationForm({
   sellers,
@@ -137,23 +140,23 @@ export default function MultiReservationForm({
               {rows.map((r, i) => (
                 <Fragment key={i}>
                 <tr>
-                  <td style={{ minWidth: 300 }}>
-                    <select style={cell} value={r.sellerId} onChange={(e) => update(i, { sellerId: e.target.value, status: "idle" })}>
+                  <td>
+                    <select style={mw(230)} value={r.sellerId} onChange={(e) => update(i, { sellerId: e.target.value, status: "idle" })}>
                       {sellers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                     </select>
                   </td>
-                  <td style={{ minWidth: 300 }}>
-                    <select style={cell} value={r.obligorId} onChange={(e) => update(i, { obligorId: e.target.value, status: "idle" })}>
+                  <td>
+                    <select style={mw(230)} value={r.obligorId} onChange={(e) => update(i, { obligorId: e.target.value, status: "idle" })}>
                       {obligors.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
                     </select>
                   </td>
-                  <td style={{ width: 240 }}><input style={numCell} type="number" value={r.amount} onChange={(e) => update(i, { amount: e.target.value, status: "idle" })} /></td>
-                  <td style={{ width: 180 }}><input style={cell} type="date" value={r.valueDate} onChange={(e) => update(i, { valueDate: e.target.value, status: "idle" })} /></td>
-                  <td style={{ width: 180 }}><input style={cell} type="date" value={r.maturityDate} onChange={(e) => update(i, { maturityDate: e.target.value, status: "idle" })} /></td>
-                  <td style={{ width: 150 }}><input style={numCell} type="number" value={r.pricingBps} onChange={(e) => update(i, { pricingBps: e.target.value, status: "idle" })} /></td>
-                  <td style={{ width: 240 }}>
+                  <td><input style={mw(150, true)} type="number" value={r.amount} onChange={(e) => update(i, { amount: e.target.value, status: "idle" })} /></td>
+                  <td><input style={mw(160)} type="date" value={r.valueDate} onChange={(e) => update(i, { valueDate: e.target.value, status: "idle" })} /></td>
+                  <td><input style={mw(160)} type="date" value={r.maturityDate} onChange={(e) => update(i, { maturityDate: e.target.value, status: "idle" })} /></td>
+                  <td><input style={mw(110, true)} type="number" value={r.pricingBps} onChange={(e) => update(i, { pricingBps: e.target.value, status: "idle" })} /></td>
+                  <td>
                     {rrlSellers.includes(r.sellerId) ? (
-                      <input style={numCell} type="number" value={r.rrlAmount} onChange={(e) => update(i, { rrlAmount: e.target.value, status: "idle" })} />
+                      <input style={mw(150, true)} type="number" value={r.rrlAmount} onChange={(e) => update(i, { rrlAmount: e.target.value, status: "idle" })} />
                     ) : (
                       <span className="muted" style={{ fontSize: 11 }}>N/A</span>
                     )}

@@ -12,6 +12,7 @@ const cell = {
   padding: "8px 10px",
   fontSize: 14,
   width: "100%",
+  boxSizing: "border-box" as const,
 };
 
 export default function EditLimitRow({
@@ -80,19 +81,19 @@ export default function EditLimitRow({
     <tr>
       <td>{view.limit.id}</td>
       <td>{entityName}</td>
-      <td style={{ width: 180 }}>
-        <input style={cell} value={cdl} onChange={(e) => setCdl(e.target.value)} placeholder="8-digit" title={err ?? undefined} />
+      <td>
+        <input style={{ ...cell, minWidth: 120 }} value={cdl} onChange={(e) => setCdl(e.target.value)} placeholder="8-digit" title={err ?? undefined} />
       </td>
-      <td style={{ width: 240 }}><input style={cell} type="number" value={approved} onChange={(e) => setApproved(e.target.value)} /></td>
+      <td><input style={{ ...cell, minWidth: 160 }} type="number" value={approved} onChange={(e) => setApproved(e.target.value)} /></td>
       <td className="num">{mm(view.outstanding)}</td>
       <td className="num">{mm(view.reserved)}</td>
       <td className="num">{mm(view.available)}</td>
       <td className="num">{pct(view.utilizationPct)}</td>
       <td><UtilBar view={view} /></td>
-      <td style={{ width: 130 }}><input style={cell} type="number" value={tenor} onChange={(e) => setTenor(e.target.value)} /></td>
-      <td style={{ width: 190 }}><input style={cell} type="date" value={expiry} onChange={(e) => setExpiry(e.target.value)} /></td>
-      <td style={{ width: 150 }}>
-        <select style={cell} value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
+      <td><input style={{ ...cell, minWidth: 90 }} type="number" value={tenor} onChange={(e) => setTenor(e.target.value)} /></td>
+      <td><input style={{ ...cell, minWidth: 150 }} type="date" value={expiry} onChange={(e) => setExpiry(e.target.value)} /></td>
+      <td>
+        <select style={{ ...cell, minWidth: 120 }} value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
           <option value="ACTIVE">ACTIVE</option>
           <option value="SUSPENDED">SUSPENDED</option>
           <option value="EXPIRED">EXPIRED</option>
