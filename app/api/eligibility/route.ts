@@ -16,6 +16,7 @@ export async function POST(request: Request) {
     sellerId: b.sellerId,
     obligorId: b.obligorId,
     obligorEntityId: b.obligorEntityId || undefined,
+    rrlAmount: Number(b.rrlAmount) || 0,
     invoiceNumber: b.invoiceNumber ?? "TXN",
     invoiceAmount: Number(b.invoiceAmount),
     currency: b.currency ?? "USD",

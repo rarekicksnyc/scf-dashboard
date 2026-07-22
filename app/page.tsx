@@ -30,7 +30,6 @@ export default async function PortfolioPage({
 
   const cards = [
     { label: "Seller capacity", value: mm(sumAvailable("SELLER")), sub: `of ${mm(sumApproved("SELLER"))} approved` },
-    { label: "ASR capacity", value: mm(sumAvailable("ASR")), sub: `of ${mm(sumApproved("ASR"))} approved` },
     { label: "Obligor exposure", value: mm(sumConsumed("OBLIGOR")), sub: `${mm(sumAvailable("OBLIGOR"))} headroom` },
     { label: "Swingline capacity", value: mm(sumAvailable("SWINGLINE")), sub: `of ${mm(sumApproved("SWINGLINE"))} approved` },
     { label: "Investor capacity", value: mm(sumAvailable("INVESTOR")), sub: `of ${mm(sumApproved("INVESTOR"))} approved` },

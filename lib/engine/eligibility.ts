@@ -14,7 +14,7 @@ import {
 } from "@/lib/data/store";
 import { priceDeal } from "@/lib/pricing";
 import { obligorEntityFindings } from "@/lib/engine/obligorEntity";
-import { ADVANCE_RATE_CAP, ADVANCE_RATE_TYPICAL_MIN, ADVANCE_RATE_TYPICAL_MAX } from "@/lib/config";
+import { ADVANCE_RATE_CAP, ADVANCE_RATE_MIN, ADVANCE_RATE_MAX } from "@/lib/config";
 import type {
   DiscountTransaction,
   EligibilityCheck,
@@ -77,6 +77,15 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
   const seller = getSeller(txn.sellerId);
   const obligor = getObligor(txn.obligorId);
 
+  // RRL split: a portion of the funded amount can book to the seller's Risk
+  // Reimbursement Line instead of the seller credit line. That portion consumes
+  // the RRL, NOT the seller line (and not its swingline); the obligor still
+  // books the FULL funded amount. Only applies when the seller has an RRL.
+  // e.g. $100M funded with $10M RRL → $90M seller line, $10M RRL, $100M obligor.
+  const requestedRrl = Math.min(Math.max(txn.rrlAmount ?? 0, 0), advanceAmount);
+  const rrlAmount = seller?.rrlEnabled ? requestedRrl : 0;
+  const sellerBooking = advanceAmount - rrlAmount;
+
   // A capacity comparison. Exceeding available capacity does NOT clear — the
   // transaction can only be performed up to the available amount, so the check
   // fails and reports the max performable.
@@ -110,7 +119,8 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
     const sl = findLimit("SELLER", seller.id);
     if (sl) {
       const v = viewLimit(sl);
-      capacity("SELLER", "Seller credit limit", v.available, v.approvedLimit, v.consumed, advanceAmount);
+      // Seller line consumes the funded amount NET of any RRL portion.
+      capacity("SELLER", "Seller credit limit", v.available, v.approvedLimit, v.consumed, sellerBooking);
       add("SELLER", "Credit limit expiry", sl.expiryDate, txn.valueDate,
         expired(sl.expiryDate, txn.valueDate) ? "RED" : "GREEN",
         expired(sl.expiryDate, txn.valueDate) ? "Credit limit expires before value date." : "Credit limit valid through value date.");
@@ -133,19 +143,33 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
     const ssw = entitySwingline("SELLER", seller.id);
     if (ssw) {
       const v = viewLimit(ssw);
-      capacity("SELLER", "Seller swingline", v.available, v.approvedLimit, v.consumed, advanceAmount);
+      // Swingline draws on the seller-booked portion only (the RRL portion does not).
+      capacity("SELLER", "Seller swingline", v.available, v.approvedLimit, v.consumed, sellerBooking);
     } else {
       add("SELLER", "Seller swingline", "Not configured", "—", "GREY", "Seller has no swingline (not applicable).");
     }
 
-    // RRL — only counted when enabled
+    // RRL — only counted when enabled. The RRL portion consumes the RRL line;
+    // the seller line above already excludes it.
     if (seller.rrlEnabled) {
-      const rrlBreach = advanceAmount > seller.rrlLimit;
       const rrlExp = expired(seller.rrlExpiry, txn.valueDate);
-      add("SELLER", "RRL (Risk Reimbursement Line)",
-        `${mm(seller.rrlLimit)} limit exp ${seller.rrlExpiry || "—"}`, mm(advanceAmount),
-        rrlExp ? "RED" : rrlBreach ? "ORANGE" : "GREEN",
-        rrlExp ? "RRL expired." : rrlBreach ? `Exceeds RRL by ${mm(advanceAmount - seller.rrlLimit)}.` : "Within RRL.");
+      const rrlLimit = findLimit("RRL", seller.id);
+      if (rrlExp) {
+        add("SELLER", "RRL (Risk Reimbursement Line)", `exp ${seller.rrlExpiry || "—"}`, mm(rrlAmount), "RED", "RRL expired.");
+      } else if (rrlLimit) {
+        const v = viewLimit(rrlLimit);
+        capacity("SELLER", "RRL (Risk Reimbursement Line)", v.available, v.approvedLimit, v.consumed, rrlAmount);
+      } else {
+        const rrlBreach = rrlAmount > seller.rrlLimit;
+        add("SELLER", "RRL (Risk Reimbursement Line)", `${mm(seller.rrlLimit)} limit`, mm(rrlAmount),
+          rrlBreach ? "ORANGE" : "GREEN",
+          rrlBreach ? `Exceeds RRL by ${mm(rrlAmount - seller.rrlLimit)}.` : "Within RRL.");
+      }
+      add("SELLER", "RRL booking split", `${mm(sellerBooking)} seller / ${mm(rrlAmount)} RRL`, mm(advanceAmount), "GREEN",
+        `Of ${mm(advanceAmount)} funded, ${mm(rrlAmount)} books to the RRL and ${mm(sellerBooking)} to the seller line. The obligor books the full ${mm(advanceAmount)}.`);
+    } else if (requestedRrl > 0) {
+      add("SELLER", "RRL (Risk Reimbursement Line)", "Not enabled", mm(requestedRrl), "ORANGE",
+        "Seller has no RRL — the requested RRL portion cannot be booked; the full amount books to the seller line.");
     } else {
       add("SELLER", "RRL (Risk Reimbursement Line)", "Not enabled", "—", "GREY", "Seller has no RRL (toggle off).");
     }
@@ -233,10 +257,10 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
   }
 
   // ---------------- TRANSACTION TERMS ----------------
-  const inRange = txn.advanceRate >= ADVANCE_RATE_TYPICAL_MIN && txn.advanceRate <= ADVANCE_RATE_TYPICAL_MAX;
-  add("TRANSACTION", "Advance rate range", "85% – 100%", `${(txn.advanceRate * 100).toFixed(1)}%`,
+  const inRange = txn.advanceRate >= ADVANCE_RATE_MIN && txn.advanceRate <= ADVANCE_RATE_MAX;
+  add("TRANSACTION", "Advance rate range", "0% – 100%", `${(txn.advanceRate * 100).toFixed(1)}%`,
     inRange ? "GREEN" : "RED",
-    inRange ? "Advance rate in valid range." : "Advance rate outside 85–100%.");
+    inRange ? "Advance rate in valid range." : "Advance rate outside 0–100%.");
   const cap = TYPE_CAP[txn.invoiceType];
   add("TRANSACTION", "Advance vs invoice type", `${txn.invoiceType} typical ≤ ${(cap * 100).toFixed(0)}%`, `${(txn.advanceRate * 100).toFixed(1)}%`,
     txn.advanceRate <= cap ? "GREEN" : "YELLOW",

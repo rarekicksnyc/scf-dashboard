@@ -7,10 +7,15 @@ reviewer or a new engineer taking handoff.
 
 ## At a glance
 
-- **No external calls. No AI.** The app runs entirely locally against an
-  in-memory store. Dependencies are `next`, `react`, `react-dom`, and `xlsx` (plus
-  type packages). There is no LLM/AI SDK, no telemetry, and no outbound network
-  request in the codebase. Financial data never leaves the process.
+- **One controlled outbound call. No AI.** The only outbound request in the app
+  is a market-data pull of the daily SOFR fixing from the official New York Fed
+  public feed (`markets.newyorkfed.org`), triggered on demand from the Rate Sheet
+  screen (`POST /api/rates/refresh-sofr`, `CHANGE_LIMIT`-gated + audited). It is
+  outbound-only market data — **no financial or customer data is sent**, and no
+  key is used. There is no LLM/AI SDK and no telemetry. Everything else runs
+  locally against the in-memory store. Dependencies are `next`, `react`,
+  `react-dom`, and `xlsx` (plus type packages). For an air-gapped deployment,
+  block that host and use the manual COF/SOFR rate-sheet upload instead.
 - **Deterministic engine.** Every eligibility, pricing, limit, and exposure figure
   is computed by pure functions over the store snapshot. Same inputs → same
   outputs; nothing is probabilistic.
@@ -88,6 +93,6 @@ individual limit/seller records and are edited on-screen.
 | `DAY_COUNT_BASIS` | 360 | Actual/360 accrual basis for discount & fee |
 | `DEFAULT_MARGIN_BPS` | 200 | Fallback margin when an upload omits pricing |
 | `MARGIN_INPUT_TO_BPS` | 100 | Pricing convention: 1.15 entered = 115 bps |
-| `ADVANCE_RATE_TYPICAL_MIN` | 0.85 | Below this, advance rate is flagged for review |
-| `ADVANCE_RATE_TYPICAL_MAX` | 1.00 | Above this, advance rate is flagged for review |
+| `ADVANCE_RATE_MIN` | 0.00 | Accepted advance-rate floor (full 0–100% range) |
+| `ADVANCE_RATE_MAX` | 1.00 | Accepted advance-rate ceiling |
 | `ADVANCE_RATE_CAP` | FINAL 1.0 / PROVISIONAL 0.9 / PIPELINE 0.85 | Per-invoice-type cap; exceeding warns, does not fail |

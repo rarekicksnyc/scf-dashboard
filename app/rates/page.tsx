@@ -2,6 +2,7 @@ import { getRates } from "@/lib/data/store";
 import { currentUserCan } from "@/lib/auth";
 import { dateShort } from "@/lib/format";
 import RateUpload from "./RateUpload";
+import SofrRefresh from "./SofrRefresh";
 
 export const dynamic = "force-dynamic";
 
@@ -13,10 +14,12 @@ export default async function RatesPage() {
     <>
       <h1 className="page-title">Rate Sheet</h1>
       <p className="page-sub">
-        Base-rate curves fed from the pricing platform. The offer is the used
-        rate; transactions resolve their base rate by rate type and closest tenor.
+        SOFR is pulled live from the official New York Fed public feed; other
+        curves (COF) are uploaded as a rate sheet. The offer is the used rate;
+        transactions resolve their base rate by rate type and closest tenor.
       </p>
 
+      {canEdit && <SofrRefresh />}
       {canEdit && <RateUpload />}
 
       <div className="panel">

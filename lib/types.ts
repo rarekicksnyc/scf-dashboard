@@ -414,6 +414,7 @@ export interface DiscountTransaction {
   sellerId: string;
   obligorId: string;
   obligorEntityId?: string; // specific legal entity within the obligor group (optional)
+  rrlAmount?: number; // portion of the funded amount booked to the seller RRL (not the seller line)
   invoiceNumber: string;
   invoiceAmount: number;
   currency: Currency;

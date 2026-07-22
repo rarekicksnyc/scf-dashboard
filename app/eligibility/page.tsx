@@ -15,6 +15,7 @@ export default function EligibilityPage() {
   const sellers = allSellers().map((s) => ({ id: s.id, name: s.name }));
   const obligors = allObligors().map((o) => ({ id: o.id, name: o.name }));
   const obligorEntities = allObligorEntities().map((e) => ({ groupId: e.groupId, id: e.id, name: e.name }));
+  const rrlSellers = allSellers().filter((s) => s.rrlEnabled).map((s) => s.id);
   const investors = activeInvestors().map((i) => ({ id: i.id, name: i.name }));
   const policies = activePolicies().map((p) => ({
     id: p.id,
@@ -37,6 +38,7 @@ export default function EligibilityPage() {
           sellers={sellers}
           obligors={obligors}
           obligorEntities={obligorEntities}
+          rrlSellers={rrlSellers}
           investors={investors}
           policies={policies}
         />

@@ -21,10 +21,10 @@ export const DEFAULT_MARGIN_BPS = 200;
 // Pricing convention: a margin entered as 1.15 means 115 bps, stored as 115.
 export const MARGIN_INPUT_TO_BPS = 100;
 
-// Advance rate is enterable 0–100%. Outside this "typical" band the transaction
-// still runs but is flagged for review rather than treated as routine.
-export const ADVANCE_RATE_TYPICAL_MIN = 0.85;
-export const ADVANCE_RATE_TYPICAL_MAX = 1.0;
+// Advance rate is valid across the full 0–100% range. Only the per-invoice-type
+// cap below adds a (non-blocking) warning when the desk prices high for return.
+export const ADVANCE_RATE_MIN = 0.0;
+export const ADVANCE_RATE_MAX = 1.0;
 
 // Advance-rate cap by invoice type. The desk may price above these for return,
 // so exceeding a cap warns (yellow) rather than failing.

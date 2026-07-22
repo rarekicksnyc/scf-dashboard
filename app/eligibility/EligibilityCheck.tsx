@@ -54,12 +54,14 @@ export default function EligibilityCheck({
   sellers,
   obligors,
   obligorEntities,
+  rrlSellers,
   investors,
   policies,
 }: {
   sellers: Opt[];
   obligors: Opt[];
   obligorEntities: EntityOpt[];
+  rrlSellers: string[];
   investors: Opt[];
   policies: Opt[];
 }) {
@@ -77,6 +79,8 @@ export default function EligibilityCheck({
     productType: "DTR",
     baseRateType: "SOFR",
     baseRate: "0",
+    bookRrl: false,
+    rrlAmount: "0",
     distributed: false,
     insured: false,
   });
@@ -103,6 +107,7 @@ export default function EligibilityCheck({
       sellerId: f.sellerId,
       obligorId: f.obligorId,
       obligorEntityId: f.obligorEntityId || undefined,
+      rrlAmount: f.bookRrl ? Number(f.rrlAmount) || 0 : 0,
       invoiceNumber: f.invoiceNumber,
       invoiceAmount: Number(f.invoiceAmount),
       invoiceType: f.invoiceType,
@@ -202,6 +207,26 @@ export default function EligibilityCheck({
               <span className="muted" style={{ fontSize: 10 }}>0 = use rate sheet (offer, closest tenor)</span>
             </label>
           </div>
+
+          {rrlSellers.includes(f.sellerId) && (
+            <div style={{ marginTop: 16, padding: 12, border: "1px solid var(--border)", borderRadius: 8, background: "#fafbfd" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600 }}>
+                <input type="checkbox" checked={f.bookRrl} onChange={(e) => set("bookRrl", e.target.checked)} />
+                Book part of this deal against the RRL (Risk Reimbursement Line)
+              </label>
+              {f.bookRrl && (
+                <div style={{ display: "flex", gap: 16, marginTop: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+                  <label style={field}>RRL amount (USD)
+                    <input style={input} type="number" min="0" value={f.rrlAmount} onChange={(e) => set("rrlAmount", e.target.value)} />
+                  </label>
+                  <div className="muted" style={{ fontSize: 12, paddingBottom: 8, flex: 1, minWidth: 260 }}>
+                    Of {usd(coverage)} funded, <strong>{usd(Math.min(Number(f.rrlAmount) || 0, coverage))}</strong> books to the RRL and{" "}
+                    <strong>{usd(Math.max(coverage - (Number(f.rrlAmount) || 0), 0))}</strong> to the seller line. The obligor books the full {usd(coverage)}.
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <div style={{ display: "flex", gap: 24, marginTop: 16, flexWrap: "wrap" }}>
             <div style={{ flex: 1, minWidth: 300 }}>
