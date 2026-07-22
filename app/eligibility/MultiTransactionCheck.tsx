@@ -6,6 +6,7 @@ import { cellInput, clampPct, coverageAmount } from "@/lib/ui";
 
 interface Opt { id: string; name: string }
 interface EntityOpt { groupId: string; id: string; name: string }
+interface Check { name?: string; category?: string; message: string; severity: string; status?: string }
 
 interface Row {
   sellerId: string;
@@ -24,6 +25,7 @@ interface Row {
   funded?: number;
   allIn?: number;
   reasons?: string[];
+  checks?: Check[];
 }
 
 const DECISION: Record<string, string> = {
@@ -32,6 +34,7 @@ const DECISION: Record<string, string> = {
   EXCEPTION_REQUIRED: "orange",
   REJECTED: "red",
 };
+const SEV: Record<string, string> = { GREEN: "green", YELLOW: "yellow", ORANGE: "orange", RED: "red", GREY: "grey" };
 const mw = cellInput;
 
 export default function MultiTransactionCheck({ sellers, obligors, obligorEntities }: { sellers: Opt[]; obligors: Opt[]; obligorEntities: EntityOpt[] }) {
@@ -51,6 +54,8 @@ export default function MultiTransactionCheck({ sellers, obligors, obligorEntiti
   });
   const [rows, setRows] = useState<Row[]>([blank()]);
   const [busy, setBusy] = useState(false);
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const toggleExp = (i: number) => setExpanded((s) => { const n = new Set(s); n.has(i) ? n.delete(i) : n.add(i); return n; });
   const sName = (id: string) => sellers.find((s) => s.id === id)?.name ?? id;
   const oName = (id: string) => obligors.find((o) => o.id === id)?.name ?? id;
 
@@ -76,11 +81,11 @@ export default function MultiTransactionCheck({ sellers, obligors, obligorEntiti
             }),
           });
           const d = await res.json().catch(() => ({}));
-          if (!res.ok) return { ...r, decision: undefined, funded: undefined, allIn: undefined, reasons: [d.error ?? `Error ${res.status}`] };
+          if (!res.ok) return { ...r, decision: undefined, funded: undefined, allIn: undefined, reasons: [d.error ?? `Error ${res.status}`], checks: undefined };
           const reasons = (d.checks ?? []).filter((c: { severity: string }) => c.severity === "RED" || c.severity === "ORANGE").map((c: { message: string }) => c.message);
-          return { ...r, decision: d.decision, funded: d.advanceAmount, allIn: d.pricing?.allInRatePct, reasons };
+          return { ...r, decision: d.decision, funded: d.advanceAmount, allIn: d.pricing?.allInRatePct, reasons, checks: d.checks ?? [] };
         } catch {
-          return { ...r, decision: undefined, funded: undefined, allIn: undefined, reasons: ["Request failed — check your connection and try again."] };
+          return { ...r, decision: undefined, funded: undefined, allIn: undefined, reasons: ["Request failed — check your connection and try again."], checks: undefined };
         }
       }));
       setRows(results);
@@ -152,24 +157,55 @@ export default function MultiTransactionCheck({ sellers, obligors, obligorEntiti
         {rows.some((r) => r.decision || (r.reasons && r.reasons.length > 0)) && (
           <div style={{ marginTop: 16, borderTop: "1px solid var(--border)", paddingTop: 12 }}>
             <div style={{ fontWeight: 600, marginBottom: 8 }}>Results</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {rows.map((r, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", fontSize: 13 }}>
-                  <span className="muted" style={{ minWidth: 24 }}>{i + 1}.</span>
-                  <span style={{ minWidth: 260 }}>{sName(r.sellerId)} <span className="muted">/</span> {oName(r.obligorId)}</span>
-                  {r.decision ? (
-                    <span className={`badge ${DECISION[r.decision] ?? "grey"}`}>{r.decision.replace(/_/g, " ")}</span>
-                  ) : (
-                    <span className="badge grey">no result</span>
-                  )}
-                  <span className="muted">
-                    {r.funded ? `$${(r.funded / 1e6).toFixed(2)}M funded` : ""} {r.allIn != null ? `· ${r.allIn.toFixed(2)}% all-in` : ""}
-                  </span>
-                  {r.reasons && r.reasons.length > 0 && (
-                    <span style={{ color: "var(--orange)", flexBasis: "100%", paddingLeft: 34 }}>{r.reasons.join("; ")}</span>
-                  )}
-                </div>
-              ))}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {rows.map((r, i) => {
+                const checks = r.checks ?? [];
+                const pass = checks.filter((c) => c.status === "PASS").length;
+                const warn = checks.filter((c) => c.status === "WARN").length;
+                const fail = checks.filter((c) => c.status === "FAIL").length;
+                return (
+                  <div key={i} style={{ border: "1px solid var(--border)", borderRadius: 8, padding: "10px 12px" }}>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", fontSize: 13 }}>
+                      <span className="muted" style={{ minWidth: 24 }}>{i + 1}.</span>
+                      <span style={{ minWidth: 240, fontWeight: 600 }}>{sName(r.sellerId)} <span className="muted">/</span> {oName(r.obligorId)}</span>
+                      {r.decision ? (
+                        <span className={`badge ${DECISION[r.decision] ?? "grey"}`}>{r.decision.replace(/_/g, " ")}</span>
+                      ) : (
+                        <span className="badge grey">no result</span>
+                      )}
+                      <span className="muted">
+                        {r.funded ? `$${(r.funded / 1e6).toFixed(2)}M funded` : ""} {r.allIn != null ? `· ${r.allIn.toFixed(2)}% all-in` : ""}
+                      </span>
+                      {checks.length > 0 && (
+                        <button type="button" onClick={() => toggleExp(i)}
+                          style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--brand)", cursor: "pointer", fontSize: 12 }}>
+                          {expanded.has(i) ? "▾ hide checks" : "▸ show all checks"} ({pass}✓ {warn}! {fail}✗)
+                        </button>
+                      )}
+                    </div>
+                    {r.reasons && r.reasons.length > 0 && !expanded.has(i) && (
+                      <div style={{ color: "var(--orange)", fontSize: 12, marginTop: 4, paddingLeft: 34 }}>{r.reasons.join("; ")}</div>
+                    )}
+                    {expanded.has(i) && checks.length > 0 && (
+                      <div className="table-scroll" style={{ marginTop: 8 }}>
+                        <table>
+                          <thead><tr><th>Category</th><th>Check</th><th>Result</th><th>Detail</th></tr></thead>
+                          <tbody>
+                            {checks.map((c, k) => (
+                              <tr key={k}>
+                                <td className="muted" style={{ fontSize: 11 }}>{c.category}</td>
+                                <td style={{ fontWeight: 600 }}>{c.name}</td>
+                                <td><span className={`badge ${SEV[c.severity] ?? "grey"}`}>{c.status}</span></td>
+                                <td className="muted" style={{ whiteSpace: "normal", minWidth: 220 }}>{c.message}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

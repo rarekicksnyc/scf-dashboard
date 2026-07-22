@@ -1,4 +1,3 @@
-import Link from "next/link";
 import {
   allSellers,
   allObligors,
@@ -17,6 +16,7 @@ import { currentUserCan } from "@/lib/auth";
 import { mm, dateShort } from "@/lib/format";
 import LimitRegister from "../limits/LimitRegister";
 import AddToRegistry from "../setup/AddToRegistry";
+import SellerFacilityPicker from "./SellerFacilityPicker";
 import EditSellerEntityRow from "./EditSellerEntityRow";
 import EditObligorEntityRow from "./EditObligorEntityRow";
 import EditAsrSublimitRow from "./EditAsrSublimitRow";
@@ -72,19 +72,10 @@ export default async function DataManagementPage({
         />
       )}
 
-      <div className="row-actions">
-        <span style={{ fontSize: 13, fontWeight: 600 }}>Seller facility:</span>
-        {sellers.map((s) => (
-          <Link
-            key={s.id}
-            href={`/data?seller=${s.id}`}
-            className={`tab ${s.id === sellerId ? "on" : ""}`}
-            style={{ padding: "6px 12px" }}
-          >
-            {s.name}
-          </Link>
-        ))}
-      </div>
+      <SellerFacilityPicker
+        sellers={sellers.map((s) => ({ id: s.id, name: s.name }))}
+        current={sellerId ?? ""}
+      />
 
       {/* Box 1: seller facility + eligible seller entities */}
       <div className="panel">
