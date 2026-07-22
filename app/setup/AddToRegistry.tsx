@@ -9,7 +9,7 @@ interface Opt {
   name: string;
   cdl?: string;
 }
-type Mode = "LIMIT" | "SELLER" | "OBLIGOR" | "ASR_SUBLIMIT";
+type Mode = "LIMIT" | "SELLER" | "OBLIGOR" | "ASR_SUBLIMIT" | "BULK";
 
 const input = {
   border: "1px solid var(--border)",
@@ -43,7 +43,7 @@ export default function AddToRegistry({
   policies: Opt[];
 }) {
   const router = useRouter();
-  const [mode, setMode] = useState<Mode>("LIMIT");
+  const [mode, setMode] = useState<Mode>("SELLER");
   const [limitType, setLimitType] = useState<LimitType>("ASR");
   const [f, setF] = useState({
     entityId: "",
@@ -58,9 +58,39 @@ export default function AddToRegistry({
   });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [bulkMsg, setBulkMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   function set<K extends keyof typeof f>(k: K, v: (typeof f)[K]) {
     setF((s) => ({ ...s, [k]: v }));
+  }
+
+  async function bulkUpload(file: File) {
+    setBusy(true);
+    setBulkMsg(null);
+    const isXlsx = /\.xlsx?$/i.test(file.name) && !file.name.toLowerCase().endsWith(".csv");
+    let body: Record<string, string>;
+    if (isXlsx) {
+      const buf = new Uint8Array(await file.arrayBuffer());
+      let bin = "";
+      for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
+      body = { fileBase64: btoa(bin) };
+    } else {
+      body = { csv: await file.text() };
+    }
+    const res = await fetch("/api/registry/bulk", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    setBusy(false);
+    if (!res.ok) {
+      setBulkMsg({ ok: false, text: data.error ?? "Upload failed." });
+      return;
+    }
+    const errNote = data.errors?.length ? ` ${data.errors.length} row(s) had errors: ${data.errors.slice(0, 3).map((e: { row: number; error: string }) => `row ${e.row} (${e.error})`).join("; ")}${data.errors.length > 3 ? "…" : ""}` : "";
+    setBulkMsg({ ok: data.errors?.length === 0, text: `Added ${data.added} record(s).${errNote}` });
+    router.refresh();
   }
 
   // Which entities are valid for the chosen limit type, with their entityType.
@@ -163,20 +193,58 @@ export default function AddToRegistry({
       <div style={{ padding: 18 }}>
         {msg && <div className={`notice ${msg.ok ? "ok" : "err"}`}>{msg.text}</div>}
 
-        <div className="tabs" style={{ marginBottom: 14 }}>
-          {(["LIMIT", "SELLER", "OBLIGOR", "ASR_SUBLIMIT"] as Mode[]).map((m) => (
-            <button
-              key={m}
-              type="button"
-              className={`tab ${mode === m ? "on" : ""}`}
-              style={{ background: "none", border: "none", cursor: "pointer" }}
-              onClick={() => setMode(m)}
-            >
-              {m === "LIMIT" ? "New limit" : m === "SELLER" ? "New seller" : m === "OBLIGOR" ? "New obligor" : "ASR sublimit"}
-            </button>
-          ))}
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>What would you like to add?</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {([
+              ["SELLER", "New seller"],
+              ["OBLIGOR", "New obligor"],
+              ["LIMIT", "New limit"],
+              ["ASR_SUBLIMIT", "ASR sublimit"],
+              ["BULK", "Bulk upload (Excel)"],
+            ] as [Mode, string][]).map(([m, label]) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMode(m)}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  border: mode === m ? "2px solid var(--brand)" : "1px solid var(--border)",
+                  background: mode === m ? "var(--brand-soft)" : "#fff",
+                  color: mode === m ? "var(--brand)" : "var(--ink)",
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
+        {mode === "BULK" && (
+          <div>
+            <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
+              Add many records at once. Download the template, fill in one row per seller, obligor, or
+              limit (record_type = SELLER / OBLIGOR / LIMIT), and re-upload. Only the immediate fields
+              are needed — the rest can be filled in per-seller afterwards.
+            </p>
+            {bulkMsg && <div className={`notice ${bulkMsg.ok ? "ok" : "err"}`} style={{ marginBottom: 12 }}>{bulkMsg.text}</div>}
+            <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+              <a className="btn secondary" href="/api/registry/template">Download template</a>
+              <label className="btn" style={{ cursor: "pointer" }}>
+                {busy ? "Uploading…" : "Upload filled template"}
+                <input type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }} disabled={busy}
+                  onChange={(e) => { const file = e.target.files?.[0]; if (file) bulkUpload(file); e.target.value = ""; }} />
+              </label>
+            </div>
+          </div>
+        )}
+
+        {mode !== "BULK" && (
+        <>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
           {mode === "LIMIT" && (
             <>
@@ -207,8 +275,8 @@ export default function AddToRegistry({
 
           {(mode === "SELLER" || mode === "OBLIGOR") && (
             <>
-              <label style={field}>Name
-                <input style={input} value={f.name} onChange={(e) => set("name", e.target.value)} />
+              <label style={field}>{mode === "SELLER" ? "New seller name" : "New obligor name"}
+                <input style={input} value={f.name} onChange={(e) => set("name", e.target.value)} placeholder={mode === "SELLER" ? "e.g. Acme Components Inc" : "e.g. Global Buyer Co"} />
               </label>
               <label style={field}>CDL (8-digit)
                 <input style={input} value={f.cdl} onChange={(e) => set("cdl", e.target.value)} placeholder="e.g. 10048201" />
@@ -252,6 +320,8 @@ export default function AddToRegistry({
         <button className="btn" style={{ marginTop: 14 }} onClick={submit} disabled={busy} type="button">
           {busy ? "Adding…" : "Add to register"}
         </button>
+        </>
+        )}
       </div>
     </div>
   );
