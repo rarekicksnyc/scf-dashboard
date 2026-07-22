@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { getReservation, fulfillReservation, addAudit } from "@/lib/data/store";
 import { fundedDeals } from "@/lib/deals";
+import { checkDiscount } from "@/lib/engine/eligibility";
 import { getCurrentUser, roleHas } from "@/lib/auth";
 import { mm } from "@/lib/format";
+import type { DiscountTransaction } from "@/lib/types";
 
 // Link a reservation to the actual transaction (invoice) that realised it, then
 // release the reservation (status FUNDED). The invoice must be a funded
@@ -32,6 +34,47 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       { error: `No funded transaction '${invoiceNumber}' found for this seller/obligor.` },
       { status: 422 },
     );
+  }
+
+  // Governance: a reservation booked with a soft-warning exception cannot be
+  // released to its transaction unless the flagged breach is now resolved. We
+  // re-run eligibility on the reservation's live parameters (excluding itself
+  // from availability) — if it still does not clear, the breach persists and the
+  // transaction must not go through until it is addressed.
+  if (r.exception && r.kind !== "SWINGLINE") {
+    const prevStatus = r.status;
+    r.status = "CANCELLED"; // drop from availability for the re-check
+    const txn: DiscountTransaction = {
+      sellerId: r.sellerId,
+      obligorId: r.obligorId,
+      rrlAmount: r.rrlAmount ?? 0,
+      invoiceNumber,
+      invoiceAmount: r.amount,
+      currency: r.currency,
+      invoiceType: "FINAL",
+      advanceRate: 1,
+      valueDate: r.valueDate,
+      maturityDate: r.maturityDate,
+      pricingBps: r.pricingBps,
+      distributed: false,
+      insured: false,
+    };
+    const report = checkDiscount(txn);
+    r.status = prevStatus; // restore
+    const stillBreaching = report.decision === "REJECTED" || report.decision === "EXCEPTION_REQUIRED";
+    if (stillBreaching) {
+      const breachReasons = report.checks
+        .filter((c) => c.severity === "RED" || c.severity === "ORANGE")
+        .map((c) => c.message);
+      return NextResponse.json(
+        {
+          error: "This reservation was booked with a soft-warning exception and the breach is still not resolved — the transaction cannot be released until it is addressed.",
+          breachReasons,
+          originalException: r.exceptionReasons,
+        },
+        { status: 422 },
+      );
+    }
   }
 
   const updated = fulfillReservation(id, invoiceNumber);

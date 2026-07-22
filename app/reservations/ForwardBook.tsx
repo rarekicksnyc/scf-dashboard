@@ -68,7 +68,9 @@ export default function ForwardBook({ rows, candidates, canBook }: { rows: BookR
     });
     setBusy(false);
     if (!res.ok) {
-      setErr((await res.json()).error ?? "Failed.");
+      const data = await res.json().catch(() => ({}));
+      const breach = Array.isArray(data.breachReasons) && data.breachReasons.length ? ` Still breaching: ${data.breachReasons.join("; ")}.` : "";
+      setErr((data.error ?? "Failed.") + breach);
       return;
     }
     setFulfillingId(null);
