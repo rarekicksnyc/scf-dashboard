@@ -21,6 +21,7 @@ import SwinglineAdjustment from "./SwinglineAdjustment";
 import EditSellerEntityRow from "./EditSellerEntityRow";
 import EditObligorEntityRow from "./EditObligorEntityRow";
 import EditAsrSublimitRow from "./EditAsrSublimitRow";
+import ResetExposure from "./ResetExposure";
 
 export const dynamic = "force-dynamic";
 
@@ -206,6 +207,13 @@ export default async function DataManagementPage({
         every exposure view. Available capacity is always derived, never stored.
       </p>
       <LimitRegister />
+
+      {canEdit && (
+        <>
+          <h2 className="page-title" style={{ fontSize: 20, marginTop: 8, color: "var(--red)" }}>Danger zone</h2>
+          <ResetExposure />
+        </>
+      )}
     </>
   );
 }

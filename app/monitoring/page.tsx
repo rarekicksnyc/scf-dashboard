@@ -11,10 +11,11 @@ export default async function MonitoringPage() {
 
   return (
     <>
-      <h1 className="page-title">Monitoring</h1>
+      <h1 className="page-title">Enforceability</h1>
       <p className="page-sub">
-        Enforceability and domicile monitoring. Entities domiciled in a
-        non-eligible country are flagged here.
+        Country enforceability and domicile monitoring. Manage the eligible
+        country register (add, remove, or change enforceability), and review any
+        entity domiciled in a non-eligible country flagged below.
       </p>
 
       <div className="panel">

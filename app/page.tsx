@@ -13,11 +13,19 @@ export default async function PortfolioPage({
 }: {
   searchParams: Promise<{ asOf?: string }>;
 }) {
-  const { asOf } = await searchParams;
+  const { asOf: asOfParam } = await searchParams;
+  const today = new Date().toISOString().slice(0, 10);
+  // The portfolio defaults to a TODAY (current) time-phased view: a reservation
+  // only consumes a limit while today falls inside its [valueDate, maturityDate]
+  // window, so future reservations do NOT reduce current capacity. `asOf=all`
+  // switches to the aggregate of every commitment regardless of date; any
+  // explicit date shows that single instant.
+  const aggregate = asOfParam === "all";
+  const asOf = aggregate ? undefined : asOfParam || today;
   const views = limitViews(asOf);
   const sellers = sellerExposure(asOf);
   const obligors = obligorExposure(asOf);
-  const exp = expiryCounts(buildExpirations(new Date().toISOString().slice(0, 10)));
+  const exp = expiryCounts(buildExpirations(today));
   const expAlert = exp.expired + exp.within30 + exp.within60;
 
   const byType = (t: LimitType) => views.filter((v) => v.limit.type === t);
@@ -40,9 +48,11 @@ export default async function PortfolioPage({
     <>
       <h1 className="page-title">Portfolio Exposure</h1>
       <p className="page-sub">
-        Current outstanding and future reservations against every seller and
-        obligor limit. Reservations reduce available capacity in the same formula
-        the batch engine uses. Switch tabs and filter to focus a view.
+        Outstanding and reserved capacity against every seller and obligor limit,
+        time-phased: a reservation only consumes a limit while the as-of date
+        falls inside its value-to-maturity window. The view defaults to today, so
+        future reservations do not reduce current capacity — use the date picker
+        to see any point in time, or Aggregate for every commitment at once.
       </p>
 
       {expAlert > 0 && (
@@ -67,7 +77,7 @@ export default async function PortfolioPage({
         ))}
       </div>
 
-      <ExposureTabs sellers={sellers} obligors={obligors} asOf={asOf ?? ""} />
+      <ExposureTabs sellers={sellers} obligors={obligors} asOf={asOf ?? ""} aggregate={aggregate} today={today} />
     </>
   );
 }

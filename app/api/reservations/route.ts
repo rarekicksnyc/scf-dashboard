@@ -60,7 +60,10 @@ export async function POST(request: Request) {
     if (!b.entityId) {
       return NextResponse.json({ error: "A single seller or obligor is required." }, { status: 400 });
     }
-    const decision = checkSwinglineReservation(entityType, b.entityId, amount, direction, swinglineKind);
+    // Time-phase against this movement's own window so an overlapping-in-time
+    // swingline book is what it is measured against, not the aggregate.
+    const swlWindow = b.valueDate && b.maturityDate ? { from: b.valueDate, to: b.maturityDate } : undefined;
+    const decision = checkSwinglineReservation(entityType, b.entityId, amount, direction, swinglineKind, swlWindow);
     const g = gate(decision.decision === "BLOCK", decision.checks);
     if (g.stop) return g.stop;
 

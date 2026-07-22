@@ -93,6 +93,11 @@ export default function AddToRegistry({
       case "SELLER":
       case "ASR":
         return sellers.map(S);
+      case "RRL":
+      case "RRL_SWINGLINE":
+        // RRL and the RRL swingline are seller-level facilities — any seller can
+        // be assigned one, whether or not it already has it.
+        return sellers.map(S);
       case "OBLIGOR":
         return obligors.map(O);
       case "SWINGLINE":

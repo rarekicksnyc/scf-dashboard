@@ -25,6 +25,8 @@ import type {
   Country,
   RateRow,
   BaseRateType,
+  AsOf,
+  DateWindow,
 } from "@/lib/types";
 import { toLimitView } from "@/lib/engine/availability";
 import * as seed from "./seed";
@@ -228,6 +230,36 @@ export function setCountryEligible(code: string, eligible: boolean): void {
   if (c) c.eligible = eligible;
 }
 
+// Add a country to the enforceability register. Codes are normalised to an
+// uppercase 2-letter ISO code; a duplicate code is rejected. New countries
+// default to whatever eligibility is passed (off unless an opinion is on file).
+export function addCountry(code: string, name: string, eligible = false): Country {
+  const norm = code.trim().toUpperCase();
+  if (store.countries.some((c) => c.code === norm)) {
+    throw new Error(`Country ${norm} already exists.`);
+  }
+  const country: Country = { code: norm, name: name.trim(), eligible };
+  store.countries.push(country);
+  return country;
+}
+
+// Remove a country entirely. Blocked when any seller or obligor entity is still
+// domiciled there (or an obligor is registered to that country), so the register
+// can never point an entity at a country that no longer exists.
+export function removeCountry(code: string): void {
+  const norm = code.trim().toUpperCase();
+  const inUse =
+    store.obligors.some((o) => o.country === norm) ||
+    store.sellerEntities.some((e) => e.domicile === norm) ||
+    store.obligorEntities.some((e) => e.domicile === norm);
+  if (inUse) {
+    throw new Error(`Country ${norm} is still assigned to one or more sellers, obligors, or entities.`);
+  }
+  const i = store.countries.findIndex((c) => c.code === norm);
+  if (i < 0) throw new Error(`Country ${norm} not found.`);
+  store.countries.splice(i, 1);
+}
+
 // ---------------------------------------------------------------------------
 // Rate sheet
 // ---------------------------------------------------------------------------
@@ -383,17 +415,33 @@ export function findLimit(
   );
 }
 
+// Normalise an as-of argument to a {from,to} window. A bare ISO date is the
+// instant view (window collapses to that single day); a {from,to} pair is a
+// span. Undefined means "no time filter" (aggregate every active reservation).
+function toWindow(asOf?: AsOf): DateWindow | undefined {
+  if (!asOf) return undefined;
+  return typeof asOf === "string" ? { from: asOf, to: asOf } : asOf;
+}
+
+// True when a reservation's [valueDate, maturityDate] overlaps the window. This
+// is the core of time-phasing: a reservation is "on the books" for a given
+// window only if the two spans intersect. For an instant window [d,d] this is
+// exactly valueDate <= d <= maturityDate (the old single-date behaviour).
+function reservationInWindow(r: Reservation, w?: DateWindow): boolean {
+  if (!w) return true;
+  return r.valueDate <= w.to && r.maturityDate >= w.from;
+}
+
 // Sum of active (RESERVED) reservations booked against a given limit. This is
 // what folds the forward book into the same availability formula the batch
 // engine uses — reservations reduce capacity everywhere.
-// asOf (ISO date) gives the time-phased view: a reservation is on the books only
-// within its [valueDate, maturityDate] window. Omitting asOf counts every active
-// reservation (the aggregate committed view) — the default everywhere else.
-export function reservationConsumedForLimit(limit: Limit, asOf?: string): number {
+// asOf gives the time-phased view: a reservation is on the books only when its
+// [valueDate, maturityDate] overlaps the window (an ISO date = the instant
+// view). Omitting asOf counts every active reservation (aggregate committed).
+export function reservationConsumedForLimit(limit: Limit, asOf?: AsOf): number {
+  const w = toWindow(asOf);
   const active = store.reservations.filter(
-    (r) =>
-      r.status === "RESERVED" &&
-      (!asOf || (r.valueDate <= asOf && r.maturityDate >= asOf)),
+    (r) => r.status === "RESERVED" && reservationInWindow(r, w),
   );
   // Discount reservations draw the credit lines; standalone SWINGLINE movements
   // only touch the swingline (handled in the SWINGLINE case / swinglineAdjustmentNet).
@@ -447,12 +495,12 @@ function sum(rs: Reservation[]): number {
 }
 
 // The single reservation-aware view of a limit — used by every screen. Pass
-// asOf for the time-phased (as-of-date) view.
-export function viewLimit(limit: Limit, asOf?: string): LimitView {
+// asOf for the time-phased view (an ISO date = instant, a {from,to} = span).
+export function viewLimit(limit: Limit, asOf?: AsOf): LimitView {
   return toLimitView(limit, getUtilization(limit.id), reservationConsumedForLimit(limit, asOf));
 }
 
-export function limitViews(asOf?: string) {
+export function limitViews(asOf?: AsOf) {
   return store.limits.map((l) => viewLimit(l, asOf));
 }
 
@@ -462,13 +510,14 @@ export function swinglineAdjustmentNet(
   entityType: "SELLER" | "OBLIGOR",
   entityId: string,
   kind: "REGULAR" | "RRL",
-  asOf?: string,
+  asOf?: AsOf,
 ): number {
+  const w = toWindow(asOf);
   let total = 0;
   for (const r of store.reservations) {
     if (r.status !== "RESERVED" || r.kind !== "SWINGLINE") continue;
     if ((r.swinglineKind ?? "REGULAR") !== kind) continue;
-    if (asOf && !(r.valueDate <= asOf && r.maturityDate >= asOf)) continue;
+    if (!reservationInWindow(r, w)) continue;
     const matches = entityType === "SELLER" ? r.sellerId === entityId : r.obligorId === entityId;
     if (!matches) continue;
     total += r.swinglineDirection === "INCREASE" ? -r.amount : r.amount;
@@ -483,7 +532,7 @@ export function swinglineConsumed(
   entityType: "SELLER" | "OBLIGOR",
   entityId: string,
   kind: "REGULAR" | "RRL",
-  asOf?: string,
+  asOf?: AsOf,
 ): number {
   const parent = kind === "RRL" ? findLimit("RRL", entityId) : findLimit(entityType, entityId);
   const parentConsumed = parent ? viewLimit(parent, asOf).consumed : 0;
@@ -696,6 +745,23 @@ export function fulfillReservation(id: string, invoiceNumber: string): Reservati
     r.fulfilledAt = new Date().toISOString();
   }
   return r;
+}
+
+// Reset every booked and reserved exposure so all limits return to full
+// availability, without touching the limits, sellers, obligors, or their
+// configuration. Clears current utilization (booked/outstanding), the entire
+// forward book (reservations), and historical batch runs. Availability is
+// always derived from these, so the next transaction starts from a clean slate.
+export function resetExposure(): { utilizations: number; reservations: number; batches: number } {
+  const counts = {
+    utilizations: store.utilizations.size,
+    reservations: store.reservations.length,
+    batches: store.batches.length,
+  };
+  store.utilizations.clear();
+  store.reservations.length = 0;
+  store.batches.length = 0;
+  return counts;
 }
 
 // ---------------------------------------------------------------------------

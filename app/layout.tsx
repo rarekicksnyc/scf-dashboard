@@ -22,7 +22,7 @@ const NAV = [
   { href: "/reservations", label: "Reservations" },
   { href: "/schedule", label: "Schedule" },
   { href: "/exceptions", label: "Exceptions" },
-  { href: "/monitoring", label: "Monitoring" },
+  { href: "/monitoring", label: "Enforceability" },
   { href: "/reports", label: "Reports", need: "VIEW_REPORTS" as const },
   { href: "/audit", label: "Audit log", need: "VIEW_AUDIT" as const },
   { href: "/access", label: "Roles & access", need: "MANAGE_ROLES" as const },

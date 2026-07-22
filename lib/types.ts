@@ -271,6 +271,15 @@ export interface Utilization {
 // consumed splits into two buckets so the exposure tabs can show current
 // outstanding separately from future reservations:
 //   consumed = outstanding + reserved
+// A time window used to test whether a reservation is on the books. A single
+// ISO date is the instant view (does the reservation straddle that day); a
+// {from,to} pair is a span (does the reservation OVERLAP that span). A
+// transaction only consumes a limit while its own [valueDate, maturityDate]
+// overlaps the reservation's [valueDate, maturityDate] — future reservations
+// must not reduce an earlier transaction's capacity.
+export type DateWindow = { from: string; to: string };
+export type AsOf = string | DateWindow;
+
 export interface LimitView {
   limit: Limit;
   approvedLimit: number;

@@ -9,6 +9,7 @@ import type {
   Seller,
   Program,
   InvoiceFunding,
+  DateWindow,
 } from "@/lib/types";
 import {
   findLimit,
@@ -160,9 +161,15 @@ interface WorkingSet {
   swingline?: WorkingLimit;
   obligors: Map<string, WorkingLimit>;
   alloc: AllocContext;
+  window?: DateWindow; // batch's value-to-maturity span for time-phasing reservations
 }
 
-function buildWorkingSet(seller: Seller): WorkingSet {
+// window is the batch's overall [earliest value, latest maturity] span. Seeding
+// each limit's starting available from viewLimit(limit, window) means only
+// reservations whose own window overlaps the batch reduce its capacity — a
+// reservation outside the batch's active period does not, matching the
+// interactive engine. Investor/insurance capacity is not reservation-driven.
+function buildWorkingSet(seller: Seller, window?: DateWindow): WorkingSet {
   const sellerLimit = findLimit("SELLER", seller.id);
   const asrLimit = findLimit("ASR", seller.id);
   // Swingline is per-entity now — the seller's own swingline (if it has one).
@@ -185,18 +192,19 @@ function buildWorkingSet(seller: Seller): WorkingSet {
     .filter((s): s is PolicySlot => s !== null);
 
   return {
-    seller: sellerLimit ? makeWorking(viewLimit(sellerLimit)) : undefined,
-    asr: asrLimit ? makeWorking(viewLimit(asrLimit)) : undefined,
-    swingline: swinglineLimit ? makeWorking(viewLimit(swinglineLimit)) : undefined,
+    seller: sellerLimit ? makeWorking(viewLimit(sellerLimit, window)) : undefined,
+    asr: asrLimit ? makeWorking(viewLimit(asrLimit, window)) : undefined,
+    swingline: swinglineLimit ? makeWorking(viewLimit(swinglineLimit, window)) : undefined,
     obligors: new Map(),
     alloc: { investors, policies },
+    window,
   };
 }
 
 function workingObligor(ws: WorkingSet, obligorId: string): WorkingLimit | undefined {
   if (ws.obligors.has(obligorId)) return ws.obligors.get(obligorId);
   const limit = findLimit("OBLIGOR", obligorId);
-  const w = limit ? makeWorking(viewLimit(limit)) : undefined;
+  const w = limit ? makeWorking(viewLimit(limit, ws.window)) : undefined;
   if (w) ws.obligors.set(obligorId, w);
   return w;
 }
@@ -216,9 +224,19 @@ export function runBatch(
   const seller = sellerId ? getSeller(sellerId) : undefined;
   const program = seller ? getProgram(seller.programId) : undefined;
 
+  // The batch's overall active span — from the earliest requested value date to
+  // the latest due (maturity) date — is the window used to time-phase
+  // reservations against this batch.
+  const batchWindow: DateWindow | undefined = invoices.length
+    ? {
+        from: invoices.reduce((m, i) => (i.requestedDiscountDate < m ? i.requestedDiscountDate : m), invoices[0].requestedDiscountDate),
+        to: invoices.reduce((m, i) => (i.dueDate > m ? i.dueDate : m), invoices[0].dueDate),
+      }
+    : undefined;
+
   const results: InvoiceResult[] = [];
   const ws: WorkingSet = seller
-    ? buildWorkingSet(seller)
+    ? buildWorkingSet(seller, batchWindow)
     : { obligors: new Map(), alloc: { investors: [], policies: [] } };
 
   // Legal documentation is a seller/program-level condition — evaluated once

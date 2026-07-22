@@ -127,10 +127,14 @@ export default function ExposureTabs({
   sellers,
   obligors,
   asOf,
+  aggregate,
+  today,
 }: {
   sellers: ExposureRow[];
   obligors: ExposureRow[];
   asOf: string;
+  aggregate: boolean;
+  today: string;
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<"sellers" | "obligors">("sellers");
@@ -184,16 +188,25 @@ export default function ExposureTabs({
             As of
             <input
               type="date"
-              value={asOf}
+              value={aggregate ? "" : asOf}
               onChange={(e) => router.push(e.target.value ? `/?asOf=${e.target.value}` : "/")}
               style={{ border: "1px solid var(--border)", borderRadius: 6, padding: "6px 8px", fontSize: 13 }}
             />
-            {asOf ? (
+            {aggregate ? (
               <button className="btn secondary" style={{ padding: "3px 8px", fontSize: 11 }} type="button" onClick={() => router.push("/")}>
-                clear
+                current
               </button>
             ) : (
-              <span style={{ fontSize: 11 }}>(aggregate)</span>
+              <>
+                {asOf !== today && (
+                  <button className="btn secondary" style={{ padding: "3px 8px", fontSize: 11 }} type="button" onClick={() => router.push("/")}>
+                    today
+                  </button>
+                )}
+                <button className="btn secondary" style={{ padding: "3px 8px", fontSize: 11 }} type="button" onClick={() => router.push("/?asOf=all")}>
+                  aggregate
+                </button>
+              </>
             )}
           </label>
           <input
@@ -204,11 +217,15 @@ export default function ExposureTabs({
           />
         </div>
       </div>
-      {asOf && (
-        <div className="muted" style={{ padding: "8px 14px 0", fontSize: 12 }}>
-          Time-phased view as of <strong>{asOf}</strong> — availability reflects only reservations effective on that date.
-        </div>
-      )}
+      <div className="muted" style={{ padding: "8px 14px 0", fontSize: 12 }}>
+        {aggregate ? (
+          <>Aggregate view — every committed reservation regardless of date. Switch to <strong>current</strong> to exclude reservations not yet effective.</>
+        ) : asOf === today ? (
+          <>Current view as of <strong>{today}</strong> — a reservation consumes a limit only while today falls inside its value-to-maturity window, so future reservations do not reduce today&rsquo;s capacity.</>
+        ) : (
+          <>Time-phased view as of <strong>{asOf}</strong> — availability reflects only reservations whose value-to-maturity window covers that date.</>
+        )}
+      </div>
       <Table rows={filtered} kind={tab === "sellers" ? "Seller" : "Obligor"} />
     </div>
   );

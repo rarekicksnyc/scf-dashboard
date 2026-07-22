@@ -7,7 +7,7 @@ import {
   getObligor,
 } from "@/lib/data/store";
 import { mm2 as mm } from "@/lib/format";
-import type { CheckResult } from "@/lib/types";
+import type { CheckResult, DateWindow } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 // Reservation eligibility. A new reservation is checked against the SAME limits
@@ -38,6 +38,7 @@ export function checkSwinglineReservation(
   amount: number,
   direction: "REDUCTION" | "INCREASE",
   swinglineKind: "REGULAR" | "RRL" = "REGULAR",
+  window?: DateWindow,
 ): ReservationDecision {
   const checks: CheckResult[] = [];
   const swl = swinglineKind === "RRL" ? findLimit("RRL_SWINGLINE", entityId) : entitySwingline(entityType, entityId);
@@ -52,7 +53,7 @@ export function checkSwinglineReservation(
     return { decision: "BLOCK", checks };
   }
   // Consumed = mirrored parent booking + existing adjustments; available is net.
-  const used = swinglineConsumed(entityType, entityId, swinglineKind);
+  const used = swinglineConsumed(entityType, entityId, swinglineKind, window);
   const available = swl.approvedLimit - used;
   if (direction === "INCREASE") {
     checks.push({
@@ -118,7 +119,7 @@ function capacityCheck(
   };
 }
 
-export function checkReservation(input: ReservationInput): ReservationDecision {
+export function checkReservation(input: ReservationInput, window?: DateWindow): ReservationDecision {
   const checks: CheckResult[] = [];
   const seller = getSeller(input.sellerId);
   const obligor = getObligor(input.obligorId);
@@ -142,7 +143,7 @@ export function checkReservation(input: ReservationInput): ReservationDecision {
 
   const sellerLimit = findLimit("SELLER", input.sellerId);
   if (sellerLimit) {
-    const v = viewLimit(sellerLimit);
+    const v = viewLimit(sellerLimit, window);
     checks.push(
       capacityCheck(
         "SELLER_LIMIT_CHECK",
@@ -157,7 +158,7 @@ export function checkReservation(input: ReservationInput): ReservationDecision {
 
   const obligorLimit = findLimit("OBLIGOR", input.obligorId);
   if (obligorLimit) {
-    const v = viewLimit(obligorLimit);
+    const v = viewLimit(obligorLimit, window);
     checks.push(
       capacityCheck(
         "OBLIGOR_LIMIT_CHECK",
@@ -174,14 +175,14 @@ export function checkReservation(input: ReservationInput): ReservationDecision {
   // reservation always draws on it, so it is always tested.
   const ss = entitySwingline("SELLER", input.sellerId);
   if (ss) {
-    const v = viewLimit(ss);
+    const v = viewLimit(ss, window);
     checks.push(
       capacityCheck("SELLER_SWINGLINE_CHECK", v.available, v.approvedLimit, v.consumed, v.limit.warnThreshold, input.amount),
     );
   }
   const os = entitySwingline("OBLIGOR", input.obligorId);
   if (os) {
-    const v = viewLimit(os);
+    const v = viewLimit(os, window);
     checks.push(
       capacityCheck("OBLIGOR_SWINGLINE_CHECK", v.available, v.approvedLimit, v.consumed, v.limit.warnThreshold, input.amount),
     );

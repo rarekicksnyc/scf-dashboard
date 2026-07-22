@@ -22,6 +22,7 @@ import type {
   EligibilityCheck,
   EligibilityReport,
   EligibilityCategory,
+  DateWindow,
 } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -66,6 +67,13 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
   const seller = getSeller(txn.sellerId);
   const obligor = getObligor(txn.obligorId);
 
+  // Time-phasing: this transaction only draws a limit for the period it is
+  // actually outstanding. So every availability check counts ONLY the
+  // reservations whose own [valueDate, maturityDate] overlaps this window — a
+  // reservation that starts after this transaction matures (or ends before it
+  // begins) must not reduce the capacity available to it.
+  const window: DateWindow = { from: txn.valueDate, to: txn.maturityDate };
+
   // RRL split: a portion of the funded amount can book to the seller's Risk
   // Reimbursement Line instead of the seller credit line. That portion consumes
   // the RRL, NOT the seller line (and not its swingline); the obligor still
@@ -107,7 +115,7 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
 
     const sl = findLimit("SELLER", seller.id);
     if (sl) {
-      const v = viewLimit(sl);
+      const v = viewLimit(sl, window);
       // Seller line consumes the funded amount NET of any RRL portion.
       capacity("SELLER", "Seller credit limit", v.available, v.approvedLimit, v.consumed, sellerBooking);
       add("SELLER", "Credit limit expiry", sl.expiryDate, txn.valueDate,
@@ -130,11 +138,11 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
     // Seller swingline — its booking MIRRORS the seller credit line: whatever is
     // booked on the credit limit is booked on the swingline (same amount). So it
     // is tested against the credit line's consumed, not a separate pool.
-    const sellerConsumed = sl ? viewLimit(sl).consumed : 0;
+    const sellerConsumed = sl ? viewLimit(sl, window).consumed : 0;
     const ssw = entitySwingline("SELLER", seller.id);
     if (ssw) {
-      const swlView = viewLimit(ssw);
-      const swlUsed = sellerConsumed + swinglineAdjustmentNet("SELLER", seller.id, "REGULAR");
+      const swlView = viewLimit(ssw, window);
+      const swlUsed = sellerConsumed + swinglineAdjustmentNet("SELLER", seller.id, "REGULAR", window);
       capacity("SELLER", "Seller swingline", swlView.approvedLimit - swlUsed, swlView.approvedLimit, swlUsed, sellerBooking);
     } else {
       add("SELLER", "Seller swingline", "Not configured", "—", "GREY", "Seller has no swingline (not applicable).");
@@ -151,7 +159,7 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
       if (rrlExp) {
         add("SELLER", "RRL (Risk Reimbursement Line)", `exp ${rrlExpiryDate || "—"}`, mm(rrlAmount), "RED", "RRL expired.");
       } else if (rrlLimit) {
-        const v = viewLimit(rrlLimit);
+        const v = viewLimit(rrlLimit, window);
         capacity("SELLER", "RRL (Risk Reimbursement Line)", v.available, v.approvedLimit, v.consumed, rrlAmount);
       } else {
         const rrlBreach = rrlAmount > seller.rrlLimit;
@@ -171,9 +179,9 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
     // RRL swingline — mirrors the RRL booking (separate from the regular swingline).
     const rrlSwl = findLimit("RRL_SWINGLINE", seller.id);
     if (rrlSwl && seller.rrlEnabled) {
-      const rrlSwlView = viewLimit(rrlSwl);
+      const rrlSwlView = viewLimit(rrlSwl, window);
       const rrlMain = findLimit("RRL", seller.id);
-      const rrlConsumed = (rrlMain ? viewLimit(rrlMain).consumed : 0) + swinglineAdjustmentNet("SELLER", seller.id, "RRL");
+      const rrlConsumed = (rrlMain ? viewLimit(rrlMain, window).consumed : 0) + swinglineAdjustmentNet("SELLER", seller.id, "RRL", window);
       capacity("SELLER", "RRL swingline", rrlSwlView.approvedLimit - rrlConsumed, rrlSwlView.approvedLimit, rrlConsumed, rrlAmount);
     } else {
       add("SELLER", "RRL swingline", "Not configured", "—", "GREY", "No RRL swingline (not applicable).");
@@ -218,7 +226,7 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
 
     const ol = findLimit("OBLIGOR", obligor.id);
     if (ol) {
-      const v = viewLimit(ol);
+      const v = viewLimit(ol, window);
       capacity("OBLIGOR", "Obligor master limit", v.available, v.approvedLimit, v.consumed, advanceAmount);
       add("OBLIGOR", "Obligor max tenor", `${ol.maxTenorDays}d`, `${tenorDays}d`,
         tenorDays > ol.maxTenorDays ? "RED" : "GREEN",
@@ -230,7 +238,7 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
     // Obligor swingline — same rule: always tested when the obligor has one.
     const osw = entitySwingline("OBLIGOR", obligor.id);
     if (osw) {
-      const v = viewLimit(osw);
+      const v = viewLimit(osw, window);
       capacity("OBLIGOR", "Obligor swingline", v.available, v.approvedLimit, v.consumed, advanceAmount);
     } else {
       add("OBLIGOR", "Obligor swingline", "Not configured", "—", "GREY", "Obligor has no swingline (not applicable).");

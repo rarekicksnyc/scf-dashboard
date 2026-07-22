@@ -82,7 +82,8 @@ export async function PATCH(
     const direction = (b.swinglineDirection ?? r.swinglineDirection ?? "REDUCTION") as "REDUCTION" | "INCREASE";
     const entityType: "SELLER" | "OBLIGOR" = r.sellerId ? "SELLER" : "OBLIGOR";
     const entityId = r.sellerId || r.obligorId;
-    const decision = checkSwinglineReservation(entityType, entityId, amount, direction);
+    const swlWindow = valueDate && maturityDate ? { from: valueDate, to: maturityDate } : undefined;
+    const decision = checkSwinglineReservation(entityType, entityId, amount, direction, "REGULAR", swlWindow);
     didNotClear = decision.decision === "BLOCK";
     failing = decision.checks.filter((c) => c.severity === "RED");
     decisionLabel = decision.decision;
