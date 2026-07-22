@@ -268,6 +268,21 @@ export function sellerObligorLimitsForSeller(sellerId: string): SellerObligorLim
   return store.sellerObligorLimits.filter((x) => x.sellerId === sellerId);
 }
 
+// Inline edit of an ASR approved-obligor sublimit (amount / max tenor). Feeds
+// the ASR checks in checkDiscount; the sublimit is the single stored record.
+export function updateSellerObligorLimit(
+  sellerId: string,
+  obligorId: string,
+  patch: Partial<Pick<SellerObligorLimit, "approvedLimit" | "maxTenorDays">>,
+): SellerObligorLimit | undefined {
+  const sol = store.sellerObligorLimits.find(
+    (x) => x.sellerId === sellerId && x.obligorId === obligorId,
+  );
+  if (!sol) return undefined;
+  Object.assign(sol, patch);
+  return sol;
+}
+
 // Usage of an ASR sublimit = active reservations for that seller/obligor pair.
 export function sellerObligorUsage(sellerId: string, obligorId: string): number {
   return store.reservations

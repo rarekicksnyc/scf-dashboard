@@ -16,6 +16,7 @@ import { mm, dateShort } from "@/lib/format";
 import LimitRegister from "../limits/LimitRegister";
 import EditSellerEntityRow from "./EditSellerEntityRow";
 import EditObligorEntityRow from "./EditObligorEntityRow";
+import EditAsrSublimitRow from "./EditAsrSublimitRow";
 
 export const dynamic = "force-dynamic";
 
@@ -121,14 +122,17 @@ export default async function DataManagementPage({
                 const gl = findLimit("OBLIGOR", x.obligorId);
                 const gs = findLimit("SWINGLINE", x.obligorId);
                 return (
-                  <tr key={x.obligorId} style={{ background: x.obligorId === groupId ? "var(--brand-soft)" : undefined }}>
-                    <td>{o?.name ?? x.obligorId}</td>
-                    <td className="num">{gl ? mm(gl.approvedLimit) : "—"}</td>
-                    <td className="num">{mm(x.approvedLimit)}</td>
-                    <td className="num">{x.maxTenorDays}d</td>
-                    <td className="muted">{gs ? `${mm(gs.approvedLimit)} exp ${dateShort(gs.expiryDate)}` : "none"}</td>
-                    <td><Link href={`/data?seller=${sellerId}&group=${x.obligorId}`} style={{ color: "var(--brand)", fontWeight: 600 }}>view entities →</Link></td>
-                  </tr>
+                  <EditAsrSublimitRow
+                    key={x.obligorId}
+                    sellerId={sellerId!}
+                    group={{ id: x.obligorId, name: o?.name ?? x.obligorId }}
+                    globalLimit={gl ? mm(gl.approvedLimit) : "—"}
+                    groupSwingline={gs ? `${mm(gs.approvedLimit)} exp ${dateShort(gs.expiryDate)}` : "none"}
+                    approvedLimit={x.approvedLimit}
+                    maxTenorDays={x.maxTenorDays}
+                    selected={x.obligorId === groupId}
+                    canEdit={canEdit}
+                  />
                 );
               })}
             </tbody>
