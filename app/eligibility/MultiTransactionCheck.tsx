@@ -6,7 +6,7 @@ import { cellInput, clampPct, coverageAmount } from "@/lib/ui";
 
 interface Opt { id: string; name: string }
 interface EntityOpt { groupId: string; id: string; name: string }
-interface Check { name?: string; category?: string; message: string; severity: string; status?: string }
+interface Check { name?: string; category?: string; message: string; severity: string; status?: string; checkedAgainst?: string; txnValue?: string }
 
 interface Row {
   sellerId: string;
@@ -189,14 +189,16 @@ export default function MultiTransactionCheck({ sellers, obligors, obligorEntiti
                     {expanded.has(i) && checks.length > 0 && (
                       <div className="table-scroll" style={{ marginTop: 8 }}>
                         <table>
-                          <thead><tr><th>Category</th><th>Check</th><th>Result</th><th>Detail</th></tr></thead>
+                          <thead><tr><th>Category</th><th>Check</th><th>Checked against</th><th>Transaction</th><th>Result</th><th>Detail</th></tr></thead>
                           <tbody>
                             {checks.map((c, k) => (
                               <tr key={k}>
                                 <td className="muted" style={{ fontSize: 11 }}>{c.category}</td>
                                 <td style={{ fontWeight: 600 }}>{c.name}</td>
+                                <td className="muted" style={{ whiteSpace: "nowrap" }}>{c.checkedAgainst}</td>
+                                <td style={{ whiteSpace: "nowrap" }}>{c.txnValue}</td>
                                 <td><span className={`badge ${SEV[c.severity] ?? "grey"}`}>{c.status}</span></td>
-                                <td className="muted" style={{ whiteSpace: "normal", minWidth: 220 }}>{c.message}</td>
+                                <td className="muted" style={{ whiteSpace: "normal", minWidth: 200 }}>{c.message}</td>
                               </tr>
                             ))}
                           </tbody>

@@ -213,9 +213,9 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
     add("OBLIGOR", "Obligor eligible", "Eligible & active", `${obligor.status}${obligor.eligible ? "" : " / ineligible"}`, sev,
       sev === "GREEN" ? "Obligor eligible and active." : sev === "ORANGE" ? "Obligor on watchlist — approval required." : "Obligor not eligible.");
 
-    add("OBLIGOR", "Obligor group expiry", obligor.expiryDate || "—", txn.valueDate,
-      !obligor.expiryDate ? "GREY" : expired(obligor.expiryDate, txn.valueDate) ? "ORANGE" : "GREEN",
-      !obligor.expiryDate ? "No group expiry on file." : expired(obligor.expiryDate, txn.valueDate) ? "Obligor group approval expired as of the value date — renewal required." : "Obligor group approval current.");
+    add("OBLIGOR", "Obligor group expiry", obligor.expiryDate || "— none —", txn.valueDate,
+      !obligor.expiryDate ? "RED" : expired(obligor.expiryDate, txn.valueDate) ? "ORANGE" : "GREEN",
+      !obligor.expiryDate ? "No obligor group expiry date on file — required, does not clear." : expired(obligor.expiryDate, txn.valueDate) ? "Obligor group approval expired as of the value date — renewal required." : "Obligor group approval current.");
 
     add("OBLIGOR", "Obligor guarantee", obligor.hasGuarantee ? "Guarantee on file" : "None", obligor.hasGuarantee ? "Yes" : "No",
       obligor.hasGuarantee ? "GREEN" : "GREY",
