@@ -15,6 +15,7 @@ export async function POST(request: Request) {
   const txn: DiscountTransaction = {
     sellerId: b.sellerId,
     obligorId: b.obligorId,
+    obligorEntityId: b.obligorEntityId || undefined,
     invoiceNumber: b.invoiceNumber ?? "TXN",
     invoiceAmount: Number(b.invoiceAmount),
     currency: b.currency ?? "USD",

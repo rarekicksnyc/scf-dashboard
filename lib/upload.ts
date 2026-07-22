@@ -1,5 +1,5 @@
 import * as XLSX from "xlsx";
-import { allSellers, allObligors } from "@/lib/data/store";
+import { allSellers, allObligors, obligorEntitiesOf } from "@/lib/data/store";
 import type { Invoice, Currency, PcgFlag, RateRow, BaseRateType, ProductType } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -54,6 +54,21 @@ function resolveObligorId(v: string): string {
   return o?.id ?? v.trim();
 }
 
+// Resolve a named obligor legal entity within a group by id, name, CDL, or
+// booking CDL. Returns "" when nothing is named or no match is found.
+function resolveObligorEntityId(v: string, groupId: string): string {
+  if (!v || !groupId) return "";
+  const q = v.trim().toLowerCase();
+  const e = obligorEntitiesOf(groupId).find(
+    (x) =>
+      x.id.toLowerCase() === q ||
+      x.name.toLowerCase() === q ||
+      x.cdl === v.trim() ||
+      x.bookingCdl === v.trim(),
+  );
+  return e?.id ?? "";
+}
+
 function isoToday(offsetDays = 0): string {
   return new Date(Date.now() + offsetDays * 86_400_000).toISOString().slice(0, 10);
 }
@@ -82,6 +97,11 @@ export function parseRowObjects(rows: Record<string, unknown>[]): ParsedUpload {
     if (obligorRaw && !allObligors().some((o) => o.id === obligorId))
       warnings.push(`Row ${i + 2}: unrecognized obligor '${obligorRaw}'.`);
 
+    const obligorEntityRaw = get(["obligor_entity", "obligorentity", "eligible_obligor_entity", "obligor_legal_entity", "obligor_entity_name", "obligor_entity_cdl"]);
+    const obligorEntityId = resolveObligorEntityId(obligorEntityRaw, obligorId) || undefined;
+    if (obligorEntityRaw && !obligorEntityId)
+      warnings.push(`Row ${i + 2}: obligor entity '${obligorEntityRaw}' not found under ${obligorId || "obligor"}.`);
+
     const due = get(["due_date", "duedate", "maturity", "maturity_date", "invoice_due_date", "commitment_due_date"]);
     const value = get(["requested_discount_date", "value_date", "valuedate", "discount_date", "purchase_date", "commitment_date"]);
     const issue = get(["issue_date", "issuedate", "invoice_date"]);
@@ -98,6 +118,7 @@ export function parseRowObjects(rows: Record<string, unknown>[]): ParsedUpload {
       invoiceNumber: invNo || `AUTO-${i + 1}`,
       sellerId,
       obligorId,
+      obligorEntityId,
       amount: Number.isNaN(amount) ? 0 : amount,
       currency: (get(["currency", "ccy"]) || "USD").toUpperCase() as Currency,
       issueDate: issue || isoToday(),

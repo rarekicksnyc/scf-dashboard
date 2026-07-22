@@ -32,6 +32,7 @@ import {
   type PolicySlot,
 } from "./allocation";
 import { priceDeal } from "@/lib/pricing";
+import { obligorEntityFindings } from "./obligorEntity";
 
 // ---------------------------------------------------------------------------
 // Eligibility engine. Pure over its inputs (store snapshot + invoice list) —
@@ -295,6 +296,22 @@ export function runBatch(
         severity: "GREEN",
         message: "Obligor active.",
       });
+    }
+
+    // Obligor legal entity (multi-entity) — when the schedule names a specific
+    // entity within the group, gate it on the same rules as the interactive
+    // engine (shared helper). It still consumes the group aggregate below.
+    if (invoice.obligorEntityId) {
+      const entityAdvance = Math.round(amount * (invoice.advanceRate ?? 1));
+      for (const fnd of obligorEntityFindings(invoice.obligorEntityId, invoice.obligorId, entityAdvance, invoice.requestedDiscountDate)) {
+        if (fnd.severity === "GREY") continue; // batch has no N/A row
+        checks.push({
+          checkName: fnd.key,
+          status: fnd.severity === "GREEN" ? "PASS" : fnd.severity === "ORANGE" ? "EXCEPTION" : "FAIL",
+          severity: fnd.severity,
+          message: fnd.message,
+        });
+      }
     }
 
     // Duplicate within the uploaded file.

@@ -7,6 +7,11 @@ interface Opt {
   id: string;
   name: string;
 }
+interface EntityOpt {
+  groupId: string;
+  id: string;
+  name: string;
+}
 
 const CATEGORIES: EligibilityCategory[] = [
   "SELLER",
@@ -46,17 +51,20 @@ const input = { border: "1px solid var(--border)", borderRadius: 6, padding: "8p
 export default function EligibilityCheck({
   sellers,
   obligors,
+  obligorEntities,
   investors,
   policies,
 }: {
   sellers: Opt[];
   obligors: Opt[];
+  obligorEntities: EntityOpt[];
   investors: Opt[];
   policies: Opt[];
 }) {
   const [f, setF] = useState({
     sellerId: sellers[0]?.id ?? "",
     obligorId: obligors[0]?.id ?? "",
+    obligorEntityId: "",
     invoiceNumber: "INV-9001",
     invoiceAmount: "10000000",
     invoiceType: "FINAL",
@@ -89,6 +97,7 @@ export default function EligibilityCheck({
     const body = {
       sellerId: f.sellerId,
       obligorId: f.obligorId,
+      obligorEntityId: f.obligorEntityId || undefined,
       invoiceNumber: f.invoiceNumber,
       invoiceAmount: Number(f.invoiceAmount),
       invoiceType: f.invoiceType,
@@ -129,10 +138,18 @@ export default function EligibilityCheck({
               </select>
             </label>
             <label style={field}>Obligor
-              <select style={input} value={f.obligorId} onChange={(e) => set("obligorId", e.target.value)}>
+              <select style={input} value={f.obligorId} onChange={(e) => setF((s) => ({ ...s, obligorId: e.target.value, obligorEntityId: "" }))}>
                 {obligors.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
               </select>
             </label>
+            {obligorEntities.some((e) => e.groupId === f.obligorId) && (
+              <label style={field}>Obligor legal entity
+                <select style={input} value={f.obligorEntityId} onChange={(e) => set("obligorEntityId", e.target.value)}>
+                  <option value="">Group aggregate (no entity)</option>
+                  {obligorEntities.filter((e) => e.groupId === f.obligorId).map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+                </select>
+              </label>
+            )}
             <label style={field}>Invoice #
               <input style={input} value={f.invoiceNumber} onChange={(e) => set("invoiceNumber", e.target.value)} />
             </label>

@@ -1,6 +1,7 @@
 import {
   allSellers,
   allObligors,
+  allObligorEntities,
   activeInvestors,
   activePolicies,
 } from "@/lib/data/store";
@@ -12,6 +13,7 @@ export const dynamic = "force-dynamic";
 export default function EligibilityPage() {
   const sellers = allSellers().map((s) => ({ id: s.id, name: s.name }));
   const obligors = allObligors().map((o) => ({ id: o.id, name: o.name }));
+  const obligorEntities = allObligorEntities().map((e) => ({ groupId: e.groupId, id: e.id, name: e.name }));
   const investors = activeInvestors().map((i) => ({ id: i.id, name: i.name }));
   const policies = activePolicies().map((p) => ({
     id: p.id,
@@ -28,7 +30,7 @@ export default function EligibilityPage() {
         checked against the funded (advance) amount; the obligor is checked
         against both its master line and the per-seller ASR sublimit.
       </p>
-      <MultiTransactionCheck sellers={sellers} obligors={obligors} />
+      <MultiTransactionCheck sellers={sellers} obligors={obligors} obligorEntities={obligorEntities} />
       <details>
         <summary style={{ cursor: "pointer", fontSize: 13, color: "var(--ink-soft)", margin: "0 0 12px 2px" }}>
           Single detailed check (full breakdown, distribution &amp; insurance)
@@ -36,6 +38,7 @@ export default function EligibilityPage() {
         <EligibilityCheck
           sellers={sellers}
           obligors={obligors}
+          obligorEntities={obligorEntities}
           investors={investors}
           policies={policies}
         />

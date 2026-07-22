@@ -129,6 +129,10 @@ export function obligorEntitiesOf(groupId: string): ObligorEntity[] {
   return store.obligorEntities.filter((e) => e.groupId === groupId);
 }
 
+export function getObligorEntity(id: string): ObligorEntity | undefined {
+  return store.obligorEntities.find((e) => e.id === id);
+}
+
 export function allSellerEntities(): SellerEntity[] {
   return store.sellerEntities;
 }

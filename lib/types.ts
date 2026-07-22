@@ -289,6 +289,7 @@ export interface Invoice {
   invoiceNumber: string;
   sellerId: string;
   obligorId: string;
+  obligorEntityId?: string; // specific obligor legal entity, when named on the schedule
   amount: number;
   currency: Currency;
   issueDate: string; // ISO
@@ -412,6 +413,7 @@ export interface InvestorAllocation {
 export interface DiscountTransaction {
   sellerId: string;
   obligorId: string;
+  obligorEntityId?: string; // specific legal entity within the obligor group (optional)
   invoiceNumber: string;
   invoiceAmount: number;
   currency: Currency;

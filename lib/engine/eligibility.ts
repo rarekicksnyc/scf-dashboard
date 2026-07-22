@@ -13,6 +13,7 @@ import {
   insuranceCountryLimit,
 } from "@/lib/data/store";
 import { priceDeal } from "@/lib/pricing";
+import { obligorEntityFindings } from "@/lib/engine/obligorEntity";
 import type {
   DiscountTransaction,
   EligibilityCheck,
@@ -205,6 +206,16 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
       capacity("OBLIGOR", "Obligor swingline", v.available, v.approvedLimit, v.consumed, advanceAmount);
     } else {
       add("OBLIGOR", "Obligor swingline", "Not configured", "—", "GREY", "Obligor has no swingline (not applicable).");
+    }
+  }
+
+  // -------- OBLIGOR LEGAL ENTITY (multi-entity) --------
+  // A transaction may name a specific legal entity within the obligor group. It
+  // still consumes the group aggregate limits above; the shared helper gates the
+  // named entity on its own domicile, rating, insurance, and guarantee.
+  if (obligor && txn.obligorEntityId) {
+    for (const fnd of obligorEntityFindings(txn.obligorEntityId, obligor.id, advanceAmount, txn.valueDate)) {
+      add("OBLIGOR", fnd.label, fnd.checkedAgainst, fnd.txnValue, fnd.severity, fnd.message);
     }
   }
 
