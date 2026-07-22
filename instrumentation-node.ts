@@ -4,11 +4,13 @@
 
 import { persistenceEnabled, initSchema, loadSnapshot, saveSnapshot } from "@/lib/data/persistence";
 import { snapshotJson, hydrateStore } from "@/lib/data/store";
+import { initDocSchema } from "@/lib/documents";
 
 export async function startPersistence() {
   if (!persistenceEnabled()) return;
 
   await initSchema();
+  await initDocSchema(); // document repository table (separate from the snapshot)
   const loaded = await loadSnapshot();
   if (loaded) {
     hydrateStore(loaded as Record<string, unknown>);

@@ -16,6 +16,7 @@ const NAV = [
   { href: "/eligibility", label: "Eligibility check" },
   { href: "/batches", label: "Batches" },
   { href: "/data", label: "Data management" },
+  { href: "/documents", label: "Documents" },
   { href: "/rates", label: "Rate sheet" },
   { href: "/expirations", label: "Expirations" },
   { href: "/reservations", label: "Reservations" },

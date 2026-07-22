@@ -14,7 +14,8 @@ import { Pool } from "pg";
 
 let pool: Pool | null = null;
 
-function getPool(): Pool | null {
+// Shared connection pool (also used by the document repository, lib/documents.ts).
+export function getPool(): Pool | null {
   if (!process.env.DATABASE_URL) return null;
   if (!pool) pool = new Pool({ connectionString: process.env.DATABASE_URL });
   return pool;
