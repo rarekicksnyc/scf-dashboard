@@ -9,6 +9,7 @@ import {
 import { currentUserCan } from "@/lib/auth";
 import { mm } from "@/lib/format";
 import ReservationForm from "./ReservationForm";
+import MultiReservationForm from "./MultiReservationForm";
 import ForwardBook, { type BookRow } from "./ForwardBook";
 
 export const dynamic = "force-dynamic";
@@ -53,7 +54,13 @@ export default async function ReservationsPage() {
         {mm(activeTotal)}.
       </p>
 
-      <ReservationForm sellers={sellers} obligors={obligors} rrlSellers={rrlSellers} canBook={canBook} />
+      <MultiReservationForm sellers={sellers} obligors={obligors} rrlSellers={rrlSellers} canBook={canBook} />
+      <details>
+        <summary style={{ cursor: "pointer", fontSize: 13, color: "var(--ink-soft)", margin: "0 0 12px 2px" }}>
+          Single detailed entry / swingline adjustment
+        </summary>
+        <ReservationForm sellers={sellers} obligors={obligors} rrlSellers={rrlSellers} canBook={canBook} />
+      </details>
 
       <div className="panel">
         <h2>Forward book ({reservations.length})</h2>

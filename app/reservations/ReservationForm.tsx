@@ -84,7 +84,9 @@ export default function ReservationForm({
       });
       const data = await res.json();
       if (!res.ok) {
-        const reasons = (data.checks ?? []).map((c: { message: string }) => c.message);
+        const reasons = (data.checks ?? [])
+          .filter((c: { severity: string }) => c.severity === "RED" || c.severity === "ORANGE")
+          .map((c: { message: string }) => c.message);
         if (data.canOverride) {
           setBlockedReasons(reasons);
           setMsg({ ok: false, text: data.error ?? "Does not clear." });

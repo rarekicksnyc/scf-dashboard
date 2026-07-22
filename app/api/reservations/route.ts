@@ -41,13 +41,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Maturity date must be after value date." }, { status: 422 });
   }
 
-  // Shared "did not clear → soft-warning exception" gate.
-  const gate = (blocked: boolean, failing: Failing[]) => {
+  // Shared "did not clear → soft-warning exception" gate. Returns the FULL check
+  // set on a block so the caller can show the eligibility breakdown, not just
+  // the failing reasons.
+  const gate = (blocked: boolean, allChecks: Failing[]) => {
+    const failing = allChecks.filter((c) => c.severity === "RED" || c.severity === "ORANGE");
     if (blocked && !override) {
-      return { stop: NextResponse.json({ error: "This reservation does not clear the eligibility test.", canOverride: true, checks: failing }, { status: 422 }) };
+      return { stop: NextResponse.json({ error: "This reservation does not clear the eligibility test.", canOverride: true, checks: allChecks }, { status: 422 }) };
     }
     if (blocked && override && comment.length === 0) {
-      return { stop: NextResponse.json({ error: "A reason is required to book a soft-warning exception.", canOverride: true, checks: failing }, { status: 422 }) };
+      return { stop: NextResponse.json({ error: "A reason is required to book a soft-warning exception.", canOverride: true, checks: allChecks }, { status: 422 }) };
     }
     return { isException: blocked && override, failing };
   };
@@ -60,8 +63,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "A single seller or obligor is required." }, { status: 400 });
     }
     const decision = checkSwinglineReservation(entityType, b.entityId, amount, direction);
-    const failing = decision.checks.filter((c) => c.severity === "RED");
-    const g = gate(decision.decision === "BLOCK", failing);
+    const g = gate(decision.decision === "BLOCK", decision.checks);
     if (g.stop) return g.stop;
 
     const created = addReservation({
@@ -117,8 +119,7 @@ export async function POST(request: Request) {
   };
   const report = checkDiscount(txn);
   const didNotClear = report.decision === "REJECTED" || report.decision === "EXCEPTION_REQUIRED";
-  const failing = report.checks.filter((c) => c.severity === "RED" || c.severity === "ORANGE");
-  const g = gate(didNotClear, failing);
+  const g = gate(didNotClear, report.checks);
   if (g.stop) return g.stop;
 
   const created = addReservation({
