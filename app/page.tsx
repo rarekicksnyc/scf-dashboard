@@ -8,10 +8,15 @@ import type { LimitType } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-export default function PortfolioPage() {
-  const views = limitViews();
-  const sellers = sellerExposure();
-  const obligors = obligorExposure();
+export default async function PortfolioPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ asOf?: string }>;
+}) {
+  const { asOf } = await searchParams;
+  const views = limitViews(asOf);
+  const sellers = sellerExposure(asOf);
+  const obligors = obligorExposure(asOf);
   const exp = expiryCounts(buildExpirations(new Date().toISOString().slice(0, 10)));
   const expAlert = exp.expired + exp.within30 + exp.within60;
 
@@ -63,7 +68,7 @@ export default function PortfolioPage() {
         ))}
       </div>
 
-      <ExposureTabs sellers={sellers} obligors={obligors} />
+      <ExposureTabs sellers={sellers} obligors={obligors} asOf={asOf ?? ""} />
     </>
   );
 }

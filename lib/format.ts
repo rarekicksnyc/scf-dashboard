@@ -41,6 +41,7 @@ export const LIMIT_LABEL: Record<string, string> = {
   ASR: "ASR",
   OBLIGOR: "Obligor",
   SWINGLINE: "Swingline",
+  RRL: "RRL",
   INSURANCE: "Insurance",
   INVESTOR: "Investor",
   PROGRAM: "Program",

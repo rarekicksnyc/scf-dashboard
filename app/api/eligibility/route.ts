@@ -23,6 +23,9 @@ export async function POST(request: Request) {
     valueDate: b.valueDate ?? "2026-08-01",
     maturityDate: b.maturityDate ?? "2026-11-01",
     pricingBps: Number(b.pricingBps) || 0,
+    productType: b.productType === "UTRC" ? "UTRC" : "DTR",
+    baseRateType: b.baseRateType ?? "SOFR",
+    baseRate: Number(b.baseRate) || 0,
     distributed: Boolean(b.distributed),
     investorAllocations: Array.isArray(b.investorAllocations)
       ? b.investorAllocations

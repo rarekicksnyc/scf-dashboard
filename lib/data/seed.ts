@@ -14,7 +14,37 @@ import type {
   User,
   Role,
   Permission,
+  SellerEntity,
+  ObligorEntity,
+  Country,
 } from "@/lib/types";
+
+// Country enforceability register. Only "eligible" countries (an enforceability
+// opinion is on file) may be selected as an entity domicile; others get flagged.
+export const countries: Country[] = [
+  { code: "US", name: "United States", eligible: true },
+  { code: "GB", name: "United Kingdom", eligible: true },
+  { code: "CA", name: "Canada", eligible: true },
+  { code: "DE", name: "Germany", eligible: true },
+  { code: "FR", name: "France", eligible: true },
+  { code: "NL", name: "Netherlands", eligible: true },
+  { code: "IE", name: "Ireland", eligible: true },
+  { code: "LU", name: "Luxembourg", eligible: true },
+  { code: "CH", name: "Switzerland", eligible: true },
+  { code: "JP", name: "Japan", eligible: true },
+  { code: "AU", name: "Australia", eligible: true },
+  { code: "SG", name: "Singapore", eligible: true },
+  { code: "IT", name: "Italy", eligible: false },
+  { code: "ES", name: "Spain", eligible: false },
+  { code: "MX", name: "Mexico", eligible: false },
+  { code: "BR", name: "Brazil", eligible: false },
+  { code: "CN", name: "China", eligible: false },
+  { code: "IN", name: "India", eligible: false },
+  { code: "AE", name: "United Arab Emirates", eligible: false },
+  { code: "SA", name: "Saudi Arabia", eligible: false },
+  { code: "ZA", name: "South Africa", eligible: false },
+  { code: "KR", name: "South Korea", eligible: false },
+];
 
 // Demo users (stand-in for SSO identities) and the default role → permission
 // map. Both are seeded into the store so they can be edited at runtime on the
@@ -118,6 +148,23 @@ export const sellers: Seller[] = [
   },
 ];
 
+// Eligible seller legal entities sharing each seller facility's aggregate line.
+export const sellerEntities: SellerEntity[] = [
+  { id: "SE-001A", facilityId: "SELLER001", name: "Meridian Components LLC", cdl: "10048201", domicile: "US" },
+  { id: "SE-001B", facilityId: "SELLER001", name: "Meridian Components Ltd", cdl: "10048211", domicile: "US" },
+  { id: "SE-001C", facilityId: "SELLER001", name: "Meridian Components Co", cdl: "10048221", domicile: "US" },
+  { id: "SE-002A", facilityId: "SELLER002", name: "Atlas Textiles Ltd", cdl: "10051702", domicile: "US" },
+];
+
+// Eligible obligor legal entities sharing each obligor group's aggregate limit.
+export const obligorEntities: ObligorEntity[] = [
+  { id: "OE-001A", groupId: "OBL001", name: "Global Retail Corp", cdl: "20034101", bookingCdl: "20034101", domicile: "US", borrowerRating: "A-", borrowerRatingExpiry: "2027-03-31", insurancePolicyId: "POL-1", insuranceExpiry: "2026-12-31", pcg: "Y", pcgExpiry: "2027-06-30", pcgLimit: 25_000_000 },
+  { id: "OE-001B", groupId: "OBL001", name: "Global Retail Holdings Inc", cdl: "20034111", bookingCdl: "20034111", domicile: "US", borrowerRating: "A-", borrowerRatingExpiry: "2027-03-31", insurancePolicyId: "POL-1", insuranceExpiry: "2026-12-31", pcg: "N/A" },
+  { id: "OE-002A", groupId: "OBL002", name: "Northwind Manufacturing", cdl: "20035801", bookingCdl: "20035801", domicile: "US", borrowerRating: "BBB", borrowerRatingExpiry: "2026-11-30", pcg: "N" },
+  { id: "OE-003A", groupId: "OBL003", name: "Pacific Distribution Co", cdl: "20036201", bookingCdl: "20036201", domicile: "US", borrowerRating: "BB", borrowerRatingExpiry: "2026-10-31", insurancePolicyId: "POL-1", insuranceExpiry: "2026-12-31", pcg: "N" },
+  { id: "OE-004A", groupId: "OBL004", name: "Cedar Foods Group", cdl: "20037701", bookingCdl: "20037701", domicile: "US", borrowerRating: "B+", borrowerRatingExpiry: "2026-09-30", pcg: "N" },
+];
+
 export const obligors: Obligor[] = [
   {
     id: "OBL001",
@@ -181,6 +228,7 @@ export const investors: Investor[] = [
     minTicket: 1_000_000,
     maxTicket: 10_000_000,
     pricingFloorBps: 100,
+    domicile: "US",
   },
   {
     id: "INV-B",
@@ -193,6 +241,7 @@ export const investors: Investor[] = [
     minTicket: 1_000_000,
     maxTicket: 8_000_000,
     pricingFloorBps: 115,
+    domicile: "US",
   },
 ];
 
@@ -207,6 +256,7 @@ export const insurancePolicies: InsurancePolicy[] = [
     effectiveDate: "2026-01-01",
     expiryDate: "2026-12-31",
     recourseToSeller: true,
+    domicile: "NL",
     status: "ACTIVE",
   },
 ];
@@ -412,6 +462,22 @@ const rawLimits: Omit<Limit, "cdl">[] = [
     maxTenorDays: 45,
     effectiveDate: "2026-01-01",
     expiryDate: "2026-07-15", // already lapsed — exercises the EXPIRED flag
+    status: "ACTIVE",
+    warnThreshold: 0.85,
+    exceptionThreshold: 1.0,
+  },
+  // Risk Reimbursement Line (seller-level). Only SELLER001 has one.
+  {
+    id: "LMT-RRL-SELLER001",
+    type: "RRL",
+    entityType: "SELLER",
+    entityId: "SELLER001",
+    programId: "PRG001",
+    currency: "USD",
+    approvedLimit: 20_000_000,
+    maxTenorDays: 180,
+    effectiveDate: "2026-01-01",
+    expiryDate: "2026-12-31",
     status: "ACTIVE",
     warnThreshold: 0.85,
     exceptionThreshold: 1.0,

@@ -64,6 +64,9 @@ export default function EligibilityCheck({
     valueDate: "2026-08-01",
     maturityDate: "2026-11-01",
     pricingBps: "125",
+    productType: "DTR",
+    baseRateType: "SOFR",
+    baseRate: "5.00",
     distributed: false,
     insured: false,
   });
@@ -93,6 +96,9 @@ export default function EligibilityCheck({
       valueDate: f.valueDate,
       maturityDate: f.maturityDate,
       pricingBps: Number(f.pricingBps),
+      productType: f.productType,
+      baseRateType: f.baseRateType,
+      baseRate: Number(f.baseRate),
       distributed: f.distributed,
       investorAllocations: f.distributed
         ? investorAllocs.map((a) => ({ investorId: a.investorId, amount: Number(a.amount) }))
@@ -149,8 +155,24 @@ export default function EligibilityCheck({
             <label style={field}>Maturity date
               <input style={input} type="date" value={f.maturityDate} onChange={(e) => set("maturityDate", e.target.value)} />
             </label>
-            <label style={field}>Pricing (bps)
+            <label style={field}>Product type
+              <select style={input} value={f.productType} onChange={(e) => set("productType", e.target.value)}>
+                <option value="DTR">DTR (discount)</option>
+                <option value="UTRC">UTRC (commitment)</option>
+              </select>
+            </label>
+            <label style={field}>Margin (bps)
               <input style={input} type="number" value={f.pricingBps} onChange={(e) => set("pricingBps", e.target.value)} />
+            </label>
+            <label style={field}>Base rate
+              <select style={input} value={f.baseRateType} onChange={(e) => set("baseRateType", e.target.value)}>
+                <option value="SOFR">SOFR</option>
+                <option value="COF">COF</option>
+                <option value="OTHER">Other</option>
+              </select>
+            </label>
+            <label style={field}>Base rate (%)
+              <input style={input} type="number" step="0.01" value={f.baseRate} onChange={(e) => set("baseRate", e.target.value)} />
             </label>
           </div>
 
@@ -248,6 +270,28 @@ function Report({ report }: { report: EligibilityReport }) {
             Funded {(report.advanceAmount / 1_000_000).toFixed(2)}MM · tenor {report.tenorDays}d ·
             {" "}{counts.pass} pass · {counts.warn} warn · {counts.fail} fail
           </span>
+        </div>
+      </div>
+
+      <div className="panel">
+        <h2>Pricing — {report.pricing.productType}</h2>
+        <div className="table-scroll">
+          <table>
+            <tbody>
+              <tr><td>Base rate</td><td className="num">{report.pricing.baseRateType} {report.pricing.baseRatePct.toFixed(2)}%</td>
+                  <td>Margin</td><td className="num">{report.pricing.marginBps} bps ({(report.pricing.marginBps / 100).toFixed(2)}%)</td>
+                  <td>All-in rate</td><td className="num" style={{ fontWeight: 700 }}>{report.pricing.allInRatePct.toFixed(2)}%</td></tr>
+              {report.pricing.productType === "DTR" ? (
+                <tr><td>Coverage</td><td className="num">{(report.pricing.coverage / 1e6).toFixed(2)}MM</td>
+                    <td>Discount</td><td className="num">{(report.pricing.discount / 1e6).toFixed(3)}MM</td>
+                    <td>Purchase price</td><td className="num" style={{ fontWeight: 700 }}>{(report.pricing.purchasePrice / 1e6).toFixed(3)}MM</td></tr>
+              ) : (
+                <tr><td>Commitment</td><td className="num">{(report.pricing.coverage / 1e6).toFixed(2)}MM</td>
+                    <td>Commitment fee</td><td className="num" style={{ fontWeight: 700 }}>{(report.pricing.commitmentFee / 1e6).toFixed(3)}MM</td>
+                    <td>&nbsp;</td><td>&nbsp;</td></tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 

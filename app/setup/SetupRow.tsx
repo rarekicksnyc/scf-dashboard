@@ -29,11 +29,25 @@ export default function SetupRow(props: SetupRowProps) {
   const [swlOn, setSwlOn] = useState(props.swinglineEnabled);
   const [swlAmt, setSwlAmt] = useState(String(props.swinglineAmount || 5_000_000));
   const [busy, setBusy] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  function dirty() {
+    return (
+      cdl !== props.cdl ||
+      Number(limitAmount) !== props.limitAmount ||
+      swlOn !== props.swinglineEnabled ||
+      (swlOn && Number(swlAmt) !== props.swinglineAmount)
+    );
+  }
 
   async function save() {
+    if (!dirty()) {
+      setMsg("No changes made");
+      setTimeout(() => setMsg(null), 2000);
+      return;
+    }
     setBusy(true);
-    setSaved(false);
+    setMsg(null);
     await fetch("/api/setup", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -48,7 +62,8 @@ export default function SetupRow(props: SetupRowProps) {
       }),
     });
     setBusy(false);
-    setSaved(true);
+    setMsg("Changes saved ✓");
+    setTimeout(() => setMsg(null), 2000);
     router.refresh();
   }
 
@@ -83,8 +98,9 @@ export default function SetupRow(props: SetupRowProps) {
       </td>
       <td>
         <button className="btn" style={{ padding: "5px 12px", fontSize: 12 }} onClick={save} disabled={busy} type="button">
-          {busy ? "Saving…" : saved ? "Saved ✓" : "Save"}
+          {busy ? "Saving…" : "Save"}
         </button>
+        {msg && <span className="muted" style={{ marginLeft: 8, fontSize: 11 }}>{msg}</span>}
       </td>
     </tr>
   );

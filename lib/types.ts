@@ -16,6 +16,7 @@ export type LimitType =
   | "ASR" // Asset Securitization limit (manually-input monetary cap)
   | "OBLIGOR" // buyer / account-debtor concentration cap
   | "SWINGLINE" // temporary bank funding pending takeout/distribution
+  | "RRL" // Risk Reimbursement Line — seller-level, part of a deal can book here
   | "INSURANCE" // insured recoverable exposure cap (per policy)
   | "INVESTOR" // distribution / investor takeout cap
   | "PROGRAM"; // program-level umbrella cap
@@ -73,6 +74,38 @@ export interface Program {
   baseCurrency: Currency;
   maxTenorDays: number;
   status: EntityStatus;
+}
+
+// ---------------------------------------------------------------------------
+// Multi-entity model. A Seller (facility) holds the aggregate seller line, ASR,
+// swingline, and RRL; one or more eligible SellerEntity legal entities share it.
+// An Obligor (group) holds the aggregate obligor limit + swingline; one or more
+// eligible ObligorEntity legal entities share it. Transactions name a specific
+// entity but consume the facility/group aggregate.
+// ---------------------------------------------------------------------------
+
+export interface SellerEntity {
+  id: string;
+  facilityId: string; // parent Seller (facility) id
+  name: string;
+  cdl: string; // 8-digit customer code (per legal entity)
+  domicile: string; // country of domicile
+}
+
+export interface ObligorEntity {
+  id: string;
+  groupId: string; // parent Obligor (group) id
+  name: string;
+  cdl: string;
+  bookingCdl: string;
+  domicile: string;
+  borrowerRating: string;
+  borrowerRatingExpiry: string;
+  insurancePolicyId?: string;
+  insuranceExpiry?: string;
+  pcg?: PcgFlag; // parent company guarantee
+  pcgExpiry?: string;
+  pcgLimit?: number;
 }
 
 export type LegalDocStatus = "RECEIVED" | "MISSING" | "EXPIRED";
@@ -138,6 +171,15 @@ export interface Investor {
   minTicket: number;
   maxTicket: number;
   pricingFloorBps: number; // minimum pricing the investor accepts
+  domicile: string; // country of domicile
+}
+
+// Country enforceability register: only countries with an enforceability opinion
+// are eligible as a domicile.
+export interface Country {
+  code: string;
+  name: string;
+  eligible: boolean;
 }
 
 // An executed participation agreement between an investor and a seller — a
@@ -158,6 +200,7 @@ export interface InsurancePolicy {
   effectiveDate: string; // policy validity start (ISO)
   expiryDate: string; // policy validity end (ISO)
   recourseToSeller: boolean; // uninsured residual has recourse to the seller
+  domicile: string; // insurer country of domicile
   status: EntityStatus;
 }
 
@@ -283,6 +326,7 @@ export interface Reservation {
   pricingBps: number; // pricing in basis points (0 for swingline movements)
   tenorDays: number; // maturityDate - valueDate
   usesSwingline: boolean;
+  rrlAmount?: number; // portion of the amount booked on the seller's RRL
   status: ReservationStatus;
   createdAt: string;
   createdBy: string;
@@ -317,6 +361,23 @@ export interface ScheduleEvent {
 // ---------------------------------------------------------------------------
 
 export type InvoiceType = "FINAL" | "PROVISIONAL" | "PIPELINE";
+export type ProductType = "DTR" | "UTRC"; // discount TR vs unfunded TR commitment
+export type BaseRateType = "COF" | "SOFR" | "OTHER";
+
+// Pricing convention: a margin input of 1.15 means 115 bps = 1.15%. We store the
+// margin in bps (pricingBps = 115) and the base rate as a percent (baseRate =
+// 5.00). margin_decimal = pricingBps/10000; base_decimal = baseRate/100.
+export interface PricingResult {
+  productType: ProductType;
+  baseRateType: BaseRateType;
+  baseRatePct: number; // e.g. 5.00
+  marginBps: number; // e.g. 115
+  allInRatePct: number; // margin% + base% (e.g. 6.15)
+  coverage: number; // DTR: funded/advance amount
+  discount: number; // DTR
+  purchasePrice: number; // DTR: coverage - discount
+  commitmentFee: number; // UTRC
+}
 
 export interface InsurerAllocation {
   policyId: string;
@@ -338,7 +399,10 @@ export interface DiscountTransaction {
   advanceRate: number; // 0.85 … 1.00, from the upload file
   valueDate: string;
   maturityDate: string;
-  pricingBps: number;
+  pricingBps: number; // margin, in bps
+  productType?: ProductType; // default DTR
+  baseRateType?: BaseRateType;
+  baseRate?: number; // percent, e.g. 5.00
   // Distribution — one or more investors
   distributed: boolean;
   investorAllocations?: InvestorAllocation[];
@@ -370,6 +434,7 @@ export interface EligibilityReport {
   advanceAmount: number; // invoiceAmount x advanceRate — consumes limits
   tenorDays: number;
   checks: EligibilityCheck[];
+  pricing: PricingResult;
   decision: "ELIGIBLE" | "ELIGIBLE_WITH_WARNING" | "EXCEPTION_REQUIRED" | "REJECTED";
 }
 

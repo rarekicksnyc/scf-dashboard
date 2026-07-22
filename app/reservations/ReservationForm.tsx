@@ -12,10 +12,12 @@ type Mode = "DISCOUNT" | "SWINGLINE";
 export default function ReservationForm({
   sellers,
   obligors,
+  rrlSellers,
   canBook,
 }: {
   sellers: Opt[];
   obligors: Opt[];
+  rrlSellers: string[];
   canBook: boolean;
 }) {
   const router = useRouter();
@@ -27,6 +29,7 @@ export default function ReservationForm({
     valueDate: "2026-08-15",
     maturityDate: "2026-11-13",
     pricingBps: "125",
+    rrlAmount: "0",
   });
   const [swl, setSwl] = useState({
     entityType: "SELLER" as "SELLER" | "OBLIGOR",
@@ -67,6 +70,7 @@ export default function ReservationForm({
               obligorId: form.obligorId,
               amount: Number(form.amount),
               pricingBps: Number(form.pricingBps),
+              rrlAmount: rrlSellers.includes(form.sellerId) ? Number(form.rrlAmount) : 0,
               valueDate: form.valueDate,
               maturityDate: form.maturityDate,
               override,
@@ -162,6 +166,12 @@ export default function ReservationForm({
               <label style={field}>Pricing (bps)
                 <input style={input} type="number" value={form.pricingBps} onChange={(e) => set("pricingBps", e.target.value)} />
               </label>
+              {rrlSellers.includes(form.sellerId) && (
+                <label style={field}>Booked on RRL (USD)
+                  <input style={input} type="number" value={form.rrlAmount} onChange={(e) => set("rrlAmount", e.target.value)} />
+                  <span className="muted" style={{ fontSize: 10 }}>Seller line takes amount − RRL; obligor takes the full amount.</span>
+                </label>
+              )}
             </>
           ) : (
             <>

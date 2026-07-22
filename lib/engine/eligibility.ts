@@ -18,7 +18,32 @@ import type {
   EligibilityReport,
   EligibilityCategory,
   InvoiceType,
+  PricingResult,
 } from "@/lib/types";
+
+// Pricing. margin (bps) and base rate (%) → all-in; DTR discount/purchase price
+// or UTRC commitment fee. Day count 360.
+function computePricing(txn: DiscountTransaction, coverage: number, tenorDays: number): PricingResult {
+  const marginBps = txn.pricingBps;
+  const baseRatePct = txn.baseRate ?? 0;
+  const marginDec = marginBps / 10000;
+  const baseDec = baseRatePct / 100;
+  const productType = txn.productType ?? "DTR";
+  const t = Math.max(tenorDays, 0) / 360;
+  const discount = coverage * (marginDec + baseDec) * t;
+  const commitmentFee = coverage * marginDec * t;
+  return {
+    productType,
+    baseRateType: txn.baseRateType ?? "SOFR",
+    baseRatePct,
+    marginBps,
+    allInRatePct: marginBps / 100 + baseRatePct,
+    coverage,
+    discount,
+    purchasePrice: coverage - discount,
+    commitmentFee,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // MARS-style consolidated eligibility engine. Runs a single discount
@@ -337,5 +362,6 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
           ? "ELIGIBLE_WITH_WARNING"
           : "ELIGIBLE";
 
-  return { transaction: txn, advanceAmount, tenorDays, checks, decision };
+  const pricing = computePricing(txn, advanceAmount, tenorDays);
+  return { transaction: txn, advanceAmount, tenorDays, checks, pricing, decision };
 }

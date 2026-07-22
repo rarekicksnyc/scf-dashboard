@@ -130,6 +130,7 @@ export async function POST(request: Request) {
     valueDate: b.valueDate,
     maturityDate: b.maturityDate,
     pricingBps: Number(b.pricingBps) || 0,
+    rrlAmount: Math.min(Math.max(Number(b.rrlAmount) || 0, 0), amount),
     tenorDays,
     usesSwingline:
       Boolean(entitySwingline("SELLER", b.sellerId)) ||

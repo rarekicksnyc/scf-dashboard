@@ -20,6 +20,9 @@ import type {
   User,
   Role,
   Permission,
+  SellerEntity,
+  ObligorEntity,
+  Country,
 } from "@/lib/types";
 import { toLimitView } from "@/lib/engine/availability";
 import * as seed from "./seed";
@@ -43,12 +46,15 @@ interface Store {
   exceptions: ExceptionItem[];
   auditLog: AuditEntry[];
   reservations: Reservation[];
+  sellerEntities: SellerEntity[];
+  obligorEntities: ObligorEntity[];
   sellerObligorLimits: SellerObligorLimit[];
   participationAgreements: ParticipationAgreement[];
   insuranceBuyerSublimits: InsuranceBuyerSublimit[];
   insuranceCountryLimits: InsuranceCountryLimit[];
   users: User[];
   rolePermissions: Record<Role, Permission[]>;
+  countries: Country[];
   seq: number; // monotonic id counter
 }
 
@@ -67,12 +73,15 @@ function seedStore(): Store {
     exceptions: [],
     auditLog: [],
     reservations: structuredClone(seed.reservations),
+    sellerEntities: structuredClone(seed.sellerEntities),
+    obligorEntities: structuredClone(seed.obligorEntities),
     sellerObligorLimits: structuredClone(seed.sellerObligorLimits),
     participationAgreements: structuredClone(seed.participationAgreements),
     insuranceBuyerSublimits: structuredClone(seed.insuranceBuyerSublimits),
     insuranceCountryLimits: structuredClone(seed.insuranceCountryLimits),
     users: structuredClone(seed.users),
     rolePermissions: structuredClone(seed.rolePermissions),
+    countries: structuredClone(seed.countries),
     // Start the id counter past the seeded reservation ids (RSV-0000N) so
     // generated ids never collide with seed ids.
     seq: seed.reservations.length,
@@ -107,6 +116,62 @@ export function allObligors(): Obligor[] {
   return store.obligors;
 }
 
+// Eligible legal entities sharing a facility / group aggregate line.
+export function sellerEntitiesOf(facilityId: string): SellerEntity[] {
+  return store.sellerEntities.filter((e) => e.facilityId === facilityId);
+}
+
+export function obligorEntitiesOf(groupId: string): ObligorEntity[] {
+  return store.obligorEntities.filter((e) => e.groupId === groupId);
+}
+
+export function allSellerEntities(): SellerEntity[] {
+  return store.sellerEntities;
+}
+
+export function allObligorEntities(): ObligorEntity[] {
+  return store.obligorEntities;
+}
+
+// ---------------------------------------------------------------------------
+// Country enforceability register
+// ---------------------------------------------------------------------------
+
+export function allCountries(): Country[] {
+  return store.countries;
+}
+
+export function eligibleCountries(): Country[] {
+  return store.countries.filter((c) => c.eligible);
+}
+
+export function isCountryEligible(code: string): boolean {
+  return store.countries.some((c) => c.code === code && c.eligible);
+}
+
+export function setCountryEligible(code: string, eligible: boolean): void {
+  const c = store.countries.find((x) => x.code === code);
+  if (c) c.eligible = eligible;
+}
+
+// Every entity whose domicile is not on the eligible-country register — the
+// enforceability monitoring exceptions.
+export function domicileExceptions(): Array<{
+  kind: string;
+  name: string;
+  domicile: string;
+}> {
+  const out: Array<{ kind: string; name: string; domicile: string }> = [];
+  const flag = (kind: string, name: string, domicile: string) => {
+    if (domicile && !isCountryEligible(domicile)) out.push({ kind, name, domicile });
+  };
+  for (const e of store.sellerEntities) flag("Seller entity", e.name, e.domicile);
+  for (const e of store.obligorEntities) flag("Obligor entity", e.name, e.domicile);
+  for (const i of store.investors) flag("Investor", i.name, i.domicile);
+  for (const p of store.insurancePolicies) flag("Insurer", p.insurerName, p.domicile);
+  return out;
+}
+
 export function getProgram(id: string): Program | undefined {
   return store.programs.find((p) => p.id === id);
 }
@@ -136,6 +201,11 @@ export function sellerObligorLimit(
   return store.sellerObligorLimits.find(
     (x) => x.sellerId === sellerId && x.obligorId === obligorId,
   );
+}
+
+// All obligor groups approved under a seller's ASR.
+export function sellerObligorLimitsForSeller(sellerId: string): SellerObligorLimit[] {
+  return store.sellerObligorLimits.filter((x) => x.sellerId === sellerId);
 }
 
 // Usage of an ASR sublimit = active reservations for that seller/obligor pair.
@@ -203,12 +273,27 @@ export function findLimit(
 // Sum of active (RESERVED) reservations booked against a given limit. This is
 // what folds the forward book into the same availability formula the batch
 // engine uses — reservations reduce capacity everywhere.
-export function reservationConsumedForLimit(limit: Limit): number {
-  const active = store.reservations.filter((r) => r.status === "RESERVED");
+// asOf (ISO date) gives the time-phased view: a reservation is on the books only
+// within its [valueDate, maturityDate] window. Omitting asOf counts every active
+// reservation (the aggregate committed view) — the default everywhere else.
+export function reservationConsumedForLimit(limit: Limit, asOf?: string): number {
+  const active = store.reservations.filter(
+    (r) =>
+      r.status === "RESERVED" &&
+      (!asOf || (r.valueDate <= asOf && r.maturityDate >= asOf)),
+  );
   switch (limit.type) {
     case "SELLER":
-      return sum(active.filter((r) => r.sellerId === limit.entityId));
+      // Seller line takes the amount net of any RRL portion.
+      return active
+        .filter((r) => r.sellerId === limit.entityId)
+        .reduce((a, r) => a + r.amount - (r.rrlAmount ?? 0), 0);
+    case "RRL":
+      return active
+        .filter((r) => r.sellerId === limit.entityId)
+        .reduce((a, r) => a + (r.rrlAmount ?? 0), 0);
     case "OBLIGOR":
+      // Obligor line takes the FULL amount (RRL split does not reduce it).
       return sum(active.filter((r) => r.obligorId === limit.entityId));
     case "SWINGLINE": {
       // A swingline is a core limit. Discount reservations draw it; standalone
@@ -242,13 +327,14 @@ function sum(rs: Reservation[]): number {
   return rs.reduce((a, r) => a + r.amount, 0);
 }
 
-// The single reservation-aware view of a limit — used by every screen.
-export function viewLimit(limit: Limit): LimitView {
-  return toLimitView(limit, getUtilization(limit.id), reservationConsumedForLimit(limit));
+// The single reservation-aware view of a limit — used by every screen. Pass
+// asOf for the time-phased (as-of-date) view.
+export function viewLimit(limit: Limit, asOf?: string): LimitView {
+  return toLimitView(limit, getUtilization(limit.id), reservationConsumedForLimit(limit, asOf));
 }
 
-export function limitViews() {
-  return store.limits.map(viewLimit);
+export function limitViews(asOf?: string) {
+  return store.limits.map((l) => viewLimit(l, asOf));
 }
 
 export function getBatches(): BatchResult[] {

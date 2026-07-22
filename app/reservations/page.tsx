@@ -4,6 +4,7 @@ import {
   allObligors,
   getSeller,
   getObligor,
+  findLimit,
 } from "@/lib/data/store";
 import { currentUserCan } from "@/lib/auth";
 import { mm } from "@/lib/format";
@@ -17,6 +18,7 @@ export default async function ReservationsPage() {
   const canBook = await currentUserCan("UPLOAD_BATCH");
   const sellers = allSellers().map((s) => ({ id: s.id, name: s.name }));
   const obligors = allObligors().map((o) => ({ id: o.id, name: o.name }));
+  const rrlSellers = allSellers().filter((s) => findLimit("RRL", s.id)).map((s) => s.id);
 
   const activeTotal = reservations
     .filter((r) => r.status === "RESERVED")
@@ -51,7 +53,7 @@ export default async function ReservationsPage() {
         {mm(activeTotal)}.
       </p>
 
-      <ReservationForm sellers={sellers} obligors={obligors} canBook={canBook} />
+      <ReservationForm sellers={sellers} obligors={obligors} rrlSellers={rrlSellers} canBook={canBook} />
 
       <div className="panel">
         <h2>Forward book ({reservations.length})</h2>
