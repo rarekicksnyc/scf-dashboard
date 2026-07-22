@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import type { EligibilityReport, EligibilityCategory } from "@/lib/types";
+import { usd } from "@/lib/format";
+import { clampPct, coverageAmount } from "@/lib/ui";
 
 interface Opt {
   id: string;
@@ -92,6 +94,9 @@ export default function EligibilityCheck({
     setF((s) => ({ ...s, [k]: v }));
   }
 
+  // Coverage (funded) amount = invoice amount × advance rate. Derived, read-only.
+  const coverage = coverageAmount(Number(f.invoiceAmount) || 0, (Number(f.advanceRate) || 0) / 100);
+
   async function run() {
     setBusy(true);
     const body = {
@@ -164,7 +169,11 @@ export default function EligibilityCheck({
               </select>
             </label>
             <label style={field}>Advance rate (%)
-              <input style={input} type="number" value={f.advanceRate} onChange={(e) => set("advanceRate", e.target.value)} />
+              <input style={input} type="number" min="0" max="100" step="0.5" value={f.advanceRate} onChange={(e) => set("advanceRate", clampPct(e.target.value))} />
+            </label>
+            <label style={field}>Coverage amount (USD)
+              <input style={{ ...input, background: "#f2f4f8", fontWeight: 600 }} value={usd(coverage)} readOnly tabIndex={-1} />
+              <span className="muted" style={{ fontSize: 10 }}>invoice amount × advance rate</span>
             </label>
             <label style={field}>Value date
               <input style={input} type="date" value={f.valueDate} onChange={(e) => set("valueDate", e.target.value)} />

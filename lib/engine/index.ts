@@ -33,13 +33,12 @@ import {
 } from "./allocation";
 import { priceDeal } from "@/lib/pricing";
 import { obligorEntityFindings } from "./obligorEntity";
+import { DEFAULT_MARGIN_BPS } from "@/lib/config";
 
 // ---------------------------------------------------------------------------
 // Eligibility engine. Pure over its inputs (store snapshot + invoice list) —
 // it never mutates the store. Callers persist the result.
 // ---------------------------------------------------------------------------
-
-const DEFAULT_MARGIN_BPS = 200; // fallback margin when the upload omits pricing
 
 function daysBetween(fromISO: string, toISO: string): number {
   const from = Date.parse(fromISO);

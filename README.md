@@ -52,7 +52,20 @@ The sample is engineered to exercise every control:
   bank hold → insurance overlay). Reads capacity; the engine commits it.
 - `lib/data/seed.ts` / `lib/data/store.ts` — seeded demo data and the in-memory
   store. `store.ts` is the seam that becomes Postgres later.
-- `app/` — Portfolio, Batches, Batch review, and Limits screens.
+- `lib/config.ts` — **every tunable bank parameter** (day-count basis, default
+  margin, advance-rate band, per-invoice-type caps) in one documented place.
+  Per-customer parameters (approved limit, tenor, thresholds) live on the
+  individual records in the store.
+- `lib/pricing.ts` — the one `priceDeal()` used by both engines (DTR discount /
+  UTRC fee), so pricing can never diverge between the interactive and batch paths.
+- `lib/ui.ts` — shared input styling + small helpers (`clampPct`,
+  `coverageAmount`), so form fields look and behave the same everywhere.
+- `app/` — Portfolio, Batches, Batch review, Limits, Eligibility, Reservations,
+  Reports, Setup, and governance screens.
+
+**Security & parameters:** see [`SECURITY.md`](SECURITY.md) for the access model,
+audit/segregation controls, data handling, the no-external-calls / no-AI stance,
+and the production hardening checklist.
 
 ## What's built
 
@@ -135,10 +148,11 @@ Distribution / Insurance, with a decision banner and per-check pass/warn/fail:
   ASR obligor sublimit** — checked against BOTH the master line and the sublimit,
   tightest binds (the Valero $200M-vs-$50M case; here OBL001 is $40M master / $30M
   under SELLER001 / $15M under SELLER002).
-- **Transaction**: advance rate in 85–100% range; advance vs invoice-type
-  (FINAL/PROVISIONAL/PIPELINE) typical cap — **warns, doesn't fail**, when the
-  business line prices above for return; funded amount = invoice × advance rate,
-  which is what consumes every limit.
+- **Transaction**: advance rate is enterable **0–100%** (typical band 85–100%);
+  advance vs invoice-type (FINAL/PROVISIONAL/PIPELINE) cap — **warns, doesn't
+  fail**, when the business line prices above for return. **Coverage amount =
+  invoice × advance rate** is shown live as a read-only field and is what consumes
+  every limit; it flows through to the transaction report and its Excel export.
 - **Distribution**: executed participation agreement, investor approved limit,
   investor pricing floor, investor tenor band, participation amount (as % of
   funded).
@@ -185,6 +199,22 @@ single `checkDiscount(txn)` entry point.
   booker can override with a documented reason and an optional resolve-by date;
   the reservation is booked and flagged in the list with a ⚠ marker whose tooltip
   shows the reason, resolve-by date, and the checks that did not clear.
+
+**Phase 8 — multi-entity, reporting & handoff** ✓
+- **Obligor multi-entity**: a transaction (interactive or uploaded) can name a
+  specific obligor **legal entity** within the group. It consumes the group
+  aggregate limit, while the named entity is gated on its own domicile
+  enforceability, borrower-rating currency, credit insurance, and parent-company
+  guarantee — evaluated as of the value date. The rules live once in
+  `lib/engine/obligorEntity.ts` and are shared by both engines.
+- **Coverage amount** everywhere applicable: read-only on both eligibility forms,
+  a column in the multi-transaction table, and a column + total in the
+  transaction report and its Excel export.
+- **Exposure summary + email** (`/reports`): tick any set of sellers/obligors,
+  sort by any column, **Copy as email** (a real HTML + plaintext table for
+  Gmail/Outlook), and **Download Excel**.
+- **Formatted Excel exports** via `lib/xlsxexport.ts` (native numeric cells,
+  sized columns, frozen header, totals row).
 
 ## Deferred (need external infrastructure)
 

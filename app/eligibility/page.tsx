@@ -7,6 +7,7 @@ import {
 } from "@/lib/data/store";
 import EligibilityCheck from "./EligibilityCheck";
 import MultiTransactionCheck from "./MultiTransactionCheck";
+import Collapsible from "../Collapsible";
 
 export const dynamic = "force-dynamic";
 
@@ -31,10 +32,7 @@ export default function EligibilityPage() {
         against both its master line and the per-seller ASR sublimit.
       </p>
       <MultiTransactionCheck sellers={sellers} obligors={obligors} obligorEntities={obligorEntities} />
-      <details>
-        <summary style={{ cursor: "pointer", fontSize: 13, color: "var(--ink-soft)", margin: "0 0 12px 2px" }}>
-          Single detailed check (full breakdown, distribution &amp; insurance)
-        </summary>
+      <Collapsible summary="Single detailed check (full breakdown, distribution & insurance)">
         <EligibilityCheck
           sellers={sellers}
           obligors={obligors}
@@ -42,7 +40,7 @@ export default function EligibilityPage() {
           investors={investors}
           policies={policies}
         />
-      </details>
+      </Collapsible>
     </>
   );
 }

@@ -1,4 +1,5 @@
 import { resolveBaseRate } from "@/lib/data/store";
+import { DAY_COUNT_BASIS } from "@/lib/config";
 import type { PricingResult, ProductType, BaseRateType } from "@/lib/types";
 
 // Shared pricing used by the eligibility engine and the batch engine.
@@ -22,7 +23,7 @@ export function priceDeal(opts: {
       : (resolveBaseRate(baseRateType, opts.tenorDays) ?? 0);
   const marginDec = marginBps / 10000;
   const baseDec = baseRatePct / 100;
-  const t = Math.max(opts.tenorDays, 0) / 360;
+  const t = Math.max(opts.tenorDays, 0) / DAY_COUNT_BASIS;
   const discount = opts.coverage * (marginDec + baseDec) * t;
   const commitmentFee = opts.coverage * marginDec * t;
   return {

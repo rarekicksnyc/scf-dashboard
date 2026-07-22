@@ -33,6 +33,8 @@ export async function GET(request: Request) {
     getSeller(d.sellerId)?.name ?? d.sellerId,
     getObligor(d.obligorId)?.name ?? d.obligorId,
     Math.round(d.amount),
+    Number((d.advanceRate * 100).toFixed(1)),
+    Math.round(d.coverage),
     Math.round(d.revenue),
     d.bookedDate.slice(0, 10),
     d.valueDate.slice(0, 10),
@@ -42,8 +44,9 @@ export async function GET(request: Request) {
 
   // Trailing total row.
   const totalAmount = deals.reduce((a, d) => a + d.amount, 0);
+  const totalCoverage = deals.reduce((a, d) => a + d.coverage, 0);
   const totalRevenue = deals.reduce((a, d) => a + d.revenue, 0);
-  rows.push([`Total (${deals.length})`, "", "", Math.round(totalAmount), Math.round(totalRevenue), "", "", "", ""]);
+  rows.push([`Total (${deals.length})`, "", "", Math.round(totalAmount), "", Math.round(totalCoverage), Math.round(totalRevenue), "", "", "", ""]);
 
   return xlsxResponse(
     "transactions.xlsx",
@@ -53,6 +56,8 @@ export async function GET(request: Request) {
       { header: "Seller", width: 32 },
       { header: "Obligor", width: 32 },
       { header: "Amount (USD)", width: 16 },
+      { header: "Advance %", width: 11 },
+      { header: "Coverage (USD)", width: 16 },
       { header: "Revenue (USD)", width: 16 },
       { header: "Booked", width: 12 },
       { header: "Value date", width: 12 },

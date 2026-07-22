@@ -11,6 +11,8 @@ export interface TxnRow {
   obligorId: string;
   obligorName: string;
   amount: number;
+  advanceRate: number;
+  coverage: number;
   revenue: number;
   bookedDate: string;
   valueDate: string;
@@ -54,6 +56,7 @@ export default function TransactionReport({
   }, [deals, sellerId, obligorId, from, to, basis]);
 
   const total = filtered.reduce((a, d) => a + d.amount, 0);
+  const totalCoverage = filtered.reduce((a, d) => a + d.coverage, 0);
   const totalRevenue = filtered.reduce((a, d) => a + d.revenue, 0);
 
   const exportQuery = () => {
@@ -67,14 +70,14 @@ export default function TransactionReport({
   };
 
   function downloadCsv() {
-    const header = ["invoice_number", "seller_id", "seller", "obligor_id", "obligor", "amount", "revenue", "booked_date", "value_date", "maturity_date", "batch"];
+    const header = ["invoice_number", "seller_id", "seller", "obligor_id", "obligor", "amount", "advance_rate", "coverage_amount", "revenue", "booked_date", "value_date", "maturity_date", "batch"];
     const esc = (v: string | number) => {
       const s = String(v);
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const lines = [header.join(",")];
     for (const d of filtered) {
-      lines.push([d.invoiceNumber, d.sellerId, d.sellerName, d.obligorId, d.obligorName, d.amount, Math.round(d.revenue), d.bookedDate.slice(0, 10), d.valueDate, d.maturityDate, d.batchId].map(esc).join(","));
+      lines.push([d.invoiceNumber, d.sellerId, d.sellerName, d.obligorId, d.obligorName, d.amount, d.advanceRate, Math.round(d.coverage), Math.round(d.revenue), d.bookedDate.slice(0, 10), d.valueDate, d.maturityDate, d.batchId].map(esc).join(","));
     }
     const blob = new Blob([lines.join("\n")], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -119,7 +122,7 @@ export default function TransactionReport({
 
         <div className="row-actions" style={{ justifyContent: "space-between" }}>
           <span className="muted">
-            {filtered.length} transaction{filtered.length === 1 ? "" : "s"} · {mm(total)} volume · {mm(totalRevenue)} revenue
+            {filtered.length} transaction{filtered.length === 1 ? "" : "s"} · {mm(total)} volume · {mm(totalCoverage)} coverage · {mm(totalRevenue)} revenue
           </span>
           <span style={{ display: "flex", gap: 8 }}>
             <a
@@ -144,6 +147,8 @@ export default function TransactionReport({
                 <th>Seller</th>
                 <th>Obligor</th>
                 <th className="num">Amount</th>
+                <th className="num">Adv %</th>
+                <th className="num">Coverage</th>
                 <th className="num">Revenue</th>
                 <th>Booked</th>
                 <th>Value date</th>
@@ -153,7 +158,7 @@ export default function TransactionReport({
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={9} className="muted" style={{ padding: 16 }}>No transactions match the filters.</td></tr>
+                <tr><td colSpan={11} className="muted" style={{ padding: 16 }}>No transactions match the filters.</td></tr>
               ) : (
                 filtered.map((d, i) => (
                   <tr key={`${d.batchId}-${d.invoiceNumber}-${i}`}>
@@ -161,6 +166,8 @@ export default function TransactionReport({
                     <td>{d.sellerName}</td>
                     <td>{d.obligorName}</td>
                     <td className="num">{mm(d.amount)}</td>
+                    <td className="num">{(d.advanceRate * 100).toFixed(0)}%</td>
+                    <td className="num">{mm(d.coverage)}</td>
                     <td className="num">{mm(d.revenue)}</td>
                     <td>{dateShort(d.bookedDate)}</td>
                     <td>{dateShort(d.valueDate)}</td>

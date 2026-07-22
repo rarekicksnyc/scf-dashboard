@@ -14,12 +14,12 @@ import {
 } from "@/lib/data/store";
 import { priceDeal } from "@/lib/pricing";
 import { obligorEntityFindings } from "@/lib/engine/obligorEntity";
+import { ADVANCE_RATE_CAP, ADVANCE_RATE_TYPICAL_MIN, ADVANCE_RATE_TYPICAL_MAX } from "@/lib/config";
 import type {
   DiscountTransaction,
   EligibilityCheck,
   EligibilityReport,
   EligibilityCategory,
-  InvoiceType,
 } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -33,13 +33,8 @@ import type {
 // against BOTH its master line and the per-seller ASR sublimit (tightest binds).
 // ---------------------------------------------------------------------------
 
-// Typical advance-rate cap by invoice type. The business line may price above
-// these per transaction for return, so exceeding a cap warns rather than fails.
-const TYPE_CAP: Record<InvoiceType, number> = {
-  FINAL: 1.0,
-  PROVISIONAL: 0.9,
-  PIPELINE: 0.85,
-};
+// Advance-rate cap by invoice type lives in lib/config (see ADVANCE_RATE_CAP).
+const TYPE_CAP = ADVANCE_RATE_CAP;
 
 type Sev = "GREEN" | "YELLOW" | "ORANGE" | "RED" | "GREY";
 
@@ -238,7 +233,7 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
   }
 
   // ---------------- TRANSACTION TERMS ----------------
-  const inRange = txn.advanceRate >= 0.85 && txn.advanceRate <= 1.0;
+  const inRange = txn.advanceRate >= ADVANCE_RATE_TYPICAL_MIN && txn.advanceRate <= ADVANCE_RATE_TYPICAL_MAX;
   add("TRANSACTION", "Advance rate range", "85% – 100%", `${(txn.advanceRate * 100).toFixed(1)}%`,
     inRange ? "GREEN" : "RED",
     inRange ? "Advance rate in valid range." : "Advance rate outside 85–100%.");

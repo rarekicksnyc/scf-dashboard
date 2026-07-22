@@ -6,7 +6,9 @@ export interface Deal {
   invoiceNumber: string;
   sellerId: string;
   obligorId: string;
-  amount: number;
+  amount: number; // invoice face amount
+  advanceRate: number; // 0..1
+  coverage: number; // funded amount = invoice amount x advance rate
   revenue: number; // discount fee earned on the deal
   bookedDate: string; // when the batch was booked (uploaded)
   valueDate: string; // requested discount / value date
@@ -23,11 +25,14 @@ export function fundedDeals(filter: { sellerId?: string; obligorId?: string }): 
       if (!r.funding) continue; // only funded / current deals
       if (filter.sellerId && r.invoice.sellerId !== filter.sellerId) continue;
       if (filter.obligorId && r.invoice.obligorId !== filter.obligorId) continue;
+      const advanceRate = r.invoice.advanceRate ?? 1;
       deals.push({
         invoiceNumber: r.invoice.invoiceNumber,
         sellerId: r.invoice.sellerId,
         obligorId: r.invoice.obligorId,
         amount: r.invoice.amount,
+        advanceRate,
+        coverage: r.invoice.coverageAmount ?? r.invoice.amount * advanceRate,
         revenue: r.discountFee,
         bookedDate: batch.uploadedAt,
         valueDate: r.invoice.requestedDiscountDate,

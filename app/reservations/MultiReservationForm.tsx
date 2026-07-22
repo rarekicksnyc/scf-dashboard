@@ -2,6 +2,7 @@
 
 import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
+import { inputBase, cellInput } from "@/lib/ui";
 
 interface Opt { id: string; name: string }
 interface Check { name?: string; category?: string; message: string; severity: string; status?: string }
@@ -23,11 +24,8 @@ interface Row {
 
 const SEV: Record<string, string> = { GREEN: "green", YELLOW: "yellow", ORANGE: "orange", RED: "red", GREY: "grey" };
 
-const cell = { border: "1px solid var(--border)", borderRadius: 6, padding: "8px 10px", fontSize: 14, width: "100%", boxSizing: "border-box" as const };
-const numCell = { ...cell, textAlign: "right" as const };
-// Real pixel min-widths so boxes never collapse under the global width:100% /
-// auto-layout table (a td `width` is only a hint the browser can shrink).
-const mw = (min: number, num = false) => ({ ...(num ? numCell : cell), minWidth: min });
+const cell = inputBase;
+const mw = cellInput;
 
 export default function MultiReservationForm({
   sellers,

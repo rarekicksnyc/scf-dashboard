@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { usd } from "@/lib/format";
+import { cellInput, clampPct, coverageAmount } from "@/lib/ui";
 
 interface Opt { id: string; name: string }
 interface EntityOpt { groupId: string; id: string; name: string }
@@ -30,12 +32,7 @@ const DECISION: Record<string, string> = {
   EXCEPTION_REQUIRED: "orange",
   REJECTED: "red",
 };
-const cell = { border: "1px solid var(--border)", borderRadius: 6, padding: "8px 10px", fontSize: 14, width: "100%", boxSizing: "border-box" as const };
-const numCell = { ...cell, textAlign: "right" as const };
-// Real pixel min-widths so the boxes never collapse. Because the global table is
-// width:100% with auto layout, a td `width` is only a hint the browser can shrink;
-// a min-width on the input itself forces the column and lets .table-scroll scroll.
-const mw = (min: number, num = false) => ({ ...(num ? numCell : cell), minWidth: min });
+const mw = cellInput;
 
 export default function MultiTransactionCheck({ sellers, obligors, obligorEntities }: { sellers: Opt[]; obligors: Opt[]; obligorEntities: EntityOpt[] }) {
   const blank = (): Row => ({
@@ -91,7 +88,7 @@ export default function MultiTransactionCheck({ sellers, obligors, obligorEntiti
             <thead>
               <tr>
                 <th>Seller</th><th>Obligor</th><th>Obligor entity</th><th className="num">Amount</th><th>Type</th>
-                <th className="num">Adv %</th><th>Value</th><th>Maturity</th><th className="num">Margin</th>
+                <th className="num">Adv %</th><th className="num">Coverage</th><th>Value</th><th>Maturity</th><th className="num">Margin</th>
                 <th>Product</th><th>Base</th><th className="num">Base %</th><th>Result</th><th>&nbsp;</th>
               </tr>
             </thead>
@@ -112,7 +109,8 @@ export default function MultiTransactionCheck({ sellers, obligors, obligorEntiti
                   </td>
                   <td><input style={mw(150, true)} type="number" value={r.invoiceAmount} onChange={(e) => update(i, { invoiceAmount: e.target.value })} /></td>
                   <td><select style={mw(140)} value={r.invoiceType} onChange={(e) => update(i, { invoiceType: e.target.value })}><option value="FINAL">Final</option><option value="PROVISIONAL">Provisional</option><option value="PIPELINE">Pipeline</option></select></td>
-                  <td><input style={mw(90, true)} type="number" value={r.advanceRate} onChange={(e) => update(i, { advanceRate: e.target.value })} /></td>
+                  <td><input style={mw(90, true)} type="number" min="0" max="100" step="0.5" value={r.advanceRate} onChange={(e) => update(i, { advanceRate: clampPct(e.target.value) })} /></td>
+                  <td className="num" style={{ minWidth: 130, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{usd(coverageAmount(Number(r.invoiceAmount) || 0, (Number(r.advanceRate) || 0) / 100))}</td>
                   <td><input style={mw(160)} type="date" value={r.valueDate} onChange={(e) => update(i, { valueDate: e.target.value })} /></td>
                   <td><input style={mw(160)} type="date" value={r.maturityDate} onChange={(e) => update(i, { maturityDate: e.target.value })} /></td>
                   <td><input style={mw(100, true)} type="number" value={r.pricingBps} onChange={(e) => update(i, { pricingBps: e.target.value })} /></td>
