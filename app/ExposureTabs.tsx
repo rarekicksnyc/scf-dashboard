@@ -25,13 +25,16 @@ function Table({ rows, kind }: { rows: ExposureRow[]; kind: string }) {
             <th>{kind}</th>
             <th>CDL</th>
             <th className="num">Limit</th>
+            <th className="num">Booked</th>
+            <th className="num">Available</th>
             <th className="num">Swingline</th>
             <th className="num">Swingline booked</th>
+            <th className="num">Swingline avail</th>
             <th className="num">RRL limit</th>
-            <th className="num">RRL exposure</th>
+            <th className="num">RRL booked</th>
+            <th className="num">RRL avail</th>
             <th className="num">Outstanding</th>
             <th className="num">Future reservation</th>
-            <th className="num">Available</th>
             <th className="num">Utilization</th>
             <th style={{ width: 120 }}>&nbsp;</th>
           </tr>
@@ -39,7 +42,7 @@ function Table({ rows, kind }: { rows: ExposureRow[]; kind: string }) {
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={12} className="muted" style={{ padding: 16 }}>
+              <td colSpan={15} className="muted" style={{ padding: 16 }}>
                 No matches.
               </td>
             </tr>
@@ -76,42 +79,22 @@ function Table({ rows, kind }: { rows: ExposureRow[]; kind: string }) {
                   <code style={{ fontSize: 12 }}>{r.cdl}</code>
                 </td>
                 <td className="num">{r.main ? mm(r.main.approvedLimit) : "—"}</td>
-                <td className="num">
-                  {r.swingline ? (
-                    <span>
-                      {mm(r.swingline.approvedLimit)}
-                      <span className="muted" style={{ fontSize: 11 }}>
-                        {" "}
-                        · {mm(r.swingline.available)} avail
-                      </span>
-                    </span>
-                  ) : (
-                    <span className="muted">none</span>
-                  )}
-                </td>
-                <td className="num">
-                  {r.swingline ? mm(r.swingline.consumed) : <span className="muted">—</span>}
-                </td>
+                <td className="num">{r.main ? mm(r.main.consumed) : "—"}</td>
+                <td className="num">{r.main ? mm(r.main.available) : "—"}</td>
+                <td className="num">{r.swingline ? mm(r.swingline.approvedLimit) : <span className="muted">none</span>}</td>
+                <td className="num">{r.swingline ? mm(r.swingline.consumed) : <span className="muted">—</span>}</td>
+                <td className="num">{r.swingline ? mm(r.swingline.available) : <span className="muted">—</span>}</td>
                 <td className="num">{r.rrl ? mm(r.rrl.approvedLimit) : <span className="muted">N/A</span>}</td>
-                <td className="num">
-                  {r.rrl ? (
-                    <span>
-                      {mm(r.rrl.consumed)}
-                      <span className="muted" style={{ fontSize: 11 }}> · {mm(r.rrl.available)} avail</span>
-                    </span>
-                  ) : (
-                    <span className="muted">N/A</span>
-                  )}
-                </td>
+                <td className="num">{r.rrl ? mm(r.rrl.consumed) : <span className="muted">N/A</span>}</td>
+                <td className="num">{r.rrl ? mm(r.rrl.available) : <span className="muted">N/A</span>}</td>
                 <td className="num">{r.main ? mm(r.main.outstanding) : "—"}</td>
                 <td className="num">{r.main ? mm(r.main.reserved) : "—"}</td>
-                <td className="num">{r.main ? mm(r.main.available) : "—"}</td>
                 <td className="num">{r.main ? pct(r.main.utilizationPct) : "—"}</td>
                 <td>{r.main ? <UtilBar view={r.main} /> : null}</td>
               </tr>
               {expanded.has(r.id) && r.entities.length > 0 && (
                 <tr>
-                  <td colSpan={12} style={{ background: "#fafbfd", padding: "8px 14px 8px 34px" }}>
+                  <td colSpan={15} style={{ background: "#fafbfd", padding: "8px 14px 8px 34px" }}>
                     <div className="muted" style={{ fontSize: 11, marginBottom: 4 }}>
                       Eligible {kind.toLowerCase()} entities (share this aggregate line)
                     </div>

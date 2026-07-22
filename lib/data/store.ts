@@ -343,7 +343,10 @@ export function reservationConsumedForLimit(limit: Limit, asOf?: string): number
         if (r.kind === "SWINGLINE") {
           total += r.swinglineDirection === "INCREASE" ? -r.amount : r.amount;
         } else {
-          total += r.amount; // discount reservation draws the swingline
+          // Discount reservation draws the swingline. A seller swingline draws
+          // the amount NET of the RRL portion (matching the seller line); an
+          // obligor swingline draws the full amount (obligor books it all).
+          total += limit.entityType === "SELLER" ? r.amount - (r.rrlAmount ?? 0) : r.amount;
         }
       }
       return total;

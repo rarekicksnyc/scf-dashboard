@@ -183,8 +183,8 @@ export default function EligibilityCheck({
             <label style={field}>Value date
               <input style={input} type="date" value={f.valueDate} onChange={(e) => set("valueDate", e.target.value)} />
             </label>
-            <label style={field}>Maturity date
-              <input style={input} type="date" value={f.maturityDate} onChange={(e) => set("maturityDate", e.target.value)} />
+            <label style={field}>Margin (bps)
+              <input style={input} type="number" value={f.pricingBps} onChange={(e) => set("pricingBps", e.target.value)} />
             </label>
             <label style={field}>Product type
               <select style={input} value={f.productType} onChange={(e) => set("productType", e.target.value)}>
@@ -192,8 +192,8 @@ export default function EligibilityCheck({
                 <option value="UTRC">UTRC (commitment)</option>
               </select>
             </label>
-            <label style={field}>Margin (bps)
-              <input style={input} type="number" value={f.pricingBps} onChange={(e) => set("pricingBps", e.target.value)} />
+            <label style={field}>Maturity date
+              <input style={input} type="date" value={f.maturityDate} onChange={(e) => set("maturityDate", e.target.value)} />
             </label>
             <label style={field}>Base rate
               <select style={input} value={f.baseRateType} onChange={(e) => set("baseRateType", e.target.value)}>
