@@ -8,12 +8,8 @@ import {
 import { checkSwinglineReservation } from "@/lib/engine/reservation";
 import { checkDiscount } from "@/lib/engine/eligibility";
 import { getCurrentUser, roleHas } from "@/lib/auth";
-import { mm } from "@/lib/format";
+import { mm, daysBetween, blockingChecks } from "@/lib/format";
 import type { DiscountTransaction } from "@/lib/types";
-
-function daysBetween(a: string, b: string): number {
-  return Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000);
-}
 
 // Cancel a reservation (releases its held capacity).
 export async function DELETE(
@@ -108,7 +104,7 @@ export async function PATCH(
     };
     const report = checkDiscount(txn);
     didNotClear = report.decision === "REJECTED" || report.decision === "EXCEPTION_REQUIRED";
-    failing = report.checks.filter((c) => c.severity === "RED" || c.severity === "ORANGE");
+    failing = blockingChecks(report.checks);
     decisionLabel = report.decision;
   }
 

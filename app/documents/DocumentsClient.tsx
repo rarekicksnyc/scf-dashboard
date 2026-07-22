@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { inputBase as input, fieldLabel as field } from "@/lib/ui";
 import type { DocMeta } from "@/lib/documents";
 
 interface Opt { id: string; name: string }
@@ -19,8 +20,6 @@ const DOC_TYPES = [
 ];
 const label = (s: string) => s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 const kb = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);
-const input = { border: "1px solid var(--border)", borderRadius: 6, padding: "8px 10px", fontSize: 14, width: "100%", boxSizing: "border-box" as const };
-const field = { display: "flex", flexDirection: "column" as const, gap: 4, fontSize: 12 };
 
 export default function DocumentsClient({
   documents,

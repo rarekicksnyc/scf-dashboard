@@ -4,6 +4,7 @@ import {
   getInsurancePolicy,
   isCountryEligible,
 } from "@/lib/data/store";
+import { mm2 as mm, expired } from "@/lib/format";
 
 // ---------------------------------------------------------------------------
 // Obligor legal-entity eligibility — the single source of the multi-entity
@@ -25,15 +26,6 @@ export interface ObligorEntityFinding {
   txnValue: string;
   severity: EntitySeverity;
   message: string;
-}
-
-function mm(n: number): string {
-  return `$${(n / 1_000_000).toLocaleString("en-US", { maximumFractionDigits: 2 })}MM`;
-}
-
-function expired(dateISO: string | undefined, asOf: string): boolean {
-  if (!dateISO) return true;
-  return Date.parse(dateISO) < Date.parse(asOf);
 }
 
 export function obligorEntityFindings(

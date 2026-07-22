@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx";
 import { allSellers, allObligors, obligorEntitiesOf } from "@/lib/data/store";
+import { daysBetween } from "@/lib/format";
 import type { Invoice, Currency, PcgFlag, RateRow, BaseRateType, ProductType } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -183,9 +184,6 @@ export function parseXlsx(base64: string): ParsedUpload {
 // calcrate, error. Offer is the used rate.
 // ---------------------------------------------------------------------------
 
-function daysBetween(a: string, b: string): number {
-  return Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000);
-}
 
 export function parseRateRows(rows: Record<string, unknown>[], rateType: BaseRateType): RateRow[] {
   const out: RateRow[] = [];

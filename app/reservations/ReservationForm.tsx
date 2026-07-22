@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { usd } from "@/lib/format";
-import { clampPct, coverageAmount } from "@/lib/ui";
+import { clampPct, coverageAmount, inputBase as input, fieldLabel as field } from "@/lib/ui";
 
 interface Opt { id: string; name: string }
 interface EntityOpt { groupId: string; id: string; name: string }
@@ -154,8 +154,6 @@ export default function ReservationForm({
     );
   }
 
-  const field = { display: "flex", flexDirection: "column" as const, gap: 4, fontSize: 12 };
-  const input = { border: "1px solid var(--border)", borderRadius: 6, padding: "8px 10px", fontSize: 14, width: "100%" };
   const swlEntities = swl.entityType === "SELLER" ? sellers : obligors;
 
   return (

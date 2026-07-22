@@ -3,7 +3,7 @@ import { getReservation, fulfillReservation, addAudit } from "@/lib/data/store";
 import { fundedDeals } from "@/lib/deals";
 import { checkDiscount } from "@/lib/engine/eligibility";
 import { getCurrentUser, roleHas } from "@/lib/auth";
-import { mm } from "@/lib/format";
+import { mm, blockingChecks } from "@/lib/format";
 import type { DiscountTransaction } from "@/lib/types";
 
 // Link a reservation to the actual transaction (invoice) that realised it, then
@@ -63,9 +63,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     r.status = prevStatus; // restore
     const stillBreaching = report.decision === "REJECTED" || report.decision === "EXCEPTION_REQUIRED";
     if (stillBreaching) {
-      const breachReasons = report.checks
-        .filter((c) => c.severity === "RED" || c.severity === "ORANGE")
-        .map((c) => c.message);
+      const breachReasons = blockingChecks(report.checks).map((c) => c.message);
       return NextResponse.json(
         {
           error: "This reservation was booked with a soft-warning exception and the breach is still not resolved — the transaction cannot be released until it is addressed.",

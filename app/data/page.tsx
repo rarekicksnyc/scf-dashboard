@@ -14,8 +14,8 @@ import {
 } from "@/lib/data/store";
 import { currentUserCan } from "@/lib/auth";
 import { mm, dateShort } from "@/lib/format";
-import LimitRegister from "../limits/LimitRegister";
-import AddToRegistry from "../setup/AddToRegistry";
+import LimitRegister from "./LimitRegister";
+import AddToRegistry from "./AddToRegistry";
 import SellerFacilityPicker from "./SellerFacilityPicker";
 import SwinglineAdjustment from "./SwinglineAdjustment";
 import EditSellerEntityRow from "./EditSellerEntityRow";

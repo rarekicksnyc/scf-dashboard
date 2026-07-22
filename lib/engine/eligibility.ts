@@ -15,6 +15,7 @@ import {
 } from "@/lib/data/store";
 import { priceDeal } from "@/lib/pricing";
 import { obligorEntityFindings } from "@/lib/engine/obligorEntity";
+import { mm2 as mm, daysBetween, expired } from "@/lib/format";
 import { ADVANCE_RATE_CAP, ADVANCE_RATE_MIN, ADVANCE_RATE_MAX } from "@/lib/config";
 import type {
   DiscountTransaction,
@@ -38,19 +39,6 @@ import type {
 const TYPE_CAP = ADVANCE_RATE_CAP;
 
 type Sev = "GREEN" | "YELLOW" | "ORANGE" | "RED" | "GREY";
-
-function mm(n: number): string {
-  return `$${(n / 1_000_000).toLocaleString("en-US", { maximumFractionDigits: 2 })}MM`;
-}
-
-function daysBetween(a: string, b: string): number {
-  return Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000);
-}
-
-function expired(dateISO: string | undefined, asOf: string): boolean {
-  if (!dateISO) return true;
-  return Date.parse(dateISO) < Date.parse(asOf);
-}
 
 export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
   const checks: EligibilityCheck[] = [];

@@ -4,16 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { LimitView } from "@/lib/types";
 import { mm, pct } from "@/lib/format";
+import { inputBase as cell } from "@/lib/ui";
 import { UtilBar } from "../components";
-
-const cell = {
-  border: "1px solid var(--border)",
-  borderRadius: 6,
-  padding: "8px 10px",
-  fontSize: 14,
-  width: "100%",
-  boxSizing: "border-box" as const,
-};
 
 export default function EditLimitRow({
   view,

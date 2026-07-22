@@ -28,6 +28,27 @@ export function dateShort(iso: string): string {
   });
 }
 
+// Whole days between two ISO dates (b - a).
+export function daysBetween(a: string, b: string): number {
+  return Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000);
+}
+
+// True if a date is missing or falls before the as-of date (expired).
+export function expired(dateISO: string | undefined, asOf: string): boolean {
+  if (!dateISO) return true;
+  return Date.parse(dateISO) < Date.parse(asOf);
+}
+
+// Millions with 2 decimals — the precision the eligibility engine reports in.
+export function mm2(n: number): string {
+  return `$${(n / 1_000_000).toLocaleString("en-US", { maximumFractionDigits: 2 })}MM`;
+}
+
+// The checks that block or need an exception (used to summarise a decision).
+export function blockingChecks<T extends { severity: string }>(checks: T[]): T[] {
+  return checks.filter((c) => c.severity === "RED" || c.severity === "ORANGE");
+}
+
 export const STATUS_LABEL: Record<string, string> = {
   ELIGIBLE: "Eligible",
   ELIGIBLE_WITH_WARNING: "Eligible (warning)",

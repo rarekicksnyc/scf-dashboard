@@ -2,10 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { inputCompact as input, fieldLabel as field } from "@/lib/ui";
 import type { BookRow } from "./ForwardBook";
-
-const field = { display: "flex", flexDirection: "column" as const, gap: 4, fontSize: 12 };
-const input = { border: "1px solid var(--border)", borderRadius: 6, padding: "7px 8px", fontSize: 13, width: "100%" };
 
 export default function EditReservationForm({
   reservation: r,

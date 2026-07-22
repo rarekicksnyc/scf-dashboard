@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { mm, dateShort } from "@/lib/format";
+import { inputCompact as input, fieldLabel as field } from "@/lib/ui";
 
 interface Opt { id: string; name: string }
 export interface TxnRow {
@@ -20,8 +21,6 @@ export interface TxnRow {
   batchId: string;
 }
 
-const input = { border: "1px solid var(--border)", borderRadius: 6, padding: "7px 8px", fontSize: 13, width: "100%" };
-const field = { display: "flex", flexDirection: "column" as const, gap: 4, fontSize: 12 };
 
 type Basis = "booked" | "value" | "maturity";
 

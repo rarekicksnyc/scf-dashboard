@@ -6,6 +6,7 @@ import {
   getSeller,
   getObligor,
 } from "@/lib/data/store";
+import { mm2 as mm } from "@/lib/format";
 import type { CheckResult } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -71,10 +72,6 @@ export function checkSwinglineReservation(
       ? "WARN"
       : "OK";
   return { decision, checks };
-}
-
-function mm(n: number): string {
-  return `$${(n / 1_000_000).toLocaleString("en-US", { maximumFractionDigits: 2 })}MM`;
 }
 
 function capacityCheck(

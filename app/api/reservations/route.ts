@@ -3,14 +3,10 @@ import { getReservations, addReservation, addAudit, entitySwingline } from "@/li
 import { checkSwinglineReservation } from "@/lib/engine/reservation";
 import { checkDiscount } from "@/lib/engine/eligibility";
 import { getCurrentUser, roleHas } from "@/lib/auth";
-import { mm } from "@/lib/format";
+import { mm, daysBetween, blockingChecks } from "@/lib/format";
 import type { Currency, DiscountTransaction } from "@/lib/types";
 
 type Failing = { severity: string; message: string };
-
-function daysBetween(a: string, b: string): number {
-  return Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000);
-}
 
 export async function GET() {
   return NextResponse.json({ reservations: getReservations() });
@@ -42,7 +38,7 @@ export async function POST(request: Request) {
   // set on a block so the caller can show the eligibility breakdown, not just
   // the failing reasons.
   const gate = (blocked: boolean, allChecks: Failing[]) => {
-    const failing = allChecks.filter((c) => c.severity === "RED" || c.severity === "ORANGE");
+    const failing = blockingChecks(allChecks);
     if (blocked && !override) {
       return { stop: NextResponse.json({ error: "This reservation does not clear the eligibility test.", canOverride: true, checks: allChecks }, { status: 422 }) };
     }

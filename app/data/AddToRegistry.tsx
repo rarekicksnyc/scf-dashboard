@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { inputBase as input, fieldLabel as field } from "@/lib/ui";
 import type { LimitType } from "@/lib/types";
 
 interface Opt {
@@ -10,15 +11,6 @@ interface Opt {
   cdl?: string;
 }
 type Mode = "LIMIT" | "SELLER" | "OBLIGOR" | "ASR_SUBLIMIT" | "BULK";
-
-const input = {
-  border: "1px solid var(--border)",
-  borderRadius: 6,
-  padding: "8px 10px",
-  fontSize: 14,
-  width: "100%",
-};
-const field = { display: "flex", flexDirection: "column" as const, gap: 4, fontSize: 12 };
 
 const LIMIT_TYPES: LimitType[] = [
   "SELLER",

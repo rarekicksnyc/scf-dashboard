@@ -20,6 +20,9 @@ export const inputBase: CSSProperties = {
 // Right-aligned variant for amounts / rates.
 export const numInput: CSSProperties = { ...inputBase, textAlign: "right" };
 
+// Smaller variant for dense filter bars / secondary forms.
+export const inputCompact: CSSProperties = { ...inputBase, padding: "7px 8px", fontSize: 13 };
+
 // Column layout for a stacked "label over input" form field.
 export const fieldLabel: CSSProperties = { display: "flex", flexDirection: "column", gap: 4, fontSize: 12 };
 

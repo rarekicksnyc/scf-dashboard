@@ -1,12 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { mm, pct } from "@/lib/format";
+import { mm, pct, usd } from "@/lib/format";
 import type { EntityExposure } from "@/lib/exposure";
 
 type SortKey = "name" | "approved" | "outstanding" | "reserved" | "available" | "utilizationPct";
 
-const usd = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
 
 export default function ExposureSummary({ rows }: { rows: EntityExposure[] }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());

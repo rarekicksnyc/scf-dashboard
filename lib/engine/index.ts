@@ -34,17 +34,12 @@ import {
 import { priceDeal } from "@/lib/pricing";
 import { obligorEntityFindings } from "./obligorEntity";
 import { DEFAULT_MARGIN_BPS } from "@/lib/config";
+import { mm2 as fmt, daysBetween } from "@/lib/format";
 
 // ---------------------------------------------------------------------------
 // Eligibility engine. Pure over its inputs (store snapshot + invoice list) —
 // it never mutates the store. Callers persist the result.
 // ---------------------------------------------------------------------------
-
-function daysBetween(fromISO: string, toISO: string): number {
-  const from = Date.parse(fromISO);
-  const to = Date.parse(toISO);
-  return Math.round((to - from) / (1000 * 60 * 60 * 24));
-}
 
 // A limit check reads a working limit's available capacity and returns a
 // standard result. It does NOT consume — consumption happens once, after all
@@ -95,10 +90,6 @@ function capacityCheck(
     severity: "GREEN",
     message: "Within available capacity.",
   };
-}
-
-function fmt(n: number): string {
-  return `$${(n / 1_000_000).toLocaleString("en-US", { maximumFractionDigits: 2 })}MM`;
 }
 
 // The tightest applicable max tenor across every limit that binds the invoice.
