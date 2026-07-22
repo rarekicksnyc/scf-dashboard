@@ -4,6 +4,7 @@ import {
   findLimit,
   entitySwingline,
   viewLimit,
+  swinglineAdjustmentNet,
   sellerEntitiesOf,
   obligorEntitiesOf,
 } from "@/lib/data/store";
@@ -37,14 +38,15 @@ export interface ExposureRow {
 // A swingline is a sub-limit whose booking MIRRORS its parent line (the seller
 // credit line, or the RRL). So its consumed/outstanding/reserved equal the
 // parent's; only its own approved amount differs (giving its own available).
-function mirrorView(sub: LimitView, parent: LimitView): LimitView {
+function mirrorView(sub: LimitView, parent: LimitView, adjustmentNet = 0): LimitView {
+  const consumed = parent.consumed + adjustmentNet;
   return {
     ...sub,
     outstanding: parent.outstanding,
-    reserved: parent.reserved,
-    consumed: parent.consumed,
-    available: sub.approvedLimit - parent.consumed,
-    utilizationPct: sub.approvedLimit > 0 ? parent.consumed / sub.approvedLimit : 0,
+    reserved: parent.reserved + adjustmentNet,
+    consumed,
+    available: sub.approvedLimit - consumed,
+    utilizationPct: sub.approvedLimit > 0 ? consumed / sub.approvedLimit : 0,
   };
 }
 
@@ -62,9 +64,9 @@ export function sellerExposure(asOf?: string): ExposureRow[] {
       cdl: s.cdl,
       status: s.status,
       main: mainView,
-      swingline: swl && mainView ? mirrorView(viewLimit(swl, asOf), mainView) : swl ? viewLimit(swl, asOf) : undefined,
+      swingline: swl && mainView ? mirrorView(viewLimit(swl, asOf), mainView, swinglineAdjustmentNet("SELLER", s.id, "REGULAR", asOf)) : swl ? viewLimit(swl, asOf) : undefined,
       rrl: rrlView,
-      rrlSwingline: rrlSwl && rrlView ? mirrorView(viewLimit(rrlSwl, asOf), rrlView) : rrlSwl ? viewLimit(rrlSwl, asOf) : undefined,
+      rrlSwingline: rrlSwl && rrlView ? mirrorView(viewLimit(rrlSwl, asOf), rrlView, swinglineAdjustmentNet("SELLER", s.id, "RRL", asOf)) : rrlSwl ? viewLimit(rrlSwl, asOf) : undefined,
       entities: sellerEntitiesOf(s.id).map((e) => ({ id: e.id, name: e.name, cdl: e.cdl, domicile: e.domicile })),
     };
   });
@@ -81,7 +83,7 @@ export function obligorExposure(asOf?: string): ExposureRow[] {
       cdl: o.cdl,
       status: o.status,
       main: mainView,
-      swingline: swl && mainView ? mirrorView(viewLimit(swl, asOf), mainView) : swl ? viewLimit(swl, asOf) : undefined,
+      swingline: swl && mainView ? mirrorView(viewLimit(swl, asOf), mainView, swinglineAdjustmentNet("OBLIGOR", o.id, "REGULAR", asOf)) : swl ? viewLimit(swl, asOf) : undefined,
       entities: obligorEntitiesOf(o.id).map((e) => ({ id: e.id, name: e.name, cdl: e.cdl, domicile: e.domicile })),
     };
   });

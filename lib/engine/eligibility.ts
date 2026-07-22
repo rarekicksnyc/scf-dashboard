@@ -6,6 +6,7 @@ import {
   findLimit,
   viewLimit,
   entitySwingline,
+  swinglineAdjustmentNet,
   sellerObligorLimit,
   sellerObligorUsage,
   participationAgreement,
@@ -145,7 +146,8 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
     const ssw = entitySwingline("SELLER", seller.id);
     if (ssw) {
       const swlView = viewLimit(ssw);
-      capacity("SELLER", "Seller swingline", swlView.approvedLimit - sellerConsumed, swlView.approvedLimit, sellerConsumed, sellerBooking);
+      const swlUsed = sellerConsumed + swinglineAdjustmentNet("SELLER", seller.id, "REGULAR");
+      capacity("SELLER", "Seller swingline", swlView.approvedLimit - swlUsed, swlView.approvedLimit, swlUsed, sellerBooking);
     } else {
       add("SELLER", "Seller swingline", "Not configured", "—", "GREY", "Seller has no swingline (not applicable).");
     }
@@ -183,7 +185,7 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
     if (rrlSwl && seller.rrlEnabled) {
       const rrlSwlView = viewLimit(rrlSwl);
       const rrlMain = findLimit("RRL", seller.id);
-      const rrlConsumed = rrlMain ? viewLimit(rrlMain).consumed : 0;
+      const rrlConsumed = (rrlMain ? viewLimit(rrlMain).consumed : 0) + swinglineAdjustmentNet("SELLER", seller.id, "RRL");
       capacity("SELLER", "RRL swingline", rrlSwlView.approvedLimit - rrlConsumed, rrlSwlView.approvedLimit, rrlConsumed, rrlAmount);
     } else {
       add("SELLER", "RRL swingline", "Not configured", "—", "GREY", "No RRL swingline (not applicable).");

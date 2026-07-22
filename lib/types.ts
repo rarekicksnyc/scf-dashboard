@@ -327,6 +327,7 @@ export interface Reservation {
   id: string;
   kind?: ReservationKind; // undefined = DISCOUNT (backward compatible)
   swinglineDirection?: SwinglineDirection; // for kind = SWINGLINE
+  swinglineKind?: "REGULAR" | "RRL"; // which swingline the adjustment targets (default REGULAR)
   sellerId: string; // for SWINGLINE, exactly one of sellerId/obligorId is set
   obligorId: string;
   amount: number;

@@ -17,6 +17,7 @@ import { mm, dateShort } from "@/lib/format";
 import LimitRegister from "../limits/LimitRegister";
 import AddToRegistry from "../setup/AddToRegistry";
 import SellerFacilityPicker from "./SellerFacilityPicker";
+import SwinglineAdjustment from "./SwinglineAdjustment";
 import EditSellerEntityRow from "./EditSellerEntityRow";
 import EditObligorEntityRow from "./EditObligorEntityRow";
 import EditAsrSublimitRow from "./EditAsrSublimitRow";
@@ -48,6 +49,8 @@ export default async function DataManagementPage({
   const groupSwl = groupId ? findLimit("SWINGLINE", groupId) : undefined;
 
   const canEdit = await currentUserCan("CHANGE_LIMIT");
+  const canBook = await currentUserCan("UPLOAD_BATCH");
+  const rrlSwlSellers = sellers.filter((s) => findLimit("RRL_SWINGLINE", s.id)).map((s) => s.id);
   const countries = allCountries().map((c) => ({ code: c.code, name: c.name }));
   const policies = activePolicies().map((p) => ({ id: p.id, name: `${p.insurerName} · ${p.policyNumber}` }));
 
@@ -69,6 +72,15 @@ export default async function DataManagementPage({
           obligors={allObligors().map((o) => ({ id: o.id, name: o.name, cdl: o.cdl }))}
           investors={activeInvestors().map((i) => ({ id: i.id, name: i.name }))}
           policies={activePolicies().map((p) => ({ id: p.id, name: `${p.insurerName} · ${p.policyNumber}` }))}
+        />
+      )}
+
+      {canBook && (
+        <SwinglineAdjustment
+          sellers={sellers.map((s) => ({ id: s.id, name: s.name }))}
+          obligors={allObligors().map((o) => ({ id: o.id, name: o.name }))}
+          rrlSwlSellers={rrlSwlSellers}
+          canBook={canBook}
         />
       )}
 

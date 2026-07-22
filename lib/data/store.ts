@@ -395,19 +395,22 @@ export function reservationConsumedForLimit(limit: Limit, asOf?: string): number
       r.status === "RESERVED" &&
       (!asOf || (r.valueDate <= asOf && r.maturityDate >= asOf)),
   );
+  // Discount reservations draw the credit lines; standalone SWINGLINE movements
+  // only touch the swingline (handled in the SWINGLINE case / swinglineAdjustmentNet).
+  const discounts = active.filter((r) => r.kind !== "SWINGLINE");
   switch (limit.type) {
     case "SELLER":
       // Seller line takes the amount net of any RRL portion.
-      return active
+      return discounts
         .filter((r) => r.sellerId === limit.entityId)
         .reduce((a, r) => a + r.amount - (r.rrlAmount ?? 0), 0);
     case "RRL":
-      return active
+      return discounts
         .filter((r) => r.sellerId === limit.entityId)
         .reduce((a, r) => a + (r.rrlAmount ?? 0), 0);
     case "OBLIGOR":
       // Obligor line takes the FULL amount (RRL split does not reduce it).
-      return sum(active.filter((r) => r.obligorId === limit.entityId));
+      return sum(discounts.filter((r) => r.obligorId === limit.entityId));
     case "SWINGLINE": {
       // A swingline is a core limit. Discount reservations draw it; standalone
       // SWINGLINE reservations adjust it (reduction draws down available,
@@ -451,6 +454,40 @@ export function viewLimit(limit: Limit, asOf?: string): LimitView {
 
 export function limitViews(asOf?: string) {
   return store.limits.map((l) => viewLimit(l, asOf));
+}
+
+// Net standalone swingline ADJUSTMENTS for a target (REDUCTION draws down =
+// +consumed, INCREASE releases = -consumed). Excludes discount reservations.
+export function swinglineAdjustmentNet(
+  entityType: "SELLER" | "OBLIGOR",
+  entityId: string,
+  kind: "REGULAR" | "RRL",
+  asOf?: string,
+): number {
+  let total = 0;
+  for (const r of store.reservations) {
+    if (r.status !== "RESERVED" || r.kind !== "SWINGLINE") continue;
+    if ((r.swinglineKind ?? "REGULAR") !== kind) continue;
+    if (asOf && !(r.valueDate <= asOf && r.maturityDate >= asOf)) continue;
+    const matches = entityType === "SELLER" ? r.sellerId === entityId : r.obligorId === entityId;
+    if (!matches) continue;
+    total += r.swinglineDirection === "INCREASE" ? -r.amount : r.amount;
+  }
+  return total;
+}
+
+// Total swingline consumed = mirrored parent-line booking + standalone
+// adjustments. Regular swingline mirrors the seller/obligor line; the RRL
+// swingline mirrors the RRL.
+export function swinglineConsumed(
+  entityType: "SELLER" | "OBLIGOR",
+  entityId: string,
+  kind: "REGULAR" | "RRL",
+  asOf?: string,
+): number {
+  const parent = kind === "RRL" ? findLimit("RRL", entityId) : findLimit(entityType, entityId);
+  const parentConsumed = parent ? viewLimit(parent, asOf).consumed : 0;
+  return parentConsumed + swinglineAdjustmentNet(entityType, entityId, kind, asOf);
 }
 
 export function getBatches(): BatchResult[] {

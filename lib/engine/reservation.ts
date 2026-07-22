@@ -2,6 +2,7 @@ import {
   findLimit,
   entitySwingline,
   viewLimit,
+  swinglineConsumed,
   getSeller,
   getObligor,
 } from "@/lib/data/store";
@@ -35,29 +36,33 @@ export function checkSwinglineReservation(
   entityId: string,
   amount: number,
   direction: "REDUCTION" | "INCREASE",
+  swinglineKind: "REGULAR" | "RRL" = "REGULAR",
 ): ReservationDecision {
   const checks: CheckResult[] = [];
-  const swl = entitySwingline(entityType, entityId);
+  const swl = swinglineKind === "RRL" ? findLimit("RRL_SWINGLINE", entityId) : entitySwingline(entityType, entityId);
+  const label = swinglineKind === "RRL" ? "RRL" : entityType === "SELLER" ? "Seller" : "Obligor";
   if (!swl) {
     checks.push({
       checkName: "SWINGLINE_CHECK",
       status: "FAIL",
       severity: "RED",
-      message: `${entityType === "SELLER" ? "Seller" : "Obligor"} has no swingline configured.`,
+      message: `${label} has no swingline configured.`,
     });
     return { decision: "BLOCK", checks };
   }
-  const v = viewLimit(swl);
+  // Consumed = mirrored parent booking + existing adjustments; available is net.
+  const used = swinglineConsumed(entityType, entityId, swinglineKind);
+  const available = swl.approvedLimit - used;
   if (direction === "INCREASE") {
     checks.push({
       checkName: "SWINGLINE_CHECK",
       status: "PASS",
       severity: "GREEN",
-      message: `Increase releases ${mm(amount)} of swingline capacity.`,
+      message: `Increase releases ${mm(amount)} of ${label.toLowerCase()} swingline capacity.`,
     });
   } else {
     checks.push(
-      capacityCheck("SWINGLINE_CHECK", v.available, v.approvedLimit, v.consumed, v.limit.warnThreshold, amount),
+      capacityCheck("SWINGLINE_CHECK", available, swl.approvedLimit, used, swl.warnThreshold, amount),
     );
   }
   const decision = checks.some((c) => c.severity === "RED")

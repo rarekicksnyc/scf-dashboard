@@ -57,18 +57,21 @@ export async function POST(request: Request) {
     if (!(amount > 0)) {
       return NextResponse.json({ error: "Amount must be greater than zero." }, { status: 400 });
     }
-    const entityType: "SELLER" | "OBLIGOR" = b.entityType === "OBLIGOR" ? "OBLIGOR" : "SELLER";
+    const swinglineKind: "REGULAR" | "RRL" = b.swinglineKind === "RRL" ? "RRL" : "REGULAR";
+    // The RRL swingline is seller-level.
+    const entityType: "SELLER" | "OBLIGOR" = swinglineKind === "RRL" ? "SELLER" : b.entityType === "OBLIGOR" ? "OBLIGOR" : "SELLER";
     const direction: "REDUCTION" | "INCREASE" = b.swinglineDirection === "INCREASE" ? "INCREASE" : "REDUCTION";
     if (!b.entityId) {
       return NextResponse.json({ error: "A single seller or obligor is required." }, { status: 400 });
     }
-    const decision = checkSwinglineReservation(entityType, b.entityId, amount, direction);
+    const decision = checkSwinglineReservation(entityType, b.entityId, amount, direction, swinglineKind);
     const g = gate(decision.decision === "BLOCK", decision.checks);
     if (g.stop) return g.stop;
 
     const created = addReservation({
       kind: "SWINGLINE",
       swinglineDirection: direction,
+      swinglineKind,
       sellerId: entityType === "SELLER" ? b.entityId : "",
       obligorId: entityType === "OBLIGOR" ? b.entityId : "",
       amount,
