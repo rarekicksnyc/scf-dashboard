@@ -3,7 +3,7 @@
 // With DATABASE_URL unset, this is a no-op and the app runs purely in memory.
 
 import { persistenceEnabled, initSchema, loadSnapshot, saveSnapshot } from "@/lib/data/persistence";
-import { snapshotJson, hydrateStore } from "@/lib/data/store";
+import { snapshotJson, hydrateStore, runMigrations } from "@/lib/data/store";
 import { initDocSchema } from "@/lib/documents";
 
 export async function startPersistence() {
@@ -14,8 +14,11 @@ export async function startPersistence() {
   const loaded = await loadSnapshot();
   if (loaded) {
     hydrateStore(loaded as Record<string, unknown>);
+    runMigrations(); // apply one-time fixes to the persisted state
+    await saveSnapshot(snapshotJson()); // persist any migration changes
     console.log("[persistence] loaded state from Postgres");
   } else {
+    runMigrations();
     await saveSnapshot(snapshotJson()); // first boot: persist the seeded state
     console.log("[persistence] seeded Postgres with initial state");
   }

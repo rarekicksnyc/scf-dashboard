@@ -61,6 +61,7 @@ interface Store {
   countries: Country[];
   rates: RateRow[];
   seq: number; // monotonic id counter
+  migrations?: string[]; // one-time data fixes already applied to this store
 }
 
 function seedStore(): Store {
@@ -91,6 +92,7 @@ function seedStore(): Store {
     // Start the id counter past the seeded reservation ids (RSV-0000N) so
     // generated ids never collide with seed ids.
     seq: seed.reservations.length,
+    migrations: [],
   };
 }
 
@@ -116,6 +118,27 @@ export function hydrateStore(data: Record<string, unknown>): void {
   const util = new Map<string, Utilization>();
   for (const u of (data.utilizations as Utilization[]) ?? []) util.set(u.limitId, u);
   Object.assign(store, data, { utilizations: util });
+}
+
+// One-time data fixes applied on top of a hydrated snapshot. Each runs at most
+// once (tracked in store.migrations) so it corrects existing persisted state but
+// never fights a later change made through the UI.
+export function runMigrations(): void {
+  if (!store.migrations) store.migrations = [];
+  const applied = new Set(store.migrations);
+  const once = (id: string, fn: () => void) => {
+    if (applied.has(id)) return;
+    fn();
+    store.migrations!.push(id);
+  };
+
+  // Product Managers (alongside Administrators) may manage roles and users.
+  once("pm-manage-roles-2026-07", () => {
+    const pm = store.rolePermissions.PRODUCT_MANAGER ?? [];
+    if (!pm.includes("MANAGE_ROLES")) {
+      store.rolePermissions.PRODUCT_MANAGER = [...pm, "MANAGE_ROLES"];
+    }
+  });
 }
 
 // ---------------------------------------------------------------------------

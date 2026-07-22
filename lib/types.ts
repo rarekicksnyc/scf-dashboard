@@ -440,6 +440,13 @@ export interface DiscountTransaction {
   maturityDate: string;
   pricingBps: number; // margin, in bps
   productType?: ProductType; // default DTR
+  // UTRC (unfunded commitment): the bank commits to purchase up to a committed
+  // amount by a final permitted demand date. The committed amount is what
+  // consumes the limits (in place of the DTR funded/coverage amount), and the
+  // final demand date acts as the maturity for tenor and time-phasing. A
+  // commitment fee is charged instead of a discount / purchase price.
+  committedAmount?: number; // UTRC only
+  finalDemandDate?: string; // UTRC only — ISO, the final permitted demand date
   baseRateType?: BaseRateType;
   baseRate?: number; // percent, e.g. 5.00
   // Distribution — one or more investors

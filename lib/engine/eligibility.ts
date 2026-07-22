@@ -62,8 +62,17 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
     checks.push({ category, name, checkedAgainst, txnValue, status, severity, message });
   };
 
-  const advanceAmount = Math.round(txn.invoiceAmount * txn.advanceRate);
-  const tenorDays = daysBetween(txn.valueDate, txn.maturityDate);
+  // Product type drives what the transaction is. DTR discounts an invoice: the
+  // funded (advance) amount = invoice × advance rate is what consumes limits.
+  // UTRC is an unfunded commitment: the committed amount consumes limits (the
+  // same lines, the same way), the final permitted demand date is its maturity,
+  // and it carries a commitment fee instead of a discount / purchase price.
+  const isUtrc = txn.productType === "UTRC";
+  const advanceAmount = isUtrc
+    ? Math.round(txn.committedAmount ?? 0)
+    : Math.round(txn.invoiceAmount * txn.advanceRate);
+  const maturityDate = isUtrc ? txn.finalDemandDate || txn.maturityDate : txn.maturityDate;
+  const tenorDays = daysBetween(txn.valueDate, maturityDate);
   const seller = getSeller(txn.sellerId);
   const obligor = getObligor(txn.obligorId);
 
@@ -72,15 +81,17 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
   // reservations whose own [valueDate, maturityDate] overlaps this window — a
   // reservation that starts after this transaction matures (or ends before it
   // begins) must not reduce the capacity available to it.
-  const window: DateWindow = { from: txn.valueDate, to: txn.maturityDate };
+  const window: DateWindow = { from: txn.valueDate, to: maturityDate };
 
   // RRL split: a portion of the funded amount can book to the seller's Risk
   // Reimbursement Line instead of the seller credit line. That portion consumes
   // the RRL, NOT the seller line (and not its swingline); the obligor still
   // books the FULL funded amount. Only applies when the seller has an RRL.
   // e.g. $100M funded with $10M RRL → $90M seller line, $10M RRL, $100M obligor.
-  const requestedRrl = Math.min(Math.max(txn.rrlAmount ?? 0, 0), advanceAmount);
-  const rrlAmount = seller?.rrlEnabled ? requestedRrl : 0;
+  // RRL applies to DTR discounting only — a UTRC commitment books its full
+  // committed amount to the seller line (no RRL split).
+  const requestedRrl = isUtrc ? 0 : Math.min(Math.max(txn.rrlAmount ?? 0, 0), advanceAmount);
+  const rrlAmount = !isUtrc && seller?.rrlEnabled ? requestedRrl : 0;
   const sellerBooking = advanceAmount - rrlAmount;
 
   // A capacity comparison. Exceeding available capacity does NOT clear — the
@@ -149,8 +160,10 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
     }
 
     // RRL — only counted when enabled. The RRL portion consumes the RRL line;
-    // the seller line above already excludes it.
-    if (seller.rrlEnabled) {
+    // the seller line above already excludes it. Not applicable to UTRC.
+    if (isUtrc) {
+      add("SELLER", "RRL (Risk Reimbursement Line)", "Not applicable to UTRC", "—", "GREY", "RRL split applies to DTR discounting only.");
+    } else if (seller.rrlEnabled) {
       const rrlLimit = findLimit("RRL", seller.id);
       // Expiry comes from the editable RRL limit record when present (single
       // source), falling back to the seller field.
@@ -178,7 +191,7 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
 
     // RRL swingline — mirrors the RRL booking (separate from the regular swingline).
     const rrlSwl = findLimit("RRL_SWINGLINE", seller.id);
-    if (rrlSwl && seller.rrlEnabled) {
+    if (rrlSwl && seller.rrlEnabled && !isUtrc) {
       const rrlSwlView = viewLimit(rrlSwl, window);
       const rrlMain = findLimit("RRL", seller.id);
       const rrlConsumed = (rrlMain ? viewLimit(rrlMain, window).consumed : 0) + swinglineAdjustmentNet("SELLER", seller.id, "RRL", window);
@@ -274,16 +287,32 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
   }
 
   // ---------------- TRANSACTION TERMS ----------------
-  const inRange = txn.advanceRate >= ADVANCE_RATE_MIN && txn.advanceRate <= ADVANCE_RATE_MAX;
-  add("TRANSACTION", "Advance rate range", "0% – 100%", `${(txn.advanceRate * 100).toFixed(1)}%`,
-    inRange ? "GREEN" : "RED",
-    inRange ? "Advance rate in valid range." : "Advance rate outside 0–100%.");
-  const cap = TYPE_CAP[txn.invoiceType];
-  add("TRANSACTION", "Advance vs invoice type", `${txn.invoiceType} typical ≤ ${(cap * 100).toFixed(0)}%`, `${(txn.advanceRate * 100).toFixed(1)}%`,
-    txn.advanceRate <= cap ? "GREEN" : "YELLOW",
-    txn.advanceRate <= cap ? `Within ${txn.invoiceType} typical advance.` : `Above ${txn.invoiceType} typical — business-line override for return.`);
-  add("TRANSACTION", "Funded (advance) amount", `${(txn.advanceRate * 100).toFixed(1)}% of ${mm(txn.invoiceAmount)}`, mm(advanceAmount), "GREEN",
-    "Funded amount limits are checked against.");
+  if (isUtrc) {
+    // UTRC commitment terms: a committed amount drawn no later than the final
+    // permitted demand date. It consumes the same limits as a DTR of the same
+    // size and carries a commitment fee.
+    add("TRANSACTION", "Product type", "DTR or UTRC", "UTRC (unfunded commitment)", "GREEN",
+      "Unfunded receivables purchase commitment — committed amount consumes limits; a commitment fee is charged.");
+    add("TRANSACTION", "Committed amount", "Amount checked against limits", mm(advanceAmount), advanceAmount > 0 ? "GREEN" : "RED",
+      advanceAmount > 0 ? "Committed amount consumes the seller and obligor limits." : "A committed amount is required for a UTRC.");
+    const hasDemandDate = Boolean(txn.finalDemandDate);
+    add("TRANSACTION", "Final permitted demand date", "Required, after value date", hasDemandDate ? maturityDate : "— none —",
+      !hasDemandDate ? "RED" : tenorDays > 0 ? "GREEN" : "RED",
+      !hasDemandDate ? "No final permitted demand date on file — required, does not clear." : tenorDays > 0 ? "Final permitted demand date is after the value date." : "Final permitted demand date must be after the value date.");
+    add("TRANSACTION", "Commitment tenor", "Value date → final demand date", `${tenorDays}d`, "GREEN",
+      "The commitment fee is charged over this period.");
+  } else {
+    const inRange = txn.advanceRate >= ADVANCE_RATE_MIN && txn.advanceRate <= ADVANCE_RATE_MAX;
+    add("TRANSACTION", "Advance rate range", "0% – 100%", `${(txn.advanceRate * 100).toFixed(1)}%`,
+      inRange ? "GREEN" : "RED",
+      inRange ? "Advance rate in valid range." : "Advance rate outside 0–100%.");
+    const cap = TYPE_CAP[txn.invoiceType];
+    add("TRANSACTION", "Advance vs invoice type", `${txn.invoiceType} typical ≤ ${(cap * 100).toFixed(0)}%`, `${(txn.advanceRate * 100).toFixed(1)}%`,
+      txn.advanceRate <= cap ? "GREEN" : "YELLOW",
+      txn.advanceRate <= cap ? `Within ${txn.invoiceType} typical advance.` : `Above ${txn.invoiceType} typical — business-line override for return.`);
+    add("TRANSACTION", "Funded (advance) amount", `${(txn.advanceRate * 100).toFixed(1)}% of ${mm(txn.invoiceAmount)}`, mm(advanceAmount), "GREEN",
+      "Funded amount limits are checked against.");
+  }
 
   // ---------------- DISTRIBUTION (one or more investors) ----------------
   if (txn.distributed) {

@@ -81,7 +81,11 @@ export default function EligibilityCheck({
     rrlAmount: "0",
     distributed: false,
     insured: false,
+    // UTRC (unfunded commitment) fields
+    committedAmount: "10000000",
+    finalDemandDate: "2027-08-01",
   });
+  const isUtrc = f.productType === "UTRC";
   // Multiple investors / insurers can share one deal.
   const [investorAllocs, setInvestorAllocs] = useState<{ investorId: string; amount: string }[]>([
     { investorId: investors[0]?.id ?? "", amount: "4000000" },
@@ -105,23 +109,26 @@ export default function EligibilityCheck({
       sellerId: f.sellerId,
       obligorId: f.obligorId,
       obligorEntityId: f.obligorEntityId || undefined,
-      rrlAmount: f.bookRrl ? Number(f.rrlAmount) || 0 : 0,
+      // RRL, distribution, and insurance apply to DTR discounting only.
+      rrlAmount: !isUtrc && f.bookRrl ? Number(f.rrlAmount) || 0 : 0,
       invoiceNumber: f.invoiceNumber,
       invoiceAmount: Number(f.invoiceAmount),
       invoiceType: f.invoiceType,
-      advanceRate: Number(f.advanceRate) / 100,
+      advanceRate: isUtrc ? 1 : Number(f.advanceRate) / 100,
       valueDate: f.valueDate,
       maturityDate: f.maturityDate,
       pricingBps: Number(f.pricingBps),
       productType: f.productType,
+      committedAmount: isUtrc ? Number(f.committedAmount) || 0 : undefined,
+      finalDemandDate: isUtrc ? f.finalDemandDate : undefined,
       baseRateType: f.baseRateType,
       baseRate: Number(f.baseRate),
-      distributed: f.distributed,
-      investorAllocations: f.distributed
+      distributed: !isUtrc && f.distributed,
+      investorAllocations: !isUtrc && f.distributed
         ? investorAllocs.map((a) => ({ investorId: a.investorId, amount: Number(a.amount) }))
         : undefined,
-      insured: f.insured,
-      insurerAllocations: f.insured
+      insured: !isUtrc && f.insured,
+      insurerAllocations: !isUtrc && f.insured
         ? insurerAllocs.map((a) => ({ policyId: a.policyId, amount: Number(a.amount) }))
         : undefined,
     };
@@ -139,7 +146,30 @@ export default function EligibilityCheck({
       <div className="panel">
         <h2>Transaction</h2>
         <div style={{ padding: 18 }}>
+          {/* Product type drives which input fields are shown below. */}
+          <div style={{ marginBottom: 16, padding: 12, border: "1px solid var(--border)", borderRadius: 8, background: "#fafbfd" }}>
+            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Product type</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {([
+                ["DTR", "DTR — discounted receivable", "Discount an invoice; computes discount & purchase price."],
+                ["UTRC", "UTRC — unfunded commitment", "Commit to purchase; computes a commitment fee."],
+              ] as [string, string, string][]).map(([v, label, hint]) => (
+                <button key={v} type="button" onClick={() => set("productType", v)}
+                  style={{
+                    textAlign: "left", padding: "10px 14px", borderRadius: 8, cursor: "pointer", flex: "1 1 260px",
+                    border: f.productType === v ? "2px solid var(--brand)" : "1px solid var(--border)",
+                    background: f.productType === v ? "var(--brand-soft)" : "#fff",
+                    color: f.productType === v ? "var(--brand)" : "var(--ink)",
+                  }}>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>{label}</div>
+                  <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>{hint}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+            {/* ---- Common to both product types ---- */}
             <label style={field}>Seller
               <select style={input} value={f.sellerId} onChange={(e) => set("sellerId", e.target.value)}>
                 {sellers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -158,25 +188,8 @@ export default function EligibilityCheck({
                 </select>
               </label>
             )}
-            <label style={field}>Invoice #
+            <label style={field}>{isUtrc ? "Reference #" : "Invoice #"}
               <input style={input} value={f.invoiceNumber} onChange={(e) => set("invoiceNumber", e.target.value)} />
-            </label>
-            <label style={field}>Invoice amount (USD)
-              <input style={input} type="number" value={f.invoiceAmount} onChange={(e) => set("invoiceAmount", e.target.value)} />
-            </label>
-            <label style={field}>Invoice type
-              <select style={input} value={f.invoiceType} onChange={(e) => set("invoiceType", e.target.value)}>
-                <option value="FINAL">Final</option>
-                <option value="PROVISIONAL">Provisional</option>
-                <option value="PIPELINE">Pipeline</option>
-              </select>
-            </label>
-            <label style={field}>Advance rate (%)
-              <input style={input} type="number" min="0" max="100" step="0.5" value={f.advanceRate} onChange={(e) => set("advanceRate", clampPct(e.target.value))} />
-            </label>
-            <label style={field}>Coverage amount (USD)
-              <input style={{ ...input, background: "#f2f4f8", fontWeight: 600 }} value={usd(coverage)} readOnly tabIndex={-1} />
-              <span className="muted" style={{ fontSize: 10 }}>invoice amount × advance rate</span>
             </label>
             <label style={field}>Value date
               <input style={input} type="date" value={f.valueDate} onChange={(e) => set("valueDate", e.target.value)} />
@@ -184,29 +197,60 @@ export default function EligibilityCheck({
             <label style={field}>Margin (bps)
               <input style={input} type="number" value={f.pricingBps} onChange={(e) => set("pricingBps", e.target.value)} />
             </label>
-            <label style={field}>Product type
-              <select style={input} value={f.productType} onChange={(e) => set("productType", e.target.value)}>
-                <option value="DTR">DTR (discount)</option>
-                <option value="UTRC">UTRC (commitment)</option>
-              </select>
-            </label>
-            <label style={field}>Maturity date
-              <input style={input} type="date" value={f.maturityDate} onChange={(e) => set("maturityDate", e.target.value)} />
-            </label>
-            <label style={field}>Base rate
-              <select style={input} value={f.baseRateType} onChange={(e) => set("baseRateType", e.target.value)}>
-                <option value="SOFR">SOFR</option>
-                <option value="COF">COF</option>
-                <option value="OTHER">Other</option>
-              </select>
-            </label>
-            <label style={field}>Base rate (%)
-              <input style={input} type="number" step="0.01" value={f.baseRate} onChange={(e) => set("baseRate", e.target.value)} />
-              <span className="muted" style={{ fontSize: 10 }}>0 = use rate sheet (offer, closest tenor)</span>
-            </label>
+
+            {/* ---- UTRC (unfunded commitment) fields ---- */}
+            {isUtrc && (
+              <>
+                <label style={field}>Committed amount (USD)
+                  <input style={input} type="number" min="0" value={f.committedAmount} onChange={(e) => set("committedAmount", e.target.value)} />
+                  <span className="muted" style={{ fontSize: 10 }}>consumes the same limits as a DTR of this size</span>
+                </label>
+                <label style={field}>Final permitted demand date
+                  <input style={input} type="date" value={f.finalDemandDate} onChange={(e) => set("finalDemandDate", e.target.value)} />
+                  <span className="muted" style={{ fontSize: 10 }}>last date a demand may be made — acts as maturity</span>
+                </label>
+              </>
+            )}
+
+            {/* ---- DTR (discounted receivable) fields ---- */}
+            {!isUtrc && (
+              <>
+                <label style={field}>Invoice amount (USD)
+                  <input style={input} type="number" value={f.invoiceAmount} onChange={(e) => set("invoiceAmount", e.target.value)} />
+                </label>
+                <label style={field}>Invoice type
+                  <select style={input} value={f.invoiceType} onChange={(e) => set("invoiceType", e.target.value)}>
+                    <option value="FINAL">Final</option>
+                    <option value="PROVISIONAL">Provisional</option>
+                    <option value="PIPELINE">Pipeline</option>
+                  </select>
+                </label>
+                <label style={field}>Advance rate (%)
+                  <input style={input} type="number" min="0" max="100" step="0.5" value={f.advanceRate} onChange={(e) => set("advanceRate", clampPct(e.target.value))} />
+                </label>
+                <label style={field}>Coverage amount (USD)
+                  <input style={{ ...input, background: "#f2f4f8", fontWeight: 600 }} value={usd(coverage)} readOnly tabIndex={-1} />
+                  <span className="muted" style={{ fontSize: 10 }}>invoice amount × advance rate</span>
+                </label>
+                <label style={field}>Maturity date
+                  <input style={input} type="date" value={f.maturityDate} onChange={(e) => set("maturityDate", e.target.value)} />
+                </label>
+                <label style={field}>Base rate
+                  <select style={input} value={f.baseRateType} onChange={(e) => set("baseRateType", e.target.value)}>
+                    <option value="SOFR">SOFR</option>
+                    <option value="COF">COF</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </label>
+                <label style={field}>Base rate (%)
+                  <input style={input} type="number" step="0.01" value={f.baseRate} onChange={(e) => set("baseRate", e.target.value)} />
+                  <span className="muted" style={{ fontSize: 10 }}>0 = use rate sheet (offer, closest tenor)</span>
+                </label>
+              </>
+            )}
           </div>
 
-          {rrlSellers.includes(f.sellerId) && (
+          {!isUtrc && rrlSellers.includes(f.sellerId) && (
             <div style={{ marginTop: 16, padding: 12, border: "1px solid var(--border)", borderRadius: 8, background: "#fafbfd" }}>
               <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600 }}>
                 <input type="checkbox" checked={f.bookRrl} onChange={(e) => set("bookRrl", e.target.checked)} />
@@ -226,6 +270,7 @@ export default function EligibilityCheck({
             </div>
           )}
 
+          {!isUtrc && (
           <div style={{ display: "flex", gap: 24, marginTop: 16, flexWrap: "wrap" }}>
             <div style={{ flex: 1, minWidth: 300 }}>
               <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600 }}>
@@ -292,6 +337,7 @@ export default function EligibilityCheck({
               )}
             </div>
           </div>
+          )}
 
           <button className="btn" style={{ marginTop: 16 }} onClick={run} disabled={busy} type="button">
             {busy ? "Checking eligibility…" : "Run eligibility check"}
