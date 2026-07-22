@@ -24,7 +24,6 @@ const NAV = [
   { href: "/monitoring", label: "Monitoring" },
   { href: "/reports", label: "Reports", need: "VIEW_REPORTS" as const },
   { href: "/audit", label: "Audit log", need: "VIEW_AUDIT" as const },
-  { href: "/setup", label: "Setup", need: "CHANGE_LIMIT" as const },
   { href: "/access", label: "Roles & access", need: "MANAGE_ROLES" as const },
 ];
 

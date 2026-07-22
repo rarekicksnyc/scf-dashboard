@@ -77,7 +77,7 @@ export const users: User[] = [
 export const rolePermissions: Record<Role, Permission[]> = {
   OPERATIONS: ["UPLOAD_BATCH", "VIEW_REPORTS", "VIEW_AUDIT", "GENERATE_PAYMENT_FILE"],
   CREDIT_OFFICER: ["APPROVE_EXCEPTION", "CHANGE_LIMIT", "VIEW_REPORTS", "VIEW_AUDIT"],
-  PRODUCT_MANAGER: ["UPLOAD_BATCH", "APPROVE_EXCEPTION", "VIEW_REPORTS", "VIEW_AUDIT"],
+  PRODUCT_MANAGER: ["UPLOAD_BATCH", "APPROVE_EXCEPTION", "CHANGE_LIMIT", "VIEW_REPORTS", "VIEW_AUDIT", "GENERATE_PAYMENT_FILE"],
   RELATIONSHIP_MANAGER: ["UPLOAD_BATCH", "VIEW_REPORTS"],
   RISK_MANAGER: ["APPROVE_EXCEPTION", "CHANGE_LIMIT", "VIEW_REPORTS", "VIEW_AUDIT"],
   ADMIN: [
@@ -192,6 +192,7 @@ export const obligors: Obligor[] = [
     internalRating: "A-",
     hasGuarantee: true,
     guaranteeEligible: true,
+    expiryDate: "2027-03-31",
   },
   {
     id: "OBL002",
@@ -204,6 +205,7 @@ export const obligors: Obligor[] = [
     internalRating: "BBB",
     hasGuarantee: false,
     guaranteeEligible: false,
+    expiryDate: "2026-11-30",
   },
   {
     id: "OBL003",
@@ -216,6 +218,7 @@ export const obligors: Obligor[] = [
     internalRating: "BB",
     hasGuarantee: true,
     guaranteeEligible: false,
+    expiryDate: "2026-10-31",
   },
   {
     id: "OBL004",
@@ -228,6 +231,7 @@ export const obligors: Obligor[] = [
     internalRating: "B+",
     hasGuarantee: false,
     guaranteeEligible: false,
+    expiryDate: "2026-09-30",
   },
 ];
 
@@ -490,6 +494,22 @@ const rawLimits: Omit<Limit, "cdl">[] = [
     programId: "PRG001",
     currency: "USD",
     approvedLimit: 20_000_000,
+    maxTenorDays: 180,
+    effectiveDate: "2026-01-01",
+    expiryDate: "2026-12-31",
+    status: "ACTIVE",
+    warnThreshold: 0.85,
+    exceptionThreshold: 1.0,
+  },
+  // RRL swingline — mirrors the RRL booking, separate from the regular swingline.
+  {
+    id: "LMT-RRLSWL-SELLER001",
+    type: "RRL_SWINGLINE",
+    entityType: "SELLER",
+    entityId: "SELLER001",
+    programId: "PRG001",
+    currency: "USD",
+    approvedLimit: 10_000_000,
     maxTenorDays: 180,
     effectiveDate: "2026-01-01",
     expiryDate: "2026-12-31",

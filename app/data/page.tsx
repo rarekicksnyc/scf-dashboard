@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   allSellers,
+  allObligors,
   getSeller,
   sellerEntitiesOf,
   findLimit,
@@ -9,11 +10,13 @@ import {
   obligorEntitiesOf,
   getInsurancePolicy,
   allCountries,
+  activeInvestors,
   activePolicies,
 } from "@/lib/data/store";
 import { currentUserCan } from "@/lib/auth";
 import { mm, dateShort } from "@/lib/format";
 import LimitRegister from "../limits/LimitRegister";
+import AddToRegistry from "../setup/AddToRegistry";
 import EditSellerEntityRow from "./EditSellerEntityRow";
 import EditObligorEntityRow from "./EditObligorEntityRow";
 import EditAsrSublimitRow from "./EditAsrSublimitRow";
@@ -34,6 +37,7 @@ export default async function DataManagementPage({
   const asrLimit = seller ? findLimit("ASR", seller.id) : undefined;
   const swl = seller ? findLimit("SWINGLINE", seller.id) : undefined;
   const rrl = seller ? findLimit("RRL", seller.id) : undefined;
+  const rrlSwl = seller ? findLimit("RRL_SWINGLINE", seller.id) : undefined;
   const asrObligors = seller ? sellerObligorLimitsForSeller(seller.id) : [];
 
   const groupId = groupParam && asrObligors.some((x) => x.obligorId === groupParam)
@@ -53,11 +57,20 @@ export default async function DataManagementPage({
     <>
       <h1 className="page-title">Data Management</h1>
       <p className="page-sub">
-        One screen to review every input for a seller facility, its eligible
-        entities, the obligor groups under its ASR, and each group&rsquo;s obligor
-        entities. Use the dropdowns to navigate. Editing hooks into the Limit
-        Register, Setup, and registry screens.
+        The control center for every feed — add new sellers, obligors, limits
+        (seller, ASR, obligor, swingline, RRL, RRL swingline, investor, insurance),
+        and ASR sublimits, and edit every facility, entity, and limit inline. All
+        changes take effect immediately, feed the eligibility engine, and are audited.
       </p>
+
+      {canEdit && (
+        <AddToRegistry
+          sellers={sellers.map((s) => ({ id: s.id, name: s.name, cdl: s.cdl }))}
+          obligors={allObligors().map((o) => ({ id: o.id, name: o.name, cdl: o.cdl }))}
+          investors={activeInvestors().map((i) => ({ id: i.id, name: i.name }))}
+          policies={activePolicies().map((p) => ({ id: p.id, name: `${p.insurerName} · ${p.policyNumber}` }))}
+        />
+      )}
 
       <div className="row-actions">
         <span style={{ fontSize: 13, fontWeight: 600 }}>Seller facility:</span>
@@ -81,6 +94,7 @@ export default async function DataManagementPage({
           <Field label="ASR rating" value={seller ? `${seller.asrRating} (exp ${dateShort(seller.asrExpiry)})` : "—"} />
           <Field label="Swingline" value={swl ? `${mm(swl.approvedLimit)} (exp ${dateShort(swl.expiryDate)})` : "none"} />
           <Field label="RRL" value={rrl ? `${mm(rrl.approvedLimit)} (exp ${dateShort(rrl.expiryDate)})` : "N/A"} />
+          <Field label="RRL swingline" value={rrlSwl ? `${mm(rrlSwl.approvedLimit)} (exp ${dateShort(rrlSwl.expiryDate)})` : "N/A"} />
           <Field label="Borrower rating" value={seller ? `${seller.borrowerRating} (exp ${dateShort(seller.borrowerRatingExpiry)})` : "—"} />
           <Field label="GCARS #" value={seller?.gcarsNumber || "—"} />
         </div>
@@ -112,6 +126,7 @@ export default async function DataManagementPage({
                 <th style={th} className="num">Global limit</th>
                 <th style={th} className="num">ASR sublimit</th>
                 <th style={th} className="num">Max tenor</th>
+                <th style={th}>Group expiry</th>
                 <th style={th}>Group swingline</th>
                 <th style={th}>&nbsp;</th>
               </tr>
@@ -127,6 +142,7 @@ export default async function DataManagementPage({
                     sellerId={sellerId!}
                     group={{ id: x.obligorId, name: o?.name ?? x.obligorId }}
                     globalLimit={gl ? mm(gl.approvedLimit) : "—"}
+                    groupExpiry={o?.expiryDate ?? ""}
                     groupSwingline={gs ? `${mm(gs.approvedLimit)} exp ${dateShort(gs.expiryDate)}` : "none"}
                     approvedLimit={x.approvedLimit}
                     maxTenorDays={x.maxTenorDays}

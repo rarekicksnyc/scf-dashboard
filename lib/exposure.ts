@@ -30,7 +30,22 @@ export interface ExposureRow {
   main?: LimitView; // main seller/obligor limit
   swingline?: LimitView; // per-entity swingline (undefined when not toggled on)
   rrl?: LimitView; // seller RRL (undefined when the seller has none)
+  rrlSwingline?: LimitView; // swingline that mirrors the RRL booking
   entities: EligibleEntity[]; // eligible legal entities sharing the aggregate line
+}
+
+// A swingline is a sub-limit whose booking MIRRORS its parent line (the seller
+// credit line, or the RRL). So its consumed/outstanding/reserved equal the
+// parent's; only its own approved amount differs (giving its own available).
+function mirrorView(sub: LimitView, parent: LimitView): LimitView {
+  return {
+    ...sub,
+    outstanding: parent.outstanding,
+    reserved: parent.reserved,
+    consumed: parent.consumed,
+    available: sub.approvedLimit - parent.consumed,
+    utilizationPct: sub.approvedLimit > 0 ? parent.consumed / sub.approvedLimit : 0,
+  };
 }
 
 export function sellerExposure(asOf?: string): ExposureRow[] {
@@ -38,14 +53,18 @@ export function sellerExposure(asOf?: string): ExposureRow[] {
     const main = findLimit("SELLER", s.id);
     const swl = entitySwingline("SELLER", s.id);
     const rrl = findLimit("RRL", s.id);
+    const rrlSwl = findLimit("RRL_SWINGLINE", s.id);
+    const mainView = main ? viewLimit(main, asOf) : undefined;
+    const rrlView = rrl ? viewLimit(rrl, asOf) : undefined;
     return {
       id: s.id,
       name: s.name,
       cdl: s.cdl,
       status: s.status,
-      main: main ? viewLimit(main, asOf) : undefined,
-      swingline: swl ? viewLimit(swl, asOf) : undefined,
-      rrl: rrl ? viewLimit(rrl, asOf) : undefined,
+      main: mainView,
+      swingline: swl && mainView ? mirrorView(viewLimit(swl, asOf), mainView) : swl ? viewLimit(swl, asOf) : undefined,
+      rrl: rrlView,
+      rrlSwingline: rrlSwl && rrlView ? mirrorView(viewLimit(rrlSwl, asOf), rrlView) : rrlSwl ? viewLimit(rrlSwl, asOf) : undefined,
       entities: sellerEntitiesOf(s.id).map((e) => ({ id: e.id, name: e.name, cdl: e.cdl, domicile: e.domicile })),
     };
   });
@@ -55,13 +74,14 @@ export function obligorExposure(asOf?: string): ExposureRow[] {
   return allObligors().map((o) => {
     const main = findLimit("OBLIGOR", o.id);
     const swl = entitySwingline("OBLIGOR", o.id);
+    const mainView = main ? viewLimit(main, asOf) : undefined;
     return {
       id: o.id,
       name: o.name,
       cdl: o.cdl,
       status: o.status,
-      main: main ? viewLimit(main, asOf) : undefined,
-      swingline: swl ? viewLimit(swl, asOf) : undefined,
+      main: mainView,
+      swingline: swl && mainView ? mirrorView(viewLimit(swl, asOf), mainView) : swl ? viewLimit(swl, asOf) : undefined,
       entities: obligorEntitiesOf(o.id).map((e) => ({ id: e.id, name: e.name, cdl: e.cdl, domicile: e.domicile })),
     };
   });
@@ -87,7 +107,9 @@ export interface EntityExposure {
 }
 
 function flatten(kind: "SELLER" | "OBLIGOR", r: ExposureRow): EntityExposure {
-  const parts = [r.main, r.swingline, r.rrl].filter(Boolean) as LimitView[];
+  // A name's exposure is its real credit lines (seller line + RRL). The
+  // swinglines mirror those lines, so including them would double-count.
+  const parts = [r.main, r.rrl].filter(Boolean) as LimitView[];
   const approved = parts.reduce((a, v) => a + v.approvedLimit, 0);
   const outstanding = parts.reduce((a, v) => a + v.outstanding, 0);
   const reserved = parts.reduce((a, v) => a + v.reserved, 0);

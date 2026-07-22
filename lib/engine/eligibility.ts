@@ -138,13 +138,14 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
       expired(seller.asrExpiry, txn.valueDate) ? "ORANGE" : "GREEN",
       expired(seller.asrExpiry, txn.valueDate) ? "ASR rating expired — refresh required." : "ASR rating current.");
 
-    // Seller swingline — a core limit: if the seller line carries one, every
-    // transaction against it draws on the swingline, so it is always tested.
+    // Seller swingline — its booking MIRRORS the seller credit line: whatever is
+    // booked on the credit limit is booked on the swingline (same amount). So it
+    // is tested against the credit line's consumed, not a separate pool.
+    const sellerConsumed = sl ? viewLimit(sl).consumed : 0;
     const ssw = entitySwingline("SELLER", seller.id);
     if (ssw) {
-      const v = viewLimit(ssw);
-      // Swingline draws on the seller-booked portion only (the RRL portion does not).
-      capacity("SELLER", "Seller swingline", v.available, v.approvedLimit, v.consumed, sellerBooking);
+      const swlView = viewLimit(ssw);
+      capacity("SELLER", "Seller swingline", swlView.approvedLimit - sellerConsumed, swlView.approvedLimit, sellerConsumed, sellerBooking);
     } else {
       add("SELLER", "Seller swingline", "Not configured", "—", "GREY", "Seller has no swingline (not applicable).");
     }
@@ -177,6 +178,17 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
       add("SELLER", "RRL (Risk Reimbursement Line)", "Not enabled", "—", "GREY", "Seller has no RRL (toggle off).");
     }
 
+    // RRL swingline — mirrors the RRL booking (separate from the regular swingline).
+    const rrlSwl = findLimit("RRL_SWINGLINE", seller.id);
+    if (rrlSwl && seller.rrlEnabled) {
+      const rrlSwlView = viewLimit(rrlSwl);
+      const rrlMain = findLimit("RRL", seller.id);
+      const rrlConsumed = rrlMain ? viewLimit(rrlMain).consumed : 0;
+      capacity("SELLER", "RRL swingline", rrlSwlView.approvedLimit - rrlConsumed, rrlSwlView.approvedLimit, rrlConsumed, rrlAmount);
+    } else {
+      add("SELLER", "RRL swingline", "Not configured", "—", "GREY", "No RRL swingline (not applicable).");
+    }
+
     add("SELLER", "Minimum pricing", `${seller.minPricingBps}bps floor`, `${txn.pricingBps}bps`,
       txn.pricingBps < seller.minPricingBps ? "RED" : "GREEN",
       txn.pricingBps < seller.minPricingBps ? `Below seller pricing floor by ${seller.minPricingBps - txn.pricingBps}bps.` : "At/above pricing floor.");
@@ -200,6 +212,10 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
           : "RED";
     add("OBLIGOR", "Obligor eligible", "Eligible & active", `${obligor.status}${obligor.eligible ? "" : " / ineligible"}`, sev,
       sev === "GREEN" ? "Obligor eligible and active." : sev === "ORANGE" ? "Obligor on watchlist — approval required." : "Obligor not eligible.");
+
+    add("OBLIGOR", "Obligor group expiry", obligor.expiryDate || "—", txn.valueDate,
+      !obligor.expiryDate ? "GREY" : expired(obligor.expiryDate, txn.valueDate) ? "ORANGE" : "GREEN",
+      !obligor.expiryDate ? "No group expiry on file." : expired(obligor.expiryDate, txn.valueDate) ? "Obligor group approval expired as of the value date — renewal required." : "Obligor group approval current.");
 
     add("OBLIGOR", "Obligor guarantee", obligor.hasGuarantee ? "Guarantee on file" : "None", obligor.hasGuarantee ? "Yes" : "No",
       obligor.hasGuarantee ? "GREEN" : "GREY",

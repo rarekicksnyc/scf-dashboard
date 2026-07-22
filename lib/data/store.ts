@@ -149,6 +149,17 @@ export function getObligorEntity(id: string): ObligorEntity | undefined {
   return store.obligorEntities.find((e) => e.id === id);
 }
 
+// Inline edit of an obligor group (currently the group-level expiry date).
+export function updateObligor(
+  id: string,
+  patch: Partial<Pick<Obligor, "expiryDate" | "status" | "eligible">>,
+): Obligor | undefined {
+  const o = store.obligors.find((x) => x.id === id);
+  if (!o) return undefined;
+  Object.assign(o, patch);
+  return o;
+}
+
 // Inline edits from Data Management. The route whitelists the fields; here we
 // apply them to the single stored record the engine + every view already read.
 export function updateSellerEntity(

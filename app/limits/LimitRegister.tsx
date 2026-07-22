@@ -23,6 +23,7 @@ const ORDER: LimitType[] = [
   "RRL",
   "OBLIGOR",
   "SWINGLINE",
+  "RRL_SWINGLINE",
   "INVESTOR",
   "INSURANCE",
   "PROGRAM",

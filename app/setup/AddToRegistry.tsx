@@ -25,6 +25,8 @@ const LIMIT_TYPES: LimitType[] = [
   "ASR",
   "OBLIGOR",
   "SWINGLINE",
+  "RRL_SWINGLINE",
+  "RRL",
   "INVESTOR",
   "INSURANCE",
 ];

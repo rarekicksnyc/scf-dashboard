@@ -11,6 +11,7 @@ export default function EditAsrSublimitRow({
   sellerId,
   group,
   globalLimit,
+  groupExpiry,
   groupSwingline,
   approvedLimit,
   maxTenorDays,
@@ -20,6 +21,7 @@ export default function EditAsrSublimitRow({
   sellerId: string;
   group: { id: string; name: string };
   globalLimit: string;
+  groupExpiry: string;
   groupSwingline: string;
   approvedLimit: number;
   maxTenorDays: number;
@@ -29,20 +31,31 @@ export default function EditAsrSublimitRow({
   const router = useRouter();
   const [sub, setSub] = useState(String(approvedLimit));
   const [tenor, setTenor] = useState(String(maxTenorDays));
+  const [expiry, setExpiry] = useState(groupExpiry);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   async function save() {
     setBusy(true);
     setMsg(null);
-    const res = await fetch("/api/asr-sublimit", {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ sellerId, obligorId: group.id, approvedLimit: Number(sub), maxTenorDays: Number(tenor) }),
-    });
+    // Sublimit amount/tenor and the obligor-group expiry are separate records.
+    const [subRes, grpRes] = await Promise.all([
+      fetch("/api/asr-sublimit", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sellerId, obligorId: group.id, approvedLimit: Number(sub), maxTenorDays: Number(tenor) }),
+      }),
+      expiry !== groupExpiry
+        ? fetch(`/api/obligors/${group.id}`, {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ expiryDate: expiry }),
+          })
+        : Promise.resolve(null),
+    ]);
     setBusy(false);
-    if (!res.ok) {
-      setMsg((await res.json()).error ?? "Failed");
+    if (!subRes.ok || (grpRes && !grpRes.ok)) {
+      setMsg("Failed");
       return;
     }
     setMsg("Saved ✓");
@@ -58,6 +71,11 @@ export default function EditAsrSublimitRow({
       </td>
       <td className="num" style={{ minWidth: canEdit ? 100 : undefined }}>
         {canEdit ? <input style={inp} type="number" value={tenor} onChange={(e) => setTenor(e.target.value)} /> : `${maxTenorDays}d`}
+      </td>
+      <td style={{ minWidth: canEdit ? 150 : undefined }}>
+        {canEdit
+          ? <input style={{ ...inp, textAlign: "left" }} type="date" value={expiry} onChange={(e) => setExpiry(e.target.value)} />
+          : (groupExpiry || "—")}
       </td>
       <td className="muted">{groupSwingline}</td>
       <td>

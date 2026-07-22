@@ -16,6 +16,7 @@ export type LimitType =
   | "ASR" // Asset Securitization limit (manually-input monetary cap)
   | "OBLIGOR" // buyer / account-debtor concentration cap
   | "SWINGLINE" // temporary bank funding pending takeout/distribution
+  | "RRL_SWINGLINE" // swingline that mirrors the RRL booking (separate from the regular swingline)
   | "RRL" // Risk Reimbursement Line — seller-level, part of a deal can book here
   | "INSURANCE" // insured recoverable exposure cap (per policy)
   | "INVESTOR" // distribution / investor takeout cap
@@ -151,6 +152,7 @@ export interface Obligor {
   internalRating: string; // agency-style grade (e.g. A-, BBB)
   hasGuarantee: boolean; // an obligor guarantee exists
   guaranteeEligible: boolean; // and the guarantee is eligible
+  expiryDate?: string; // obligor-group-level review / approval expiry (ISO)
 }
 
 // ---------------------------------------------------------------------------
