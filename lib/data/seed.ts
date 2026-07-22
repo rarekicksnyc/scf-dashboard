@@ -447,7 +447,7 @@ const rawLimits: Omit<Limit, "cdl">[] = [
     entityId: "SELLER001",
     programId: "PRG001",
     currency: "USD",
-    approvedLimit: 30_000_000,
+    approvedLimit: 70_000_000,
     maxTenorDays: 45,
     effectiveDate: "2026-01-01",
     expiryDate: "2026-12-31",
