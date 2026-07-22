@@ -115,7 +115,10 @@ a {
 
 .main {
   padding: 26px 30px 60px;
-  max-width: 1180px;
+  /* Fill the available width (the grid already reserves space for the sidebar)
+     so wide tables use the whole screen and only scroll when they truly can't
+     fit. min-width:0 lets the grid column shrink instead of forcing overflow. */
+  min-width: 0;
 }
 
 .page-title {
@@ -124,9 +127,11 @@ a {
   margin: 0 0 2px;
 }
 
+/* Keep descriptive prose readable rather than stretching it across a wide screen. */
 .page-sub {
   color: var(--ink-soft);
   margin: 0 0 22px;
+  max-width: 90ch;
 }
 
 .cards {
