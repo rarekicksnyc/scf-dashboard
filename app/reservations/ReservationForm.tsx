@@ -39,9 +39,6 @@ export default function ReservationForm({
     valueDate: "2026-08-15",
     maturityDate: "2026-11-13",
     pricingBps: "125",
-    productType: "DTR",
-    baseRateType: "SOFR",
-    baseRate: "0",
     bookRrl: false,
     rrlAmount: "0",
     distributed: false,
@@ -98,9 +95,6 @@ export default function ReservationForm({
               invoiceType: form.invoiceType,
               advanceRate: Number(form.advanceRate) / 100,
               pricingBps: Number(form.pricingBps),
-              productType: form.productType,
-              baseRateType: form.baseRateType,
-              baseRate: Number(form.baseRate),
               rrlAmount: form.bookRrl && rrlSellers.includes(form.sellerId) ? Number(form.rrlAmount) : 0,
               valueDate: form.valueDate,
               maturityDate: form.maturityDate,
@@ -224,28 +218,11 @@ export default function ReservationForm({
               <label style={field}>Margin (bps)
                 <input style={input} type="number" value={form.pricingBps} onChange={(e) => set("pricingBps", e.target.value)} />
               </label>
-              <label style={field}>Product type
-                <select style={input} value={form.productType} onChange={(e) => set("productType", e.target.value)}>
-                  <option value="DTR">DTR (discount)</option>
-                  <option value="UTRC">UTRC (commitment)</option>
-                </select>
-              </label>
               <label style={field}>Expected value date
                 <input style={input} type="date" value={form.valueDate} onChange={(e) => set("valueDate", e.target.value)} />
               </label>
               <label style={field}>Expected maturity
                 <input style={input} type="date" value={form.maturityDate} onChange={(e) => set("maturityDate", e.target.value)} />
-              </label>
-              <label style={field}>Base rate
-                <select style={input} value={form.baseRateType} onChange={(e) => set("baseRateType", e.target.value)}>
-                  <option value="SOFR">SOFR</option>
-                  <option value="COF">COF</option>
-                  <option value="OTHER">Other</option>
-                </select>
-              </label>
-              <label style={field}>Base rate (%)
-                <input style={input} type="number" step="0.01" value={form.baseRate} onChange={(e) => set("baseRate", e.target.value)} />
-                <span className="muted" style={{ fontSize: 10 }}>0 = use rate sheet (offer, closest tenor)</span>
               </label>
             </div>
 
