@@ -49,9 +49,12 @@ reviewer or a new engineer taking handoff.
 
 ## Data handling
 
-- **System of record** is in-memory (`lib/data/store.ts`), cached on `globalThis`.
-  It is the explicit seam for Postgres — all reads/writes go through named
-  accessors, not raw globals, so swapping the backend is localized.
+- **System of record** is the in-memory store (`lib/data/store.ts`), cached on
+  `globalThis`, for fast synchronous reads. When `DATABASE_URL` is set it is
+  loaded from Postgres on boot and auto-saved back on change
+  (`lib/data/persistence.ts`) — the state persists as a single JSONB row. Run as
+  a single instance (the cache is per-process). Without `DATABASE_URL` the app is
+  in-memory only (local dev).
 - **CDL** (8-digit customer booking code) is required on every limit and is the
   key exposure is booked against.
 - **No secrets in the bundle.** There are no API keys, tokens, or credentials in

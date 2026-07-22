@@ -6,9 +6,13 @@ can be reached from any device. Written to be scannable for IT.
 ## What it is
 
 - A single Next.js (Node) web app. No separate backend.
-- Data today lives in memory in the running server process (see the note in
-  [SECURITY.md](SECURITY.md)). A single always-on instance keeps edits until the
-  next restart/redeploy. Durable storage (Postgres) is the planned Phase 2.
+- State is held in memory for fast, synchronous reads. With `DATABASE_URL` set it
+  is loaded from Postgres on boot and auto-saved back when it changes, so edits
+  survive restarts and redeploys (see [lib/data/persistence.ts](lib/data/persistence.ts)).
+  Without `DATABASE_URL` the app runs purely in memory (local dev).
+- Run as a **single instance**. The in-memory cache is per-process, so two
+  instances would not share live state. One always-on instance + Postgres is the
+  intended setup; horizontal scaling would need the full relational migration.
 
 ## Environment variables
 
@@ -16,7 +20,7 @@ can be reached from any device. Written to be scannable for IT.
 |---|---|---|
 | `APP_PASSWORD` | Yes (in any deployed env) | Shared site password. When set, the whole site is behind an HTTP Basic password prompt (see [middleware.ts](middleware.ts)). Leave unset only for local dev. |
 | `PORT` | No | Port to listen on (default 3000). Most hosts set this automatically. |
-| `DATABASE_URL` | Phase 2 | Postgres connection string, once durable storage is wired. |
+| `DATABASE_URL` | For durable data | Postgres connection string (`postgres://user:pass@host:5432/db`). When set, state is loaded on boot and auto-saved. The app creates its one table (`app_state`) automatically on first start. |
 
 ## Option A — Managed host (simplest)
 
@@ -36,7 +40,10 @@ standalone server on `node:20-slim`).
 
 ```bash
 docker build -t scf-dashboard .
-docker run -p 3000:3000 -e APP_PASSWORD='choose-a-strong-password' scf-dashboard
+docker run -p 3000:3000 \
+  -e APP_PASSWORD='choose-a-strong-password' \
+  -e DATABASE_URL='postgres://user:pass@host:5432/db' \
+  scf-dashboard
 ```
 
 Then reverse-proxy it behind TLS (nginx / the platform's ingress) and restrict

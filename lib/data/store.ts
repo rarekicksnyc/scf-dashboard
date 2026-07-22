@@ -101,6 +101,22 @@ const g = globalThis as unknown as { __scfStore?: Store };
 export const store: Store = (g.__scfStore ??= seedStore());
 
 // ---------------------------------------------------------------------------
+// Snapshot / hydrate for durable storage (see lib/data/persistence.ts). The
+// store is JSON-safe except `utilizations`, which is a Map — we store it as an
+// array of its values and rebuild the Map on load.
+// ---------------------------------------------------------------------------
+
+export function snapshotJson(): string {
+  return JSON.stringify({ ...store, utilizations: [...store.utilizations.values()] });
+}
+
+export function hydrateStore(data: Record<string, unknown>): void {
+  const util = new Map<string, Utilization>();
+  for (const u of (data.utilizations as Utilization[]) ?? []) util.set(u.limitId, u);
+  Object.assign(store, data, { utilizations: util });
+}
+
+// ---------------------------------------------------------------------------
 // Read accessors — all lookups go through here.
 // ---------------------------------------------------------------------------
 
