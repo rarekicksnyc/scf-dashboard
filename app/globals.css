@@ -52,6 +52,9 @@ a {
   position: sticky;
   top: 0;
   height: 100vh;
+  /* Scroll the nav within the sidebar when it is taller than the screen, so
+     every item stays reachable on short laptop screens. */
+  overflow-y: auto;
 }
 
 .brand {
