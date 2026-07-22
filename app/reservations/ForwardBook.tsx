@@ -85,12 +85,40 @@ export default function ForwardBook({ rows, candidates, canBook }: { rows: BookR
     }
   }
 
+  const [fSeller, setFSeller] = useState("");
+  const [fObligor, setFObligor] = useState("");
+  const [fFrom, setFFrom] = useState("");
+  const [fTo, setFTo] = useState("");
+
+  // Unique sellers / obligors that actually appear in the book (for the filters).
+  const sellerOpts = useMemo(() => {
+    const m = new Map<string, string>();
+    rows.forEach((r) => r.sellerId && m.set(r.sellerId, r.sellerName));
+    return [...m].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [rows]);
+  const obligorOpts = useMemo(() => {
+    const m = new Map<string, string>();
+    rows.forEach((r) => r.obligorId && m.set(r.obligorId, r.obligorName));
+    return [...m].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [rows]);
+
   const sorted = useMemo(() => {
-    if (!sortKey) return rows;
+    const filtered = rows.filter((r) => {
+      if (fSeller && r.sellerId !== fSeller) return false;
+      if (fObligor && r.obligorId !== fObligor) return false;
+      // Date period: keep reservations whose window overlaps [from, to].
+      if (fFrom && r.maturityDate.slice(0, 10) < fFrom) return false;
+      if (fTo && r.valueDate.slice(0, 10) > fTo) return false;
+      return true;
+    });
+    if (!sortKey) return filtered;
     const name = (r: BookRow) => (sortKey === "seller" ? r.sellerName : r.obligorName);
     const factor = dir === "asc" ? 1 : -1;
-    return [...rows].sort((a, b) => name(a).localeCompare(name(b)) * factor);
-  }, [rows, sortKey, dir]);
+    return [...filtered].sort((a, b) => name(a).localeCompare(name(b)) * factor);
+  }, [rows, sortKey, dir, fSeller, fObligor, fFrom, fTo]);
+
+  const inp = { border: "1px solid var(--border)", borderRadius: 6, padding: "6px 8px", fontSize: 13 };
+  const anyFilter = fSeller || fObligor || fFrom || fTo;
 
   const arrow = (key: SortKey) => (sortKey === key ? (dir === "asc" ? " ▲" : " ▼") : "");
   const sortableTh = (key: SortKey, label: string) => (
@@ -105,6 +133,32 @@ export default function ForwardBook({ rows, candidates, canBook }: { rows: BookR
   );
 
   return (
+    <>
+    <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap", padding: "10px 14px", borderBottom: "1px solid var(--border)", background: "#fafbfd" }}>
+      <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 11 }} className="muted">Seller
+        <select style={inp} value={fSeller} onChange={(e) => setFSeller(e.target.value)}>
+          <option value="">All sellers</option>
+          {sellerOpts.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+        </select>
+      </label>
+      <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 11 }} className="muted">Obligor
+        <select style={inp} value={fObligor} onChange={(e) => setFObligor(e.target.value)}>
+          <option value="">All obligors</option>
+          {obligorOpts.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+        </select>
+      </label>
+      <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 11 }} className="muted">From
+        <input style={inp} type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} />
+      </label>
+      <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 11 }} className="muted">To
+        <input style={inp} type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} />
+      </label>
+      {anyFilter && (
+        <button className="btn secondary" style={{ padding: "5px 10px", fontSize: 12 }} type="button"
+          onClick={() => { setFSeller(""); setFObligor(""); setFFrom(""); setFTo(""); }}>Clear filters</button>
+      )}
+      <span className="muted" style={{ fontSize: 12, marginLeft: "auto" }}>{sorted.length} of {rows.length}</span>
+    </div>
     <div className="table-scroll">
       <table>
         <thead>
@@ -241,5 +295,6 @@ export default function ForwardBook({ rows, candidates, canBook }: { rows: BookR
         </tbody>
       </table>
     </div>
+    </>
   );
 }

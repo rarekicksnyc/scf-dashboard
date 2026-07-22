@@ -51,6 +51,8 @@ export default function MultiTransactionCheck({ sellers, obligors, obligorEntiti
   });
   const [rows, setRows] = useState<Row[]>([blank()]);
   const [busy, setBusy] = useState(false);
+  const sName = (id: string) => sellers.find((s) => s.id === id)?.name ?? id;
+  const oName = (id: string) => obligors.find((o) => o.id === id)?.name ?? id;
 
   function update(i: number, patch: Partial<Row>) {
     setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch, decision: undefined } : r)));
@@ -60,23 +62,31 @@ export default function MultiTransactionCheck({ sellers, obligors, obligorEntiti
 
   async function runAll() {
     setBusy(true);
-    const results = await Promise.all(rows.map(async (r) => {
-      const res = await fetch("/api/eligibility", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          sellerId: r.sellerId, obligorId: r.obligorId, obligorEntityId: r.obligorEntityId || undefined, invoiceAmount: Number(r.invoiceAmount),
-          invoiceType: r.invoiceType, advanceRate: Number(r.advanceRate) / 100,
-          valueDate: r.valueDate, maturityDate: r.maturityDate, pricingBps: Number(r.pricingBps),
-          productType: r.productType, baseRateType: r.baseRateType, baseRate: Number(r.baseRate),
-        }),
-      });
-      const d = await res.json();
-      const reasons = (d.checks ?? []).filter((c: { severity: string }) => c.severity === "RED" || c.severity === "ORANGE").map((c: { message: string }) => c.message);
-      return { ...r, decision: d.decision, funded: d.advanceAmount, allIn: d.pricing?.allInRatePct, reasons };
-    }));
-    setRows(results);
-    setBusy(false);
+    try {
+      const results = await Promise.all(rows.map(async (r) => {
+        try {
+          const res = await fetch("/api/eligibility", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              sellerId: r.sellerId, obligorId: r.obligorId, obligorEntityId: r.obligorEntityId || undefined, invoiceAmount: Number(r.invoiceAmount),
+              invoiceType: r.invoiceType, advanceRate: Number(r.advanceRate) / 100,
+              valueDate: r.valueDate, maturityDate: r.maturityDate, pricingBps: Number(r.pricingBps),
+              productType: r.productType, baseRateType: r.baseRateType, baseRate: Number(r.baseRate),
+            }),
+          });
+          const d = await res.json().catch(() => ({}));
+          if (!res.ok) return { ...r, decision: undefined, funded: undefined, allIn: undefined, reasons: [d.error ?? `Error ${res.status}`] };
+          const reasons = (d.checks ?? []).filter((c: { severity: string }) => c.severity === "RED" || c.severity === "ORANGE").map((c: { message: string }) => c.message);
+          return { ...r, decision: d.decision, funded: d.advanceAmount, allIn: d.pricing?.allInRatePct, reasons };
+        } catch {
+          return { ...r, decision: undefined, funded: undefined, allIn: undefined, reasons: ["Request failed — check your connection and try again."] };
+        }
+      }));
+      setRows(results);
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -138,6 +148,31 @@ export default function MultiTransactionCheck({ sellers, obligors, obligorEntiti
           <button className="btn secondary" type="button" onClick={addRow}>+ Add another transaction</button>
           <button className="btn" type="button" onClick={runAll} disabled={busy}>{busy ? "Checking…" : "Run all checks"}</button>
         </div>
+
+        {rows.some((r) => r.decision || (r.reasons && r.reasons.length > 0)) && (
+          <div style={{ marginTop: 16, borderTop: "1px solid var(--border)", paddingTop: 12 }}>
+            <div style={{ fontWeight: 600, marginBottom: 8 }}>Results</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {rows.map((r, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", fontSize: 13 }}>
+                  <span className="muted" style={{ minWidth: 24 }}>{i + 1}.</span>
+                  <span style={{ minWidth: 260 }}>{sName(r.sellerId)} <span className="muted">/</span> {oName(r.obligorId)}</span>
+                  {r.decision ? (
+                    <span className={`badge ${DECISION[r.decision] ?? "grey"}`}>{r.decision.replace(/_/g, " ")}</span>
+                  ) : (
+                    <span className="badge grey">no result</span>
+                  )}
+                  <span className="muted">
+                    {r.funded ? `$${(r.funded / 1e6).toFixed(2)}M funded` : ""} {r.allIn != null ? `· ${r.allIn.toFixed(2)}% all-in` : ""}
+                  </span>
+                  {r.reasons && r.reasons.length > 0 && (
+                    <span style={{ color: "var(--orange)", flexBasis: "100%", paddingLeft: 34 }}>{r.reasons.join("; ")}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

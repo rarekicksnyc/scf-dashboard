@@ -37,7 +37,7 @@ export async function DELETE(
     action: "RESERVATION_CANCEL",
     entityType: "RESERVATION",
     entityId: id,
-    detail: `Cancelled reservation ${id}.`,
+    detail: `Cancelled and removed reservation ${id}.`,
   });
   return NextResponse.json({ reservation: r });
 }

@@ -622,10 +622,12 @@ export function addReservation(
   return created;
 }
 
+// Cancelling a reservation removes it from the book entirely.
 export function cancelReservation(id: string): Reservation | undefined {
-  const r = getReservation(id);
-  if (r) r.status = "CANCELLED";
-  return r;
+  const i = store.reservations.findIndex((r) => r.id === id);
+  if (i < 0) return undefined;
+  const [removed] = store.reservations.splice(i, 1);
+  return removed;
 }
 
 // Fulfill a reservation with the actual transaction that realised it. Marks it
