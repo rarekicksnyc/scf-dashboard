@@ -7,6 +7,7 @@ export interface Deal {
   sellerId: string;
   obligorId: string;
   amount: number;
+  revenue: number; // discount fee earned on the deal
   bookedDate: string; // when the batch was booked (uploaded)
   valueDate: string; // requested discount / value date
   maturityDate: string; // due date
@@ -27,6 +28,7 @@ export function fundedDeals(filter: { sellerId?: string; obligorId?: string }): 
         sellerId: r.invoice.sellerId,
         obligorId: r.invoice.obligorId,
         amount: r.invoice.amount,
+        revenue: r.discountFee,
         bookedDate: batch.uploadedAt,
         valueDate: r.invoice.requestedDiscountDate,
         maturityDate: r.invoice.dueDate,
@@ -35,6 +37,27 @@ export function fundedDeals(filter: { sellerId?: string; obligorId?: string }): 
     }
   }
   return deals;
+}
+
+export interface RevenueRow {
+  id: string;
+  deals: number;
+  volume: number; // total funded amount
+  revenue: number; // total discount fee earned
+}
+
+// Revenue aggregated by seller or by obligor across every funded deal.
+export function revenueBy(dimension: "seller" | "obligor"): RevenueRow[] {
+  const map = new Map<string, RevenueRow>();
+  for (const d of fundedDeals({})) {
+    const id = dimension === "seller" ? d.sellerId : d.obligorId;
+    const row = map.get(id) ?? { id, deals: 0, volume: 0, revenue: 0 };
+    row.deals += 1;
+    row.volume += d.amount;
+    row.revenue += d.revenue;
+    map.set(id, row);
+  }
+  return [...map.values()].sort((a, b) => b.revenue - a.revenue);
 }
 
 export function dealsByBooked(filter: { sellerId?: string; obligorId?: string }): Deal[] {

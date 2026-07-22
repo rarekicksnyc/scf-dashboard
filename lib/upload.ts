@@ -1,6 +1,6 @@
 import * as XLSX from "xlsx";
 import { allSellers, allObligors } from "@/lib/data/store";
-import type { Invoice, Currency, PcgFlag } from "@/lib/types";
+import type { Invoice, Currency, PcgFlag, RateRow, BaseRateType, ProductType } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 // Flexible batch ingestion. Accepts either a CSV or an .xlsx file with the
@@ -67,8 +67,8 @@ export function parseRowObjects(rows: Record<string, unknown>[]): ParsedUpload {
     // Skip fully blank rows.
     if (Object.values(row).every((v) => String(v ?? "").trim() === "")) return;
 
-    const sellerRaw = get(["seller_id", "sellerid", "seller", "seller_name", "sellername"]);
-    const obligorRaw = get(["obligor_id", "obligorid", "obligor", "obligor_name", "obligorname"]);
+    const sellerRaw = get(["seller_id", "sellerid", "seller", "seller_name", "sellername", "eligible_seller"]);
+    const obligorRaw = get(["obligor_id", "obligorid", "obligor", "obligor_name", "obligorname", "eligible_obligor", "eligible_buyer", "buyer"]);
     const amountRaw = get(["invoice_amount", "amount", "invoiceamount", "invoice_amt"]).replace(/[$,]/g, "");
     const amount = Number(amountRaw);
     const invNo = get(["invoice_number", "invoicenumber", "invoice_no", "invoice_num"]);
@@ -82,9 +82,17 @@ export function parseRowObjects(rows: Record<string, unknown>[]): ParsedUpload {
     if (obligorRaw && !allObligors().some((o) => o.id === obligorId))
       warnings.push(`Row ${i + 2}: unrecognized obligor '${obligorRaw}'.`);
 
-    const due = get(["due_date", "duedate", "maturity", "maturity_date"]);
-    const value = get(["requested_discount_date", "value_date", "valuedate", "discount_date"]);
-    const issue = get(["issue_date", "issuedate"]);
+    const due = get(["due_date", "duedate", "maturity", "maturity_date", "invoice_due_date", "commitment_due_date"]);
+    const value = get(["requested_discount_date", "value_date", "valuedate", "discount_date", "purchase_date", "commitment_date"]);
+    const issue = get(["issue_date", "issuedate", "invoice_date"]);
+
+    // Schedule A / UTRC pricing fields (optional).
+    const coverage = Number(get(["coverage_amount", "coverage", "commitment_amount"]).replace(/[$,]/g, "")) || undefined;
+    let adv = Number(get(["advance_rate", "advancerate", "applicable_purchase_percentage", "purchase_percentage"]).replace(/%/g, ""));
+    if (adv > 1.5) adv = adv / 100; // percent → decimal
+    const marginRaw = Number(get(["margin", "margin_rate", "pricing", "applicable_margin_rate"]).replace(/[%bps]/gi, ""));
+    const productRaw = get(["product", "product_type", "producttype"]).toUpperCase();
+    const productType: ProductType | undefined = productRaw === "UTRC" ? "UTRC" : productRaw === "DTR" ? "DTR" : undefined;
 
     invoices.push({
       invoiceNumber: invNo || `AUTO-${i + 1}`,
@@ -97,6 +105,10 @@ export function parseRowObjects(rows: Record<string, unknown>[]): ParsedUpload {
       requestedDiscountDate: value || isoToday(),
       sellerPcg: pcg(get(["seller_pcg", "sellerpcg", "seller_parent_company_guarantee"])),
       obligorPcg: pcg(get(["obligor_pcg", "obligorpcg", "obligor_parent_company_guarantee"])),
+      coverageAmount: coverage,
+      advanceRate: adv > 0 ? adv : undefined,
+      marginBps: marginRaw > 0 ? Math.round(marginRaw * 100) : undefined, // 1.15 -> 115 bps
+      productType,
     });
   });
 
@@ -143,4 +155,46 @@ export function parseXlsx(base64: string): ParsedUpload {
   if (!sheet) return { invoices: [], warnings: ["No sheet found in workbook."] };
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
   return parseRowObjects(rows);
+}
+
+// ---------------------------------------------------------------------------
+// Rate sheet upload — columns: start days / value date, maturity, bid, offer,
+// calcrate, error. Offer is the used rate.
+// ---------------------------------------------------------------------------
+
+function daysBetween(a: string, b: string): number {
+  return Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000);
+}
+
+export function parseRateRows(rows: Record<string, unknown>[], rateType: BaseRateType): RateRow[] {
+  const out: RateRow[] = [];
+  for (const row of rows) {
+    if (Object.values(row).every((v) => String(v ?? "").trim() === "")) continue;
+    const get = rowGetter(row);
+    const startDate = get(["start_days", "startdays", "start_date", "value_date", "valuedate", "start"]);
+    const maturityDate = get(["maturity", "maturity_date", "maturitydate", "end_date"]);
+    if (!startDate || !maturityDate) continue;
+    out.push({
+      rateType,
+      startDate,
+      maturityDate,
+      tenorDays: daysBetween(startDate, maturityDate),
+      bid: Number(get(["bid"]).replace(/%/g, "")) || 0,
+      offer: Number(get(["offer"]).replace(/%/g, "")) || 0,
+      calcRate: Number(get(["calcrate", "calc_rate", "calculated_rate"]).replace(/%/g, "")) || undefined,
+      error: get(["error"]) || undefined,
+    });
+  }
+  return out;
+}
+
+export function parseRateCsv(text: string, rateType: BaseRateType): RateRow[] {
+  return parseRateRows(csvToRows(text), rateType);
+}
+
+export function parseRateXlsx(base64: string, rateType: BaseRateType): RateRow[] {
+  const wb = XLSX.read(base64, { type: "base64" });
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  if (!sheet) return [];
+  return parseRateRows(XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" }), rateType);
 }

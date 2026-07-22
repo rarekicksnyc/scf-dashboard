@@ -31,14 +31,14 @@ import {
   type InvestorSlot,
   type PolicySlot,
 } from "./allocation";
+import { priceDeal } from "@/lib/pricing";
 
 // ---------------------------------------------------------------------------
 // Eligibility engine. Pure over its inputs (store snapshot + invoice list) —
 // it never mutates the store. Callers persist the result.
 // ---------------------------------------------------------------------------
 
-const DAY_COUNT = 360;
-const BASE_DISCOUNT_RATE = 0.06; // 6% flat for the MVP pricing stub
+const DEFAULT_MARGIN_BPS = 200; // fallback margin when the upload omits pricing
 
 function daysBetween(fromISO: string, toISO: string): number {
   const from = Date.parse(fromISO);
@@ -389,10 +389,19 @@ export function runBatch(
       if (swinglineCheck) checks.push(swinglineCheck);
     }
 
-    // --- Pricing -----------------------------------------------------------
-    const discountRate = BASE_DISCOUNT_RATE;
-    const discountFee = (amount * discountRate * Math.max(tenorDays, 0)) / DAY_COUNT;
-    const netProceeds = amount - discountFee;
+    // --- Pricing (shared with the eligibility engine) ----------------------
+    const coverage = invoice.coverageAmount ?? amount * (invoice.advanceRate ?? 1);
+    const pricing = priceDeal({
+      productType: invoice.productType,
+      baseRateType: invoice.baseRateType,
+      baseRate: invoice.baseRate,
+      marginBps: invoice.marginBps ?? DEFAULT_MARGIN_BPS,
+      coverage,
+      tenorDays,
+    });
+    const discountRate = pricing.allInRatePct / 100;
+    const discountFee = pricing.productType === "UTRC" ? pricing.commitmentFee : pricing.discount;
+    const netProceeds = pricing.purchasePrice;
 
     let status = finalStatus(checks);
     // Checker-approved override: an EXCEPTION_REQUIRED invoice whose breach a

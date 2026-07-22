@@ -296,6 +296,13 @@ export interface Invoice {
   requestedDiscountDate: string; // ISO
   sellerPcg?: PcgFlag; // seller parent company guarantee
   obligorPcg?: PcgFlag; // obligor parent company guarantee
+  // Schedule A / UTRC pricing fields (optional; from the upload).
+  coverageAmount?: number;
+  advanceRate?: number; // 0.85 … 1.00
+  marginBps?: number;
+  baseRate?: number; // percent
+  baseRateType?: BaseRateType;
+  productType?: ProductType;
 }
 
 // ---------------------------------------------------------------------------
@@ -363,6 +370,19 @@ export interface ScheduleEvent {
 export type InvoiceType = "FINAL" | "PROVISIONAL" | "PIPELINE";
 export type ProductType = "DTR" | "UTRC"; // discount TR vs unfunded TR commitment
 export type BaseRateType = "COF" | "SOFR" | "OTHER";
+
+// A row from an uploaded rate sheet. Each row is a value-date → maturity rate;
+// the offer is the used rate. Base rates are resolved from these by type + tenor.
+export interface RateRow {
+  rateType: BaseRateType;
+  startDate: string; // value date
+  maturityDate: string;
+  tenorDays: number;
+  bid: number; // percent
+  offer: number; // percent (used rate)
+  calcRate?: number;
+  error?: string;
+}
 
 // Pricing convention: a margin input of 1.15 means 115 bps = 1.15%. We store the
 // margin in bps (pricingBps = 115) and the base rate as a percent (baseRate =

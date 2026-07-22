@@ -17,7 +17,18 @@ import type {
   SellerEntity,
   ObligorEntity,
   Country,
+  RateRow,
 } from "@/lib/types";
+
+// Seeded rate sheet (as if uploaded from the pricing platform). offer = used rate.
+export const rates: RateRow[] = [
+  { rateType: "SOFR", startDate: "2026-08-01", maturityDate: "2026-08-31", tenorDays: 30, bid: 4.95, offer: 5.0, calcRate: 5.0 },
+  { rateType: "SOFR", startDate: "2026-08-01", maturityDate: "2026-09-30", tenorDays: 60, bid: 4.97, offer: 5.02, calcRate: 5.02 },
+  { rateType: "SOFR", startDate: "2026-08-01", maturityDate: "2026-10-30", tenorDays: 90, bid: 5.0, offer: 5.05, calcRate: 5.05 },
+  { rateType: "SOFR", startDate: "2026-08-01", maturityDate: "2027-01-28", tenorDays: 180, bid: 5.05, offer: 5.1, calcRate: 5.1 },
+  { rateType: "COF", startDate: "2026-08-01", maturityDate: "2026-10-30", tenorDays: 90, bid: 5.3, offer: 5.35, calcRate: 5.35 },
+  { rateType: "COF", startDate: "2026-08-01", maturityDate: "2027-01-28", tenorDays: 180, bid: 5.38, offer: 5.45, calcRate: 5.45 },
+];
 
 // Country enforceability register. Only "eligible" countries (an enforceability
 // opinion is on file) may be selected as an entity domicile; others get flagged.

@@ -20,10 +20,12 @@ export default async function RootLayout({
 
   const nav = [
     { href: "/", label: "Portfolio" },
+    { href: "/revenue", label: "Revenue" },
     { href: "/eligibility", label: "Eligibility check" },
     { href: "/batches", label: "Batches" },
     { href: "/limits", label: "Limit register" },
     { href: "/data", label: "Data management" },
+    { href: "/rates", label: "Rate sheet" },
     { href: "/expirations", label: "Expirations" },
     { href: "/reservations", label: "Reservations" },
     { href: "/schedule", label: "Schedule" },

@@ -66,7 +66,7 @@ export default function EligibilityCheck({
     pricingBps: "125",
     productType: "DTR",
     baseRateType: "SOFR",
-    baseRate: "5.00",
+    baseRate: "0",
     distributed: false,
     insured: false,
   });
@@ -173,6 +173,7 @@ export default function EligibilityCheck({
             </label>
             <label style={field}>Base rate (%)
               <input style={input} type="number" step="0.01" value={f.baseRate} onChange={(e) => set("baseRate", e.target.value)} />
+              <span className="muted" style={{ fontSize: 10 }}>0 = use rate sheet (offer, closest tenor)</span>
             </label>
           </div>
 

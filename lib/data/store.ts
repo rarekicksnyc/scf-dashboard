@@ -23,6 +23,8 @@ import type {
   SellerEntity,
   ObligorEntity,
   Country,
+  RateRow,
+  BaseRateType,
 } from "@/lib/types";
 import { toLimitView } from "@/lib/engine/availability";
 import * as seed from "./seed";
@@ -55,6 +57,7 @@ interface Store {
   users: User[];
   rolePermissions: Record<Role, Permission[]>;
   countries: Country[];
+  rates: RateRow[];
   seq: number; // monotonic id counter
 }
 
@@ -82,6 +85,7 @@ function seedStore(): Store {
     users: structuredClone(seed.users),
     rolePermissions: structuredClone(seed.rolePermissions),
     countries: structuredClone(seed.countries),
+    rates: structuredClone(seed.rates),
     // Start the id counter past the seeded reservation ids (RSV-0000N) so
     // generated ids never collide with seed ids.
     seq: seed.reservations.length,
@@ -152,6 +156,30 @@ export function isCountryEligible(code: string): boolean {
 export function setCountryEligible(code: string, eligible: boolean): void {
   const c = store.countries.find((x) => x.code === code);
   if (c) c.eligible = eligible;
+}
+
+// ---------------------------------------------------------------------------
+// Rate sheet
+// ---------------------------------------------------------------------------
+
+export function getRates(): RateRow[] {
+  return store.rates;
+}
+
+// Replace all rows for a given rate type with a freshly uploaded set.
+export function replaceRates(rateType: BaseRateType, rows: RateRow[]): void {
+  store.rates = store.rates.filter((r) => r.rateType !== rateType).concat(rows);
+}
+
+// Resolve the used base rate (offer) for a type + tenor — closest tenor wins.
+export function resolveBaseRate(rateType: BaseRateType, tenorDays: number): number | undefined {
+  const rows = store.rates.filter((r) => r.rateType === rateType && !r.error);
+  if (rows.length === 0) return undefined;
+  let best = rows[0];
+  for (const r of rows) {
+    if (Math.abs(r.tenorDays - tenorDays) < Math.abs(best.tenorDays - tenorDays)) best = r;
+  }
+  return best.offer;
 }
 
 // Every entity whose domicile is not on the eligible-country register — the
