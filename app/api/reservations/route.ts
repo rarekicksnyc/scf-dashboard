@@ -34,9 +34,6 @@ export async function POST(request: Request) {
   const comment = typeof b.comment === "string" ? b.comment.trim() : "";
   const kind = b.kind === "SWINGLINE" ? "SWINGLINE" : "DISCOUNT";
 
-  if (!(amount > 0)) {
-    return NextResponse.json({ error: "Amount must be greater than zero." }, { status: 400 });
-  }
   if (!(tenorDays > 0)) {
     return NextResponse.json({ error: "Maturity date must be after value date." }, { status: 422 });
   }
@@ -57,6 +54,9 @@ export async function POST(request: Request) {
 
   // ------------------------------------------------------------------ SWINGLINE
   if (kind === "SWINGLINE") {
+    if (!(amount > 0)) {
+      return NextResponse.json({ error: "Amount must be greater than zero." }, { status: 400 });
+    }
     const entityType: "SELLER" | "OBLIGOR" = b.entityType === "OBLIGOR" ? "OBLIGOR" : "SELLER";
     const direction: "REDUCTION" | "INCREASE" = b.swinglineDirection === "INCREASE" ? "INCREASE" : "REDUCTION";
     if (!b.entityId) {
@@ -97,25 +97,48 @@ export async function POST(request: Request) {
   }
 
   // ------------------------------------------------------------------ DISCOUNT
-  // Run the full eligibility engine — the reservation amount is the exposure
-  // (advance = 100%). It auto-clears if it passes; a REJECTED / EXCEPTION result
-  // is what triggers the soft-warning exception path.
+  // Run the full eligibility engine on the same fields as a live transaction.
+  // The reservation exposure (amount) is the coverage = invoice x advance rate.
+  // It auto-clears if it passes; a REJECTED / EXCEPTION result triggers the
+  // soft-warning exception path.
   if (!b.sellerId || !b.obligorId) {
     return NextResponse.json({ error: "Expected sellerId and obligorId." }, { status: 400 });
   }
+
+  // Legacy callers (multi-row form) send `amount` directly (advance = 100%);
+  // the detailed form sends invoiceAmount + advanceRate.
+  const invoiceAmount = Number(b.invoiceAmount) > 0 ? Number(b.invoiceAmount) : amount;
+  const advanceRate = b.advanceRate != null ? Number(b.advanceRate) : 1;
+  const coverage = Math.round(invoiceAmount * advanceRate);
+  if (!(coverage > 0)) {
+    return NextResponse.json({ error: "Coverage (invoice × advance) must be greater than zero." }, { status: 400 });
+  }
+  const invoiceType = ["FINAL", "PROVISIONAL", "PIPELINE"].includes(b.invoiceType) ? b.invoiceType : "FINAL";
+
   const txn: DiscountTransaction = {
     sellerId: b.sellerId,
     obligorId: b.obligorId,
-    invoiceNumber: "RESERVATION",
-    invoiceAmount: amount,
+    obligorEntityId: b.obligorEntityId || undefined,
+    rrlAmount: Number(b.rrlAmount) || 0,
+    invoiceNumber: b.invoiceNumber || "RESERVATION",
+    invoiceAmount,
     currency: (b.currency as Currency) ?? "USD",
-    invoiceType: "FINAL",
-    advanceRate: 1,
+    invoiceType: invoiceType as DiscountTransaction["invoiceType"],
+    advanceRate,
     valueDate: b.valueDate,
     maturityDate: b.maturityDate,
     pricingBps: Number(b.pricingBps) || 0,
-    distributed: false,
-    insured: false,
+    productType: b.productType === "UTRC" ? "UTRC" : "DTR",
+    baseRateType: b.baseRateType ?? "SOFR",
+    baseRate: Number(b.baseRate) || 0,
+    distributed: Boolean(b.distributed),
+    investorAllocations: Array.isArray(b.investorAllocations)
+      ? b.investorAllocations.filter((a: { investorId?: string }) => a && a.investorId).map((a: { investorId: string; amount: unknown }) => ({ investorId: a.investorId, amount: Number(a.amount) || 0 }))
+      : undefined,
+    insured: Boolean(b.insured),
+    insurerAllocations: Array.isArray(b.insurerAllocations)
+      ? b.insurerAllocations.filter((a: { policyId?: string }) => a && a.policyId).map((a: { policyId: string; amount: unknown }) => ({ policyId: a.policyId, amount: Number(a.amount) || 0 }))
+      : undefined,
   };
   const report = checkDiscount(txn);
   const didNotClear = report.decision === "REJECTED" || report.decision === "EXCEPTION_REQUIRED";
@@ -126,12 +149,12 @@ export async function POST(request: Request) {
     kind: "DISCOUNT",
     sellerId: b.sellerId,
     obligorId: b.obligorId,
-    amount,
+    amount: coverage,
     currency: (b.currency as Currency) ?? "USD",
     valueDate: b.valueDate,
     maturityDate: b.maturityDate,
     pricingBps: Number(b.pricingBps) || 0,
-    rrlAmount: Math.min(Math.max(Number(b.rrlAmount) || 0, 0), amount),
+    rrlAmount: Math.min(Math.max(Number(b.rrlAmount) || 0, 0), coverage),
     tenorDays,
     usesSwingline:
       Boolean(entitySwingline("SELLER", b.sellerId)) ||

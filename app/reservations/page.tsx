@@ -2,6 +2,9 @@ import {
   getReservations,
   allSellers,
   allObligors,
+  allObligorEntities,
+  activeInvestors,
+  activePolicies,
   getSeller,
   getObligor,
   findLimit,
@@ -21,6 +24,9 @@ export default async function ReservationsPage() {
   const sellers = allSellers().map((s) => ({ id: s.id, name: s.name }));
   const obligors = allObligors().map((o) => ({ id: o.id, name: o.name }));
   const rrlSellers = allSellers().filter((s) => findLimit("RRL", s.id)).map((s) => s.id);
+  const obligorEntities = allObligorEntities().map((e) => ({ groupId: e.groupId, id: e.id, name: e.name }));
+  const investors = activeInvestors().map((i) => ({ id: i.id, name: i.name }));
+  const policies = activePolicies().map((p) => ({ id: p.id, name: `${p.insurerName} · ${p.policyNumber}` }));
 
   const activeTotal = reservations
     .filter((r) => r.status === "RESERVED")
@@ -57,7 +63,15 @@ export default async function ReservationsPage() {
 
       <MultiReservationForm sellers={sellers} obligors={obligors} rrlSellers={rrlSellers} canBook={canBook} />
       <Collapsible summary="Single detailed entry / swingline adjustment">
-        <ReservationForm sellers={sellers} obligors={obligors} rrlSellers={rrlSellers} canBook={canBook} />
+        <ReservationForm
+          sellers={sellers}
+          obligors={obligors}
+          obligorEntities={obligorEntities}
+          rrlSellers={rrlSellers}
+          investors={investors}
+          policies={policies}
+          canBook={canBook}
+        />
       </Collapsible>
 
       <div className="panel">
