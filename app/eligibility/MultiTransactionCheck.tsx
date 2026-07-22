@@ -28,7 +28,8 @@ const DECISION: Record<string, string> = {
   EXCEPTION_REQUIRED: "orange",
   REJECTED: "red",
 };
-const cell = { border: "1px solid var(--border)", borderRadius: 5, padding: "5px 6px", fontSize: 12, width: "100%" };
+const cell = { border: "1px solid var(--border)", borderRadius: 6, padding: "8px 10px", fontSize: 14, width: "100%" };
+const numCell = { ...cell, textAlign: "right" as const };
 
 export default function MultiTransactionCheck({ sellers, obligors }: { sellers: Opt[]; obligors: Opt[] }) {
   const blank = (): Row => ({
@@ -90,17 +91,17 @@ export default function MultiTransactionCheck({ sellers, obligors }: { sellers: 
             <tbody>
               {rows.map((r, i) => (
                 <tr key={i}>
-                  <td style={{ minWidth: 140 }}><select style={cell} value={r.sellerId} onChange={(e) => update(i, { sellerId: e.target.value })}>{sellers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></td>
-                  <td style={{ minWidth: 140 }}><select style={cell} value={r.obligorId} onChange={(e) => update(i, { obligorId: e.target.value })}>{obligors.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</select></td>
-                  <td style={{ width: 120 }}><input style={cell} type="number" value={r.invoiceAmount} onChange={(e) => update(i, { invoiceAmount: e.target.value })} /></td>
-                  <td style={{ width: 100 }}><select style={cell} value={r.invoiceType} onChange={(e) => update(i, { invoiceType: e.target.value })}><option value="FINAL">Final</option><option value="PROVISIONAL">Provisional</option><option value="PIPELINE">Pipeline</option></select></td>
-                  <td style={{ width: 60 }}><input style={cell} type="number" value={r.advanceRate} onChange={(e) => update(i, { advanceRate: e.target.value })} /></td>
-                  <td style={{ width: 130 }}><input style={cell} type="date" value={r.valueDate} onChange={(e) => update(i, { valueDate: e.target.value })} /></td>
-                  <td style={{ width: 130 }}><input style={cell} type="date" value={r.maturityDate} onChange={(e) => update(i, { maturityDate: e.target.value })} /></td>
-                  <td style={{ width: 70 }}><input style={cell} type="number" value={r.pricingBps} onChange={(e) => update(i, { pricingBps: e.target.value })} /></td>
-                  <td style={{ width: 90 }}><select style={cell} value={r.productType} onChange={(e) => update(i, { productType: e.target.value })}><option value="DTR">DTR</option><option value="UTRC">UTRC</option></select></td>
-                  <td style={{ width: 80 }}><select style={cell} value={r.baseRateType} onChange={(e) => update(i, { baseRateType: e.target.value })}><option value="SOFR">SOFR</option><option value="COF">COF</option><option value="OTHER">Other</option></select></td>
-                  <td style={{ width: 60 }}><input style={cell} type="number" step="0.01" value={r.baseRate} onChange={(e) => update(i, { baseRate: e.target.value })} /></td>
+                  <td style={{ minWidth: 300 }}><select style={cell} value={r.sellerId} onChange={(e) => update(i, { sellerId: e.target.value })}>{sellers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></td>
+                  <td style={{ minWidth: 300 }}><select style={cell} value={r.obligorId} onChange={(e) => update(i, { obligorId: e.target.value })}>{obligors.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</select></td>
+                  <td style={{ width: 240 }}><input style={numCell} type="number" value={r.invoiceAmount} onChange={(e) => update(i, { invoiceAmount: e.target.value })} /></td>
+                  <td style={{ width: 160 }}><select style={cell} value={r.invoiceType} onChange={(e) => update(i, { invoiceType: e.target.value })}><option value="FINAL">Final</option><option value="PROVISIONAL">Provisional</option><option value="PIPELINE">Pipeline</option></select></td>
+                  <td style={{ width: 150 }}><input style={numCell} type="number" value={r.advanceRate} onChange={(e) => update(i, { advanceRate: e.target.value })} /></td>
+                  <td style={{ width: 180 }}><input style={cell} type="date" value={r.valueDate} onChange={(e) => update(i, { valueDate: e.target.value })} /></td>
+                  <td style={{ width: 180 }}><input style={cell} type="date" value={r.maturityDate} onChange={(e) => update(i, { maturityDate: e.target.value })} /></td>
+                  <td style={{ width: 150 }}><input style={numCell} type="number" value={r.pricingBps} onChange={(e) => update(i, { pricingBps: e.target.value })} /></td>
+                  <td style={{ width: 160 }}><select style={cell} value={r.productType} onChange={(e) => update(i, { productType: e.target.value })}><option value="DTR">DTR</option><option value="UTRC">UTRC</option></select></td>
+                  <td style={{ width: 150 }}><select style={cell} value={r.baseRateType} onChange={(e) => update(i, { baseRateType: e.target.value })}><option value="SOFR">SOFR</option><option value="COF">COF</option><option value="OTHER">Other</option></select></td>
+                  <td style={{ width: 160 }}><input style={numCell} type="number" step="0.01" value={r.baseRate} onChange={(e) => update(i, { baseRate: e.target.value })} /></td>
                   <td style={{ minWidth: 180 }}>
                     {r.decision ? (
                       <div style={{ fontSize: 11 }}>

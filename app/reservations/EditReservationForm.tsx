@@ -67,7 +67,7 @@ export default function EditReservationForm({
     <div style={{ background: "#fafbfd", border: "1px solid var(--border)", borderRadius: 8, padding: 14 }}>
       <div style={{ fontWeight: 600, marginBottom: 10 }}>Adjust {r.id}</div>
       {msg && <div className="notice err">{msg}</div>}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>
         <label style={field}>Amount (USD)
           <input style={input} type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
         </label>

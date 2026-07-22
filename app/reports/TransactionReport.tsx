@@ -77,7 +77,7 @@ export default function TransactionReport({
     <div className="panel">
       <h2>Transaction report</h2>
       <div style={{ padding: 18 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12, marginBottom: 14 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12, marginBottom: 14 }}>
           <label style={field}>Seller
             <select style={input} value={sellerId} onChange={(e) => setSellerId(e.target.value)}>
               <option value="">All sellers</option>

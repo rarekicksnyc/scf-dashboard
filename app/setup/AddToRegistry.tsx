@@ -14,8 +14,8 @@ type Mode = "LIMIT" | "SELLER" | "OBLIGOR" | "ASR_SUBLIMIT";
 const input = {
   border: "1px solid var(--border)",
   borderRadius: 6,
-  padding: "7px 8px",
-  fontSize: 13,
+  padding: "8px 10px",
+  fontSize: 14,
   width: "100%",
 };
 const field = { display: "flex", flexDirection: "column" as const, gap: 4, fontSize: 12 };
@@ -175,7 +175,7 @@ export default function AddToRegistry({
           ))}
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
           {mode === "LIMIT" && (
             <>
               <label style={field}>Limit type

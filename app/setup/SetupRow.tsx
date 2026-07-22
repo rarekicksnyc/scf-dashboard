@@ -17,8 +17,8 @@ export interface SetupRowProps {
 const inputStyle = {
   border: "1px solid var(--border)",
   borderRadius: 6,
-  padding: "5px 7px",
-  fontSize: 12,
+  padding: "8px 10px",
+  fontSize: 14,
   width: "100%",
 };
 
@@ -70,10 +70,10 @@ export default function SetupRow(props: SetupRowProps) {
   return (
     <tr>
       <td>{props.name}</td>
-      <td style={{ width: 150 }}>
+      <td style={{ width: 180 }}>
         <input style={inputStyle} value={cdl} onChange={(e) => setCdl(e.target.value)} />
       </td>
-      <td style={{ width: 200 }}>
+      <td style={{ width: 240 }}>
         <input
           style={inputStyle}
           type="number"
@@ -81,13 +81,13 @@ export default function SetupRow(props: SetupRowProps) {
           onChange={(e) => setLimitAmount(e.target.value)}
         />
       </td>
-      <td style={{ width: 90 }}>
+      <td style={{ width: 110 }}>
         <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
           <input type="checkbox" checked={swlOn} onChange={(e) => setSwlOn(e.target.checked)} />
           {swlOn ? "On" : "Off"}
         </label>
       </td>
-      <td style={{ width: 200 }}>
+      <td style={{ width: 240 }}>
         <input
           style={{ ...inputStyle, opacity: swlOn ? 1 : 0.5 }}
           type="number"

@@ -116,7 +116,7 @@ export default function ReservationForm({
   }
 
   const field = { display: "flex", flexDirection: "column" as const, gap: 4, fontSize: 12 };
-  const input = { border: "1px solid var(--border)", borderRadius: 6, padding: "7px 8px", fontSize: 13, width: "100%" };
+  const input = { border: "1px solid var(--border)", borderRadius: 6, padding: "8px 10px", fontSize: 14, width: "100%" };
   const swlEntities = swl.entityType === "SELLER" ? sellers : obligors;
 
   return (
@@ -143,7 +143,7 @@ export default function ReservationForm({
           ))}
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12, marginBottom: 14 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12, marginBottom: 14 }}>
           {mode === "DISCOUNT" ? (
             <>
               <label style={field}>Seller
