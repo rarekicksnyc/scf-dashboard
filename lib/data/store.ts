@@ -580,6 +580,25 @@ export function setUserRole(userId: string, role: Role): void {
   if (u) u.role = role;
 }
 
+export function addUser(input: { name: string; role: Role; passwordHash: string }): User {
+  const u: User = { id: nextId("USR"), name: input.name, role: input.role, passwordHash: input.passwordHash };
+  store.users.push(u);
+  return u;
+}
+
+export function deleteUser(id: string): boolean {
+  const i = store.users.findIndex((u) => u.id === id);
+  if (i < 0) return false;
+  store.users.splice(i, 1);
+  return true;
+}
+
+export function updateUserName(id: string, name: string): User | undefined {
+  const u = storeGetUserById(id);
+  if (u) u.name = name;
+  return u;
+}
+
 // ---------------------------------------------------------------------------
 // Edit an existing limit (amount, tenor, expiry, status).
 // ---------------------------------------------------------------------------

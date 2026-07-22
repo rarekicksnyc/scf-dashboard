@@ -3,9 +3,14 @@ import {
   setRolePermission,
   setUserRole,
   storeGetUserById,
+  addUser,
+  deleteUser,
+  updateUserName,
   addAudit,
 } from "@/lib/data/store";
 import { getCurrentUser, roleHas } from "@/lib/auth";
+import { hashPassword } from "@/lib/password";
+import type { Role } from "@/lib/types";
 
 // Manage the authority model: toggle a role's permission, or assign a user's
 // role. Gated by MANAGE_ROLES and audited. Guards against removing MANAGE_ROLES
@@ -57,6 +62,48 @@ export async function POST(request: Request) {
       entityType: "USER",
       entityId: b.userId,
       detail: `${target.name}: ${from} → ${b.role}.`,
+    });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (b.kind === "USER_ADD") {
+    const name = String(b.name || "").trim();
+    const role = b.role as Role;
+    if (!name) return NextResponse.json({ error: "A name is required." }, { status: 422 });
+    const password = typeof b.password === "string" && b.password.length >= 4 ? b.password : "demo1234";
+    const created = addUser({ name, role: role || "VIEWER", passwordHash: hashPassword(password) });
+    addAudit({
+      actorUserId: user.id, actorName: user.name,
+      action: "USER_ADD", entityType: "USER", entityId: created.id,
+      detail: `Added user ${name} (${created.role}).`,
+    });
+    return NextResponse.json({ ok: true, user: { id: created.id, name: created.name, role: created.role } });
+  }
+
+  if (b.kind === "USER_DELETE") {
+    const target = storeGetUserById(b.userId);
+    if (!target) return NextResponse.json({ error: "Unknown user." }, { status: 404 });
+    if (b.userId === user.id) return NextResponse.json({ error: "You cannot delete your own account." }, { status: 422 });
+    deleteUser(b.userId);
+    addAudit({
+      actorUserId: user.id, actorName: user.name,
+      action: "USER_DELETE", entityType: "USER", entityId: b.userId,
+      detail: `Deleted user ${target.name}.`,
+    });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (b.kind === "USER_RENAME") {
+    const target = storeGetUserById(b.userId);
+    if (!target) return NextResponse.json({ error: "Unknown user." }, { status: 404 });
+    const name = String(b.name || "").trim();
+    if (!name) return NextResponse.json({ error: "A name is required." }, { status: 422 });
+    const from = target.name;
+    updateUserName(b.userId, name);
+    addAudit({
+      actorUserId: user.id, actorName: user.name,
+      action: "USER_RENAME", entityType: "USER", entityId: b.userId,
+      detail: `Renamed user ${from} → ${name}.`,
     });
     return NextResponse.json({ ok: true });
   }
