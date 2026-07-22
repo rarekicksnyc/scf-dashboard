@@ -4,13 +4,13 @@ import {
   getSeller,
   sellerEntitiesOf,
   findLimit,
-  viewLimit,
   sellerObligorLimitsForSeller,
   getObligor,
   obligorEntitiesOf,
   getInsurancePolicy,
 } from "@/lib/data/store";
 import { mm, dateShort } from "@/lib/format";
+import LimitRegister from "../limits/LimitRegister";
 
 export const dynamic = "force-dynamic";
 
@@ -67,10 +67,10 @@ export default async function DataManagementPage({
       <div className="panel">
         <h2>{seller?.name} — facility &amp; eligible seller entities</h2>
         <div style={{ padding: 14, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10, fontSize: 13 }}>
-          <Field label="Seller line" value={sellerLimit ? mm(viewLimit(sellerLimit).approvedLimit) : "—"} />
+          <Field label="Seller line" value={sellerLimit ? `${mm(sellerLimit.approvedLimit)} (exp ${dateShort(sellerLimit.expiryDate)})` : "—"} />
           <Field label="ASR rating" value={seller ? `${seller.asrRating} (exp ${dateShort(seller.asrExpiry)})` : "—"} />
           <Field label="Swingline" value={swl ? `${mm(swl.approvedLimit)} (exp ${dateShort(swl.expiryDate)})` : "none"} />
-          <Field label="RRL" value={rrl ? mm(rrl.approvedLimit) : "N/A"} />
+          <Field label="RRL" value={rrl ? `${mm(rrl.approvedLimit)} (exp ${dateShort(rrl.expiryDate)})` : "N/A"} />
           <Field label="Borrower rating" value={seller ? `${seller.borrowerRating} (exp ${dateShort(seller.borrowerRatingExpiry)})` : "—"} />
           <Field label="GCARS #" value={seller?.gcarsNumber || "—"} />
         </div>
@@ -154,6 +154,16 @@ export default async function DataManagementPage({
           </table>
         </div>
       </div>
+
+      {/* Full editable limit register (moved here from its own tab) */}
+      <h2 className="page-title" style={{ fontSize: 20, marginTop: 8 }}>Limit register</h2>
+      <p className="page-sub">
+        Every limit the engine checks against — seller line, ASR, RRL, obligor,
+        swingline, investor, and insurance. Inline-editable (amount, max tenor,
+        expiry, status) with CHANGE_LIMIT; edits feed the eligibility engine and
+        every exposure view. Available capacity is always derived, never stored.
+      </p>
+      <LimitRegister />
     </>
   );
 }

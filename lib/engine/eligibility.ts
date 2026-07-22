@@ -152,10 +152,13 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
     // RRL — only counted when enabled. The RRL portion consumes the RRL line;
     // the seller line above already excludes it.
     if (seller.rrlEnabled) {
-      const rrlExp = expired(seller.rrlExpiry, txn.valueDate);
       const rrlLimit = findLimit("RRL", seller.id);
+      // Expiry comes from the editable RRL limit record when present (single
+      // source), falling back to the seller field.
+      const rrlExpiryDate = rrlLimit?.expiryDate || seller.rrlExpiry;
+      const rrlExp = expired(rrlExpiryDate, txn.valueDate);
       if (rrlExp) {
-        add("SELLER", "RRL (Risk Reimbursement Line)", `exp ${seller.rrlExpiry || "—"}`, mm(rrlAmount), "RED", "RRL expired.");
+        add("SELLER", "RRL (Risk Reimbursement Line)", `exp ${rrlExpiryDate || "—"}`, mm(rrlAmount), "RED", "RRL expired.");
       } else if (rrlLimit) {
         const v = viewLimit(rrlLimit);
         capacity("SELLER", "RRL (Risk Reimbursement Line)", v.available, v.approvedLimit, v.consumed, rrlAmount);
