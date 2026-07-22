@@ -1,8 +1,10 @@
 import { REPORTS } from "@/lib/reports";
 import { getBatches, allSellers, allObligors, getSeller, getObligor } from "@/lib/data/store";
 import { fundedDeals } from "@/lib/deals";
+import { entityExposures } from "@/lib/exposure";
 import { currentUserCan } from "@/lib/auth";
 import TransactionReport, { type TxnRow } from "./TransactionReport";
+import ExposureSummary from "./ExposureSummary";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +39,8 @@ export default async function ReportsPage() {
         sellers={allSellers().map((s) => ({ id: s.id, name: s.name }))}
         obligors={allObligors().map((o) => ({ id: o.id, name: o.name }))}
       />
+
+      <ExposureSummary rows={entityExposures()} />
 
       <div className="panel">
         <h2>Standard reports</h2>

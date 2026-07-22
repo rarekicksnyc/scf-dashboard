@@ -11,6 +11,7 @@ export interface TxnRow {
   obligorId: string;
   obligorName: string;
   amount: number;
+  revenue: number;
   bookedDate: string;
   valueDate: string;
   maturityDate: string;
@@ -53,16 +54,27 @@ export default function TransactionReport({
   }, [deals, sellerId, obligorId, from, to, basis]);
 
   const total = filtered.reduce((a, d) => a + d.amount, 0);
+  const totalRevenue = filtered.reduce((a, d) => a + d.revenue, 0);
+
+  const exportQuery = () => {
+    const p = new URLSearchParams();
+    if (sellerId) p.set("sellerId", sellerId);
+    if (obligorId) p.set("obligorId", obligorId);
+    if (from) p.set("from", from);
+    if (to) p.set("to", to);
+    p.set("basis", basis);
+    return p.toString();
+  };
 
   function downloadCsv() {
-    const header = ["invoice_number", "seller_id", "seller", "obligor_id", "obligor", "amount", "booked_date", "value_date", "maturity_date", "batch"];
+    const header = ["invoice_number", "seller_id", "seller", "obligor_id", "obligor", "amount", "revenue", "booked_date", "value_date", "maturity_date", "batch"];
     const esc = (v: string | number) => {
       const s = String(v);
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const lines = [header.join(",")];
     for (const d of filtered) {
-      lines.push([d.invoiceNumber, d.sellerId, d.sellerName, d.obligorId, d.obligorName, d.amount, d.bookedDate.slice(0, 10), d.valueDate, d.maturityDate, d.batchId].map(esc).join(","));
+      lines.push([d.invoiceNumber, d.sellerId, d.sellerName, d.obligorId, d.obligorName, d.amount, Math.round(d.revenue), d.bookedDate.slice(0, 10), d.valueDate, d.maturityDate, d.batchId].map(esc).join(","));
     }
     const blob = new Blob([lines.join("\n")], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -107,11 +119,21 @@ export default function TransactionReport({
 
         <div className="row-actions" style={{ justifyContent: "space-between" }}>
           <span className="muted">
-            {filtered.length} transaction{filtered.length === 1 ? "" : "s"} · {mm(total)}
+            {filtered.length} transaction{filtered.length === 1 ? "" : "s"} · {mm(total)} volume · {mm(totalRevenue)} revenue
           </span>
-          <button className="btn secondary" type="button" onClick={downloadCsv} disabled={filtered.length === 0}>
-            Download CSV
-          </button>
+          <span style={{ display: "flex", gap: 8 }}>
+            <a
+              className="btn"
+              href={`/api/reports/transactions-xlsx?${exportQuery()}`}
+              aria-disabled={filtered.length === 0}
+              style={filtered.length === 0 ? { pointerEvents: "none", opacity: 0.5 } : undefined}
+            >
+              Download Excel
+            </a>
+            <button className="btn secondary" type="button" onClick={downloadCsv} disabled={filtered.length === 0}>
+              Download CSV
+            </button>
+          </span>
         </div>
 
         <div className="table-scroll" style={{ marginTop: 8 }}>
@@ -122,6 +144,7 @@ export default function TransactionReport({
                 <th>Seller</th>
                 <th>Obligor</th>
                 <th className="num">Amount</th>
+                <th className="num">Revenue</th>
                 <th>Booked</th>
                 <th>Value date</th>
                 <th>Maturity</th>
@@ -130,7 +153,7 @@ export default function TransactionReport({
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={8} className="muted" style={{ padding: 16 }}>No transactions match the filters.</td></tr>
+                <tr><td colSpan={9} className="muted" style={{ padding: 16 }}>No transactions match the filters.</td></tr>
               ) : (
                 filtered.map((d, i) => (
                   <tr key={`${d.batchId}-${d.invoiceNumber}-${i}`}>
@@ -138,6 +161,7 @@ export default function TransactionReport({
                     <td>{d.sellerName}</td>
                     <td>{d.obligorName}</td>
                     <td className="num">{mm(d.amount)}</td>
+                    <td className="num">{mm(d.revenue)}</td>
                     <td>{dateShort(d.bookedDate)}</td>
                     <td>{dateShort(d.valueDate)}</td>
                     <td>{dateShort(d.maturityDate)}</td>

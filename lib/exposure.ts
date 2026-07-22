@@ -66,3 +66,50 @@ export function obligorExposure(asOf?: string): ExposureRow[] {
     };
   });
 }
+
+// ---------------------------------------------------------------------------
+// Flat per-name exposure for the selectable summary / email export. One row per
+// seller and per obligor, combining the main line with its swingline (and RRL
+// for sellers). Derived from the same reservation-aware views above.
+// ---------------------------------------------------------------------------
+
+export interface EntityExposure {
+  kind: "SELLER" | "OBLIGOR";
+  id: string;
+  name: string;
+  cdl: string;
+  status: string;
+  approved: number;
+  outstanding: number;
+  reserved: number;
+  available: number;
+  utilizationPct: number;
+}
+
+function flatten(kind: "SELLER" | "OBLIGOR", r: ExposureRow): EntityExposure {
+  const parts = [r.main, r.swingline, r.rrl].filter(Boolean) as LimitView[];
+  const approved = parts.reduce((a, v) => a + v.approvedLimit, 0);
+  const outstanding = parts.reduce((a, v) => a + v.outstanding, 0);
+  const reserved = parts.reduce((a, v) => a + v.reserved, 0);
+  const available = parts.reduce((a, v) => a + v.available, 0);
+  const consumed = outstanding + reserved;
+  return {
+    kind,
+    id: r.id,
+    name: r.name,
+    cdl: r.cdl,
+    status: r.status,
+    approved,
+    outstanding,
+    reserved,
+    available,
+    utilizationPct: approved > 0 ? consumed / approved : 0,
+  };
+}
+
+export function entityExposures(asOf?: string): EntityExposure[] {
+  return [
+    ...sellerExposure(asOf).map((r) => flatten("SELLER", r)),
+    ...obligorExposure(asOf).map((r) => flatten("OBLIGOR", r)),
+  ];
+}
