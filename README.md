@@ -41,31 +41,73 @@ The sample is engineered to exercise every control:
   seller (limits page, batch header); it is a classification, not a monetary
   control.
 
-## Architecture (single source of truth)
+## Architecture (code map for a handoff)
 
-- `lib/types.ts` — the one definition of every entity.
-- `lib/engine/availability.ts` — **the** availability formula. Capacity is never
-  stored; it is always derived here (`approved − consumed`).
-- `lib/engine/index.ts` — the eligibility engine. Runs each invoice through the
-  checks against a working limit snapshot consumed sequentially.
-- `lib/engine/allocation.ts` — the funding allocation planner (investor takeout →
-  bank hold → insurance overlay). Reads capacity; the engine commits it.
-- `lib/data/seed.ts` / `lib/data/store.ts` — seeded demo data and the in-memory
-  store. `store.ts` is the seam that becomes Postgres later.
-- `lib/config.ts` — **every tunable bank parameter** (day-count basis, default
-  margin, advance-rate band, per-invoice-type caps) in one documented place.
-  Per-customer parameters (approved limit, tenor, thresholds) live on the
-  individual records in the store.
-- `lib/pricing.ts` — the one `priceDeal()` used by both engines (DTR discount /
-  UTRC fee), so pricing can never diverge between the interactive and batch paths.
-- `lib/ui.ts` — shared input styling + small helpers (`clampPct`,
-  `coverageAmount`), so form fields look and behave the same everywhere.
-- `app/` — Portfolio, Batches, Batch review, Limits, Eligibility, Reservations,
-  Reports, Setup, and governance screens.
+Next.js 15 App Router + TypeScript + React. Business logic and shared helpers
+live in `lib/`; screens and API route handlers live in `app/`. The guiding rule
+is **single source of truth** — each fact and each rule is defined once and read
+everywhere. Start reading in this order:
+
+**Data & state**
+- `lib/types.ts` — the one definition of every entity (sellers, obligors, limits,
+  reservations, users, …). Read this first.
+- `lib/data/store.ts` — the in-memory system of record, cached on `globalThis`.
+  Every read/write goes through named accessors here (no raw globals), so it is
+  the single seam the rest of the app depends on. Availability is **never stored**
+  — `viewLimit()` derives it (`approved − consumed`) every time.
+- `lib/data/seed.ts` — the seeded demo bank (used on first boot / local dev).
+- `lib/data/persistence.ts` + `instrumentation-node.ts` — optional Postgres
+  durability: on boot the store is loaded from Postgres and auto-saved on change
+  (only when `DATABASE_URL` is set). Files (documents) use their own table via
+  `lib/documents.ts`. See [`DEPLOY.md`](DEPLOY.md) / [`SECURITY.md`](SECURITY.md).
+- `lib/config.ts` — **every tunable, portfolio-wide bank parameter** (day-count
+  basis, default margin, advance-rate band, per-invoice-type caps) in one place.
+  Per-customer parameters (limit, tenor, thresholds) live on the individual store
+  records and are edited on the Data Management screen.
+
+**The engine (eligibility, pricing, exposure)**
+- `lib/engine/eligibility.ts` — `checkDiscount(txn)`: the interactive engine that
+  runs ONE transaction against every control (seller, obligor, ASR, swingline,
+  RRL, transaction terms, distribution, insurance) and returns a categorized
+  report. This is what the Eligibility Check and reservation screens call.
+- `lib/engine/index.ts` — the batch engine: runs a whole uploaded invoice batch,
+  consuming a working limit snapshot sequentially so invoice #400 sees the
+  capacity #1–399 already used.
+- `lib/engine/availability.ts` — `toLimitView()`, **the** availability formula
+  both engines derive capacity from.
+- `lib/engine/allocation.ts` — funding planner (investor takeout → bank hold →
+  insurance overlay).
+- `lib/engine/obligorEntity.ts` — the obligor legal-entity rules, shared by both
+  engines so the multi-entity checks are defined once.
+- `lib/pricing.ts` — the one `priceDeal()` (DTR discount / UTRC fee), so pricing
+  can never diverge between the interactive and batch paths.
+- `lib/exposure.ts` — per-name exposure rows (seller/obligor lines + swinglines +
+  RRL) built from the store's reservation-aware limit views; feeds the Portfolio
+  and Reports screens.
+
+**Shared helpers (defined once, imported everywhere)**
+- `lib/format.ts` — display + small pure helpers: `mm`/`usd`/`pct`/`dateShort`,
+  `daysBetween`, `expired`, `mm2` (the engine's 2-decimal millions), and
+  `blockingChecks()` (the one place that defines the RED/ORANGE "does not clear"
+  rule), plus the label maps (`LIMIT_LABEL`, …).
+- `lib/ui.ts` — shared input styling (`inputBase`, `inputCompact`, `fieldLabel`,
+  `cellInput`) + `clampPct` / `coverageAmount`, so every form looks and behaves
+  the same.
+
+**App (screens + API)**
+- `app/layout.tsx` — the nav and the login gate; `middleware.ts` enforces the
+  session on every request (see [`SECURITY.md`](SECURITY.md)).
+- Screens: Portfolio (`app/page.tsx`), Eligibility check, Batches, **Data
+  management** (the control center — add/edit sellers, obligors, limits, entities,
+  the full limit register, and swingline adjustments; the old Setup / Limit
+  Register tabs redirect here), Documents, Rate sheet, Reservations, Schedule,
+  Exceptions, Monitoring, Reports, Audit log, Roles & access.
+- `app/api/**/route.ts` — the HTTP endpoints each screen calls; all
+  permission-gated through `lib/auth.ts` and audited into the store.
 
 **Security & parameters:** see [`SECURITY.md`](SECURITY.md) for the access model,
-audit/segregation controls, data handling, the no-external-calls / no-AI stance,
-and the production hardening checklist.
+audit/segregation controls, data handling, the one-controlled-outbound-call /
+no-AI stance, and the production hardening checklist.
 
 ## What's built
 
