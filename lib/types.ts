@@ -571,6 +571,7 @@ export interface User {
   id: string;
   name: string;
   role: Role;
+  passwordHash?: string; // scrypt "salt:hash"; set at seed / user creation
 }
 
 export type ExceptionStatus = "OPEN" | "APPROVED" | "REJECTED";

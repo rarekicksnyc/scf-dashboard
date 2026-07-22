@@ -6,6 +6,7 @@ import {
   permissionsForRole,
   roleHasPermission,
 } from "@/lib/data/store";
+import { verifySession, SESSION_COOKIE, sessionSecret } from "@/lib/session";
 
 // ---------------------------------------------------------------------------
 // Simulated authentication for the MVP. Real deployments front this with SSO
@@ -58,9 +59,6 @@ export const PERMISSION_LABEL: Record<Permission, string> = {
   MANAGE_ROLES: "Manage roles",
 };
 
-export const SESSION_COOKIE = "scf_user";
-const DEFAULT_USER = "u_ops";
-
 export function listUsers(): User[] {
   return getUsers();
 }
@@ -77,11 +75,18 @@ export function roleHas(role: Role, perm: Permission): boolean {
   return roleHasPermission(role, perm);
 }
 
-// Server-side current user (reads the session cookie).
+// The logged-in user from the signed session cookie, or null if not logged in.
+export async function getSessionUser(): Promise<User | null> {
+  const jar = await cookies();
+  const userId = await verifySession(jar.get(SESSION_COOKIE)?.value, sessionSecret());
+  if (!userId) return null;
+  return storeGetUserById(userId) ?? null;
+}
+
+// Server-side current user. Callers run behind the middleware auth gate, so a
+// session is present; the fallback is only a safety net.
 export async function getCurrentUser(): Promise<User> {
-  const store = await cookies();
-  const id = store.get(SESSION_COOKIE)?.value ?? DEFAULT_USER;
-  return getUserById(id);
+  return (await getSessionUser()) ?? getUsers()[0];
 }
 
 export async function currentUserCan(perm: Permission): Promise<boolean> {

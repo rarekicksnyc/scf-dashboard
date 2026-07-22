@@ -26,10 +26,14 @@ reviewer or a new engineer taking handoff.
 
 ## Access model (enforced today)
 
-- **Authentication** is simulated for the MVP: the acting user is selected via a
-  cookie (the sidebar "Acting as" switcher). `lib/auth.ts` is the single facade
-  every screen and API route reads through — it is the seam that a real SSO
-  provider (SAML/OIDC via Azure AD) drops into without touching call sites.
+- **Authentication** is per-user login: each user signs in with a password
+  (scrypt-hashed, `lib/password.ts`) and receives an HMAC-signed session cookie
+  (`lib/session.ts`, secret from `SESSION_SECRET`). The `middleware.ts` gate
+  requires a valid session for every page and API route; forged/tampered cookies
+  are rejected and unauthenticated users are sent to `/login`. `lib/auth.ts`
+  remains the single facade every screen reads through — the seam a real SSO
+  provider (SAML/OIDC via Azure AD) drops into. Demo users share `DEMO_PASSWORD`;
+  replace with per-user credentials or SSO for production.
 - **Role-based access control**: 7 roles × 7 permissions
   (`UPLOAD_BATCH`, `APPROVE_EXCEPTION`, `CHANGE_LIMIT`, `VIEW_REPORTS`,
   `VIEW_AUDIT`, `GENERATE_PAYMENT_FILE`, `MANAGE_ROLES`). The role→permission map

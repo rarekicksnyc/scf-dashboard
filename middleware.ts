@@ -1,38 +1,50 @@
 import { NextRequest, NextResponse } from "next/server";
+import { verifySession, SESSION_COOKIE, sessionSecret } from "@/lib/session";
 
 // ---------------------------------------------------------------------------
-// Site password gate (HTTP Basic Auth).
+// Auth gate. Two layers:
 //
-// When the APP_PASSWORD environment variable is set (i.e. in a deployed
-// environment), every request must supply the shared password before the app
-// is served. When APP_PASSWORD is NOT set (local development), the gate is off.
-//
-// This is a single shared password in front of the whole site — it is NOT the
-// per-user login. Inside the app, the "Acting as" role switcher still governs
-// what each role can do. Replace this with real SSO for production per-user auth.
+// 1. Optional site password (APP_PASSWORD) — a single shared HTTP Basic gate in
+//    front of everything. Off when the env var is unset.
+// 2. Per-user session — every request needs a valid signed session cookie
+//    (set by logging in) except the login endpoints. Pages without a session
+//    are redirected to /login; API calls get 401.
 // ---------------------------------------------------------------------------
 
-export function middleware(req: NextRequest) {
-  const password = process.env.APP_PASSWORD;
+// Reachable without being logged in.
+const PUBLIC_PATHS = ["/login", "/api/login", "/api/logout"];
 
-  // No password configured (local dev) → let everything through.
-  if (!password) return NextResponse.next();
-
-  const header = req.headers.get("authorization") ?? "";
-  const [scheme, encoded] = header.split(" ");
-
-  if (scheme === "Basic" && encoded) {
-    // "user:pass" is base64-encoded by the browser. We accept any username and
-    // check only the password.
-    const decoded = atob(encoded);
-    const suppliedPassword = decoded.slice(decoded.indexOf(":") + 1);
-    if (suppliedPassword === password) return NextResponse.next();
+export async function middleware(req: NextRequest) {
+  // Layer 1 — optional shared site password.
+  const appPassword = process.env.APP_PASSWORD;
+  if (appPassword) {
+    const [scheme, encoded] = (req.headers.get("authorization") ?? "").split(" ");
+    const decoded = scheme === "Basic" && encoded ? atob(encoded) : "";
+    const supplied = decoded.slice(decoded.indexOf(":") + 1);
+    if (supplied !== appPassword) {
+      return new NextResponse("Authentication required.", {
+        status: 401,
+        headers: { "WWW-Authenticate": 'Basic realm="SCF Dashboard"' },
+      });
+    }
   }
 
-  return new NextResponse("Authentication required.", {
-    status: 401,
-    headers: { "WWW-Authenticate": 'Basic realm="SCF Dashboard"' },
-  });
+  // Layer 2 — per-user session.
+  const { pathname } = req.nextUrl;
+  if (PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
+    return NextResponse.next();
+  }
+
+  const userId = await verifySession(req.cookies.get(SESSION_COOKIE)?.value, sessionSecret());
+  if (userId) return NextResponse.next();
+
+  if (pathname.startsWith("/api/")) {
+    return new NextResponse("Unauthorized", { status: 401 });
+  }
+  const loginUrl = req.nextUrl.clone();
+  loginUrl.pathname = "/login";
+  loginUrl.search = "";
+  return NextResponse.redirect(loginUrl);
 }
 
 // Run on every page and API route, but skip Next.js internals and the favicon.

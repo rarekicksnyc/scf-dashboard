@@ -1,3 +1,4 @@
+import { hashPassword } from "@/lib/password";
 import type {
   Program,
   Seller,
@@ -57,17 +58,20 @@ export const countries: Country[] = [
   { code: "KR", name: "South Korea", eligible: false },
 ];
 
-// Demo users (stand-in for SSO identities) and the default role → permission
-// map. Both are seeded into the store so they can be edited at runtime on the
-// Roles & Access screen.
+// Demo users and the default role → permission map, seeded into the store so
+// they can be edited at runtime on the Roles & Access screen. Each user logs in
+// with DEMO_PASSWORD (default "demo1234"; override via the env var). This only
+// applies on first seed — set real passwords / SSO for production.
+const DEMO_PASSWORD = process.env.DEMO_PASSWORD || "demo1234";
+const demoHash = hashPassword(DEMO_PASSWORD);
 export const users: User[] = [
-  { id: "u_ops", name: "Dana Okafor", role: "OPERATIONS" },
-  { id: "u_credit", name: "Sam Reyes", role: "CREDIT_OFFICER" },
-  { id: "u_product", name: "Riley Chen", role: "PRODUCT_MANAGER" },
-  { id: "u_rm", name: "Priya Nair", role: "RELATIONSHIP_MANAGER" },
-  { id: "u_risk", name: "Morgan Diallo", role: "RISK_MANAGER" },
-  { id: "u_admin", name: "Alex Novak", role: "ADMIN" },
-  { id: "u_viewer", name: "Jordan Blake", role: "VIEWER" },
+  { id: "u_ops", name: "Dana Okafor", role: "OPERATIONS", passwordHash: demoHash },
+  { id: "u_credit", name: "Sam Reyes", role: "CREDIT_OFFICER", passwordHash: demoHash },
+  { id: "u_product", name: "Riley Chen", role: "PRODUCT_MANAGER", passwordHash: demoHash },
+  { id: "u_rm", name: "Priya Nair", role: "RELATIONSHIP_MANAGER", passwordHash: demoHash },
+  { id: "u_risk", name: "Morgan Diallo", role: "RISK_MANAGER", passwordHash: demoHash },
+  { id: "u_admin", name: "Alex Novak", role: "ADMIN", passwordHash: demoHash },
+  { id: "u_viewer", name: "Jordan Blake", role: "VIEWER", passwordHash: demoHash },
 ];
 
 export const rolePermissions: Record<Role, Permission[]> = {

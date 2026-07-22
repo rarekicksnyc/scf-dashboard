@@ -18,9 +18,11 @@ can be reached from any device. Written to be scannable for IT.
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `APP_PASSWORD` | Yes (in any deployed env) | Shared site password. When set, the whole site is behind an HTTP Basic password prompt (see [middleware.ts](middleware.ts)). Leave unset only for local dev. |
+| `SESSION_SECRET` | Yes (in any deployed env) | Secret used to sign per-user login sessions. Set a long random value. Without it, a dev-only fallback is used (fine locally, not for deployment). |
+| `DATABASE_URL` | For durable data | Postgres connection string (`postgres://user:pass@host:5432/db?sslmode=require`). When set, state is loaded on boot and auto-saved. The app creates its one table (`app_state`) automatically on first start. |
+| `DEMO_PASSWORD` | No | Password every seeded demo user logs in with (default `demo1234`). Applies only on first seed. Replace with real passwords / SSO for production. |
+| `APP_PASSWORD` | No | Optional extra shared HTTP Basic gate in front of the whole site (on top of per-user login). Leave unset to rely on login alone. |
 | `PORT` | No | Port to listen on (default 3000). Most hosts set this automatically. |
-| `DATABASE_URL` | For durable data | Postgres connection string (`postgres://user:pass@host:5432/db`). When set, state is loaded on boot and auto-saved. The app creates its one table (`app_state`) automatically on first start. |
 
 ## Option A — Managed host (simplest)
 
@@ -51,9 +53,12 @@ network access per bank policy.
 
 ## Security before exposing publicly
 
-- `APP_PASSWORD` is a single shared gate, not per-user login. It stops the open
-  internet from reaching the app; it does not replace SSO. Real per-user auth
-  (SAML/OIDC) is Phase 3 — see [SECURITY.md](SECURITY.md).
+- **Per-user login** gates the whole app: every user signs in with a password and
+  gets an HMAC-signed session cookie (see [middleware.ts](middleware.ts),
+  [lib/session.ts](lib/session.ts)). Set a strong `SESSION_SECRET`.
+- For a real bank rollout, replace the shared `DEMO_PASSWORD` with per-user
+  passwords or wire SSO (SAML/OIDC) — the login route is the seam.
+- `APP_PASSWORD` is an optional extra shared gate on top of login.
 - Always serve over HTTPS (managed hosts do this automatically).
 - Prefer restricting to the corporate network / VPN for anything beyond a demo.
 
