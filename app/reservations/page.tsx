@@ -11,9 +11,10 @@ import {
 } from "@/lib/data/store";
 import { currentUserCan } from "@/lib/auth";
 import { mm } from "@/lib/format";
+import { fundedDeals } from "@/lib/deals";
 import ReservationForm from "./ReservationForm";
 import MultiReservationForm from "./MultiReservationForm";
-import ForwardBook, { type BookRow } from "./ForwardBook";
+import ForwardBook, { type BookRow, type TxnCandidate } from "./ForwardBook";
 import Collapsible from "../Collapsible";
 
 export const dynamic = "force-dynamic";
@@ -50,6 +51,15 @@ export default async function ReservationsPage() {
     exceptionComment: r.exceptionComment,
     exceptionReasons: r.exceptionReasons,
     resolveByDate: r.resolveByDate,
+    fulfilledByInvoice: r.fulfilledByInvoice,
+  }));
+
+  const candidates: TxnCandidate[] = fundedDeals({}).map((d) => ({
+    invoiceNumber: d.invoiceNumber,
+    sellerId: d.sellerId,
+    obligorId: d.obligorId,
+    amount: d.amount,
+    valueDate: d.valueDate,
   }));
 
   return (
@@ -85,7 +95,7 @@ export default async function ReservationsPage() {
             <div className="muted" style={{ padding: "8px 14px 0", fontSize: 12 }}>
               Click the Seller or Obligor column to sort.
             </div>
-            <ForwardBook rows={rows} canBook={canBook} />
+            <ForwardBook rows={rows} candidates={candidates} canBook={canBook} />
           </>
         )}
       </div>

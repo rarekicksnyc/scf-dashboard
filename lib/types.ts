@@ -347,6 +347,10 @@ export interface Reservation {
   exceptionComment?: string;
   exceptionReasons?: string[];
   resolveByDate?: string;
+  // Set when the reservation is fulfilled by an actual transaction — the reserved
+  // future exposure has become real outstanding, so the reservation is released.
+  fulfilledByInvoice?: string;
+  fulfilledAt?: string;
 }
 
 // A calendar event derived from a reservation or a funded invoice.

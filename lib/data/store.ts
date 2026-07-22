@@ -149,6 +149,17 @@ export function getObligorEntity(id: string): ObligorEntity | undefined {
   return store.obligorEntities.find((e) => e.id === id);
 }
 
+// Mark a seller's legal-doc checklist item RECEIVED (called when a matching
+// document is uploaded to the repository). Adds the item if the seller doesn't
+// list it yet.
+export function markSellerDocReceived(sellerId: string, docType: string): void {
+  const s = store.sellers.find((x) => x.id === sellerId);
+  if (!s) return;
+  const doc = s.documents.find((d) => d.type === docType);
+  if (doc) doc.status = "RECEIVED";
+  else s.documents.push({ type: docType, status: "RECEIVED" });
+}
+
 // Inline edit of an obligor group (currently the group-level expiry date).
 export function updateObligor(
   id: string,
@@ -614,6 +625,18 @@ export function addReservation(
 export function cancelReservation(id: string): Reservation | undefined {
   const r = getReservation(id);
   if (r) r.status = "CANCELLED";
+  return r;
+}
+
+// Fulfill a reservation with the actual transaction that realised it. Marks it
+// FUNDED and records the invoice, so it stops counting as reserved exposure.
+export function fulfillReservation(id: string, invoiceNumber: string): Reservation | undefined {
+  const r = getReservation(id);
+  if (r) {
+    r.status = "FUNDED";
+    r.fulfilledByInvoice = invoiceNumber;
+    r.fulfilledAt = new Date().toISOString();
+  }
   return r;
 }
 

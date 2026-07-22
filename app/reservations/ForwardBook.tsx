@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { mm, dateShort } from "@/lib/format";
 import CancelButton from "./CancelButton";
 import EditReservationForm from "./EditReservationForm";
@@ -24,6 +25,16 @@ export interface BookRow {
   exceptionComment?: string;
   exceptionReasons?: string[];
   resolveByDate?: string;
+  fulfilledByInvoice?: string;
+}
+
+// Funded transactions a reservation can be linked to (fulfilled by).
+export interface TxnCandidate {
+  invoiceNumber: string;
+  sellerId: string;
+  obligorId: string;
+  amount: number;
+  valueDate: string;
 }
 
 const STATUS_BADGE: Record<ReservationStatus, string> = {
@@ -35,10 +46,35 @@ const STATUS_BADGE: Record<ReservationStatus, string> = {
 
 type SortKey = "seller" | "obligor";
 
-export default function ForwardBook({ rows, canBook }: { rows: BookRow[]; canBook: boolean }) {
+export default function ForwardBook({ rows, candidates, canBook }: { rows: BookRow[]; candidates: TxnCandidate[]; canBook: boolean }) {
+  const router = useRouter();
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [dir, setDir] = useState<"asc" | "desc">("asc");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [fulfillingId, setFulfillingId] = useState<string | null>(null);
+  const [pickInvoice, setPickInvoice] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const matchesFor = (r: BookRow) => candidates.filter((c) => c.sellerId === r.sellerId && c.obligorId === r.obligorId);
+
+  async function fulfill(id: string) {
+    setBusy(true);
+    setErr(null);
+    const res = await fetch(`/api/reservations/${id}/fulfill`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ invoiceNumber: pickInvoice }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      setErr((await res.json()).error ?? "Failed.");
+      return;
+    }
+    setFulfillingId(null);
+    setPickInvoice("");
+    router.refresh();
+  }
 
   function toggle(key: SortKey) {
     if (sortKey === key) {
@@ -114,6 +150,9 @@ export default function ForwardBook({ rows, canBook }: { rows: BookRow[]; canBoo
                 <td className="num">{isSwl ? <span className="muted">—</span> : `${r.pricingBps}bps`}</td>
                 <td>
                   <span className={`badge ${STATUS_BADGE[r.status]}`}>{r.status}</span>
+                  {r.fulfilledByInvoice && (
+                    <span className="muted" style={{ fontSize: 11, marginLeft: 6 }}>→ {r.fulfilledByInvoice}</span>
+                  )}
                   {r.exception && (
                     <span
                       className="badge red"
@@ -137,6 +176,16 @@ export default function ForwardBook({ rows, canBook }: { rows: BookRow[]; canBoo
                       >
                         {editingId === r.id ? "Close" : "Adjust"}
                       </button>
+                      {r.kind !== "SWINGLINE" && (
+                        <button
+                          className="btn secondary"
+                          style={{ padding: "4px 10px", fontSize: 12 }}
+                          type="button"
+                          onClick={() => { setFulfillingId((cur) => (cur === r.id ? null : r.id)); setPickInvoice(""); setErr(null); }}
+                        >
+                          {fulfillingId === r.id ? "Close" : "Fulfill"}
+                        </button>
+                      )}
                       <CancelButton id={r.id} />
                     </div>
                   ) : null}
@@ -146,6 +195,43 @@ export default function ForwardBook({ rows, canBook }: { rows: BookRow[]; canBoo
                 <tr>
                   <td colSpan={11} style={{ padding: 12 }}>
                     <EditReservationForm reservation={r} onDone={() => setEditingId(null)} />
+                  </td>
+                </tr>
+              )}
+              {fulfillingId === r.id && (
+                <tr>
+                  <td colSpan={11} style={{ background: "#fafbfd", padding: 14 }}>
+                    <div style={{ fontWeight: 600, marginBottom: 6 }}>Link {r.id} to the transaction that fulfilled it</div>
+                    {err && <div className="notice err" style={{ marginBottom: 8 }}>{err}</div>}
+                    {matchesFor(r).length === 0 ? (
+                      <div className="muted" style={{ fontSize: 13 }}>
+                        No funded transaction found for {r.sellerName} / {r.obligorName} yet. Book/fund the transaction first, then link it here.
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
+                        <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12 }}>
+                          Funded transaction
+                          <select
+                            value={pickInvoice}
+                            onChange={(e) => setPickInvoice(e.target.value)}
+                            style={{ border: "1px solid var(--border)", borderRadius: 6, padding: "8px 10px", fontSize: 14, minWidth: 320 }}
+                          >
+                            <option value="">Select a transaction…</option>
+                            {matchesFor(r).map((c) => (
+                              <option key={c.invoiceNumber} value={c.invoiceNumber}>
+                                {c.invoiceNumber} · {mm(c.amount)} · {dateShort(c.valueDate)}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <button className="btn" type="button" disabled={busy || !pickInvoice} onClick={() => fulfill(r.id)}>
+                          {busy ? "Linking…" : "Confirm & release reservation"}
+                        </button>
+                      </div>
+                    )}
+                    <div className="muted" style={{ fontSize: 11, marginTop: 8 }}>
+                      Confirming marks the reservation FUNDED and releases its reserved capacity — the transaction now carries the exposure.
+                    </div>
                   </td>
                 </tr>
               )}

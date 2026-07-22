@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { listDocuments, addDocument, DOC_TYPES, type AttachType } from "@/lib/documents";
 import { getCurrentUser, roleHas } from "@/lib/auth";
-import { addAudit } from "@/lib/data/store";
+import { addAudit, markSellerDocReceived } from "@/lib/data/store";
 
 const MAX_BYTES = 15 * 1024 * 1024; // 15 MB per file
 
@@ -46,6 +46,9 @@ export async function POST(request: Request) {
     },
     buf,
   );
+
+  // Auto-flip the seller's legal-doc checklist item to RECEIVED.
+  if (meta.attachType === "SELLER") markSellerDocReceived(meta.attachId, meta.docType);
 
   addAudit({
     actorUserId: user.id,
