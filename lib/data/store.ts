@@ -133,6 +133,34 @@ export function getObligorEntity(id: string): ObligorEntity | undefined {
   return store.obligorEntities.find((e) => e.id === id);
 }
 
+// Inline edits from Data Management. The route whitelists the fields; here we
+// apply them to the single stored record the engine + every view already read.
+export function updateSellerEntity(
+  id: string,
+  patch: Partial<Pick<SellerEntity, "name" | "cdl" | "domicile">>,
+): SellerEntity | undefined {
+  const e = store.sellerEntities.find((x) => x.id === id);
+  if (!e) return undefined;
+  Object.assign(e, patch);
+  return e;
+}
+
+export function updateObligorEntity(
+  id: string,
+  patch: Partial<
+    Pick<
+      ObligorEntity,
+      | "name" | "cdl" | "bookingCdl" | "domicile" | "borrowerRating" | "borrowerRatingExpiry"
+      | "insurancePolicyId" | "insuranceExpiry" | "pcg" | "pcgExpiry" | "pcgLimit"
+    >
+  >,
+): ObligorEntity | undefined {
+  const e = store.obligorEntities.find((x) => x.id === id);
+  if (!e) return undefined;
+  Object.assign(e, patch);
+  return e;
+}
+
 export function allSellerEntities(): SellerEntity[] {
   return store.sellerEntities;
 }

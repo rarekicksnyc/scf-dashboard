@@ -8,9 +8,14 @@ import {
   getObligor,
   obligorEntitiesOf,
   getInsurancePolicy,
+  allCountries,
+  activePolicies,
 } from "@/lib/data/store";
+import { currentUserCan } from "@/lib/auth";
 import { mm, dateShort } from "@/lib/format";
 import LimitRegister from "../limits/LimitRegister";
+import EditSellerEntityRow from "./EditSellerEntityRow";
+import EditObligorEntityRow from "./EditObligorEntityRow";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +41,10 @@ export default async function DataManagementPage({
   const group = groupId ? getObligor(groupId) : undefined;
   const groupLimit = groupId ? findLimit("OBLIGOR", groupId) : undefined;
   const groupSwl = groupId ? findLimit("SWINGLINE", groupId) : undefined;
+
+  const canEdit = await currentUserCan("CHANGE_LIMIT");
+  const countries = allCountries().map((c) => ({ code: c.code, name: c.name }));
+  const policies = activePolicies().map((p) => ({ id: p.id, name: `${p.insurerName} · ${p.policyNumber}` }));
 
   const th = { fontSize: 11, textTransform: "uppercase" as const, letterSpacing: "0.03em" };
 
@@ -76,10 +85,15 @@ export default async function DataManagementPage({
         </div>
         <div className="table-scroll">
           <table>
-            <thead><tr><th style={th}>Eligible seller entity</th><th style={th}>CDL</th><th style={th}>Domicile</th></tr></thead>
+            <thead><tr><th style={th}>Eligible seller entity</th><th style={th}>CDL</th><th style={th}>Domicile</th>{canEdit && <th style={th}>&nbsp;</th>}</tr></thead>
             <tbody>
               {seller && sellerEntitiesOf(seller.id).map((e) => (
-                <tr key={e.id}><td>{e.name}</td><td><code style={{ fontSize: 12 }}>{e.cdl}</code></td><td className="muted">{e.domicile}</td></tr>
+                <EditSellerEntityRow
+                  key={e.id}
+                  entity={{ id: e.id, name: e.name, cdl: e.cdl, domicile: e.domicile }}
+                  countries={countries}
+                  canEdit={canEdit}
+                />
               ))}
             </tbody>
           </table>
@@ -136,19 +150,24 @@ export default async function DataManagementPage({
                 <th style={th}>Borrower rating</th>
                 <th style={th}>Insurance</th>
                 <th style={th}>PCG</th>
+                {canEdit && <th style={th}>&nbsp;</th>}
               </tr>
             </thead>
             <tbody>
               {group && obligorEntitiesOf(group.id).map((e) => (
-                <tr key={e.id}>
-                  <td>{e.name}</td>
-                  <td><code style={{ fontSize: 12 }}>{e.cdl}</code></td>
-                  <td><code style={{ fontSize: 12 }}>{e.bookingCdl}</code></td>
-                  <td className="muted">{e.domicile}</td>
-                  <td>{e.borrowerRating} <span className="muted">exp {dateShort(e.borrowerRatingExpiry)}</span></td>
-                  <td className="muted">{e.insurancePolicyId ? `${getInsurancePolicy(e.insurancePolicyId)?.insurerName} exp ${dateShort(e.insuranceExpiry ?? "")}` : "—"}</td>
-                  <td>{e.pcg ?? "N/A"}{e.pcg === "Y" && e.pcgLimit ? ` · ${mm(e.pcgLimit)} exp ${dateShort(e.pcgExpiry ?? "")}` : ""}</td>
-                </tr>
+                <EditObligorEntityRow
+                  key={e.id}
+                  entity={{
+                    id: e.id, name: e.name, cdl: e.cdl, bookingCdl: e.bookingCdl, domicile: e.domicile,
+                    borrowerRating: e.borrowerRating, borrowerRatingExpiry: e.borrowerRatingExpiry,
+                    insurancePolicyId: e.insurancePolicyId, insuranceExpiry: e.insuranceExpiry,
+                    insurerName: e.insurancePolicyId ? getInsurancePolicy(e.insurancePolicyId)?.insurerName : undefined,
+                    pcg: e.pcg, pcgExpiry: e.pcgExpiry, pcgLimit: e.pcgLimit,
+                  }}
+                  countries={countries}
+                  policies={policies}
+                  canEdit={canEdit}
+                />
               ))}
             </tbody>
           </table>
