@@ -4,4 +4,7 @@ out/
 *.tsbuildinfo
 next-env.d.ts
 .DS_Store
-.env*.local
+# Never commit secrets (DATABASE_URL, SESSION_SECRET, etc.)
+.env
+.env.*
+!.env.example
