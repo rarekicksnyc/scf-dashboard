@@ -63,7 +63,7 @@ const TEMPLATES: Record<string, TemplateDef> = {
     sheet: "ASR obligors",
     columns: [
       { header: "record_type", width: 14 }, // ASR_SUBLIMIT
-      { header: "seller_name", width: 26 },
+      { header: "seller_name", width: 26 }, // a seller name, or ALL for every seller
       { header: "seller_cdl", width: 12 },
       { header: "obligor_name", width: 26 },
       { header: "obligor_cdl", width: 12 },
@@ -74,9 +74,10 @@ const TEMPLATES: Record<string, TemplateDef> = {
       { header: "group_expiry", width: 12 },
     ],
     rows: [
-      // Same obligor added to two sellers — repeat the row per seller.
+      // One obligor to a single seller.
       ["ASR_SUBLIMIT", "Acme Components Inc", "10099001", "Global Buyer Co", "20099001", "US", 40000000, 25000000, 150, "2027-12-31"],
-      ["ASR_SUBLIMIT", "Beacon Textiles LLC", "10099002", "Global Buyer Co", "20099001", "US", 40000000, 15000000, 120, "2027-12-31"],
+      // One obligor to EVERY seller in a single row — put ALL in seller_name.
+      ["ASR_SUBLIMIT", "ALL", "", "Northwind Retail SA", "20099002", "FR", 25000000, 15000000, 120, "2027-06-30"],
     ],
   },
 };

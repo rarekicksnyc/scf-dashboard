@@ -226,8 +226,8 @@ export default function AddToRegistry({
             <p className="muted" style={{ marginTop: 0, fontSize: 13, maxWidth: "90ch" }}>
               Add many records at once. Download the template for what you are adding, fill in one row per
               record, and re-upload (a single file can mix record types). The obligor-to-facility template
-              links obligors to a seller&rsquo;s ASR with the sublimit and group expiry — repeat a row per
-              seller to add one obligor to several sellers.
+              links obligors to a seller&rsquo;s ASR with the sublimit and group expiry — put <code>ALL</code>
+              in the seller column to add one obligor to every seller in a single row.
             </p>
             {bulkMsg && <div className={`notice ${bulkMsg.ok ? "ok" : "err"}`} style={{ marginBottom: 12 }}>{bulkMsg.text}</div>}
             <div style={{ marginBottom: 12 }}>

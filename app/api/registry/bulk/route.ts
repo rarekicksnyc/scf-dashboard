@@ -63,6 +63,7 @@ export async function POST(request: Request) {
       const tenor = Number(r.max_tenor_days) || 90;
       const expiry = r.expiry_date || "2026-12-31";
       const requireCdl = () => { if (!/^\d{8}$/.test(cdl)) throw new Error("cdl must be an 8-digit code"); };
+      let rowAdds = 1; // rows that fan out (ASR → all sellers) count each link
 
       if (rt === "SELLER") {
         if (!name) throw new Error("name is required");
@@ -82,11 +83,19 @@ export async function POST(request: Request) {
         addLimit({ type: lt, cdl, entityType, entityId: ent.id, approvedLimit: amount, maxTenorDays: tenor, expiryDate: expiry });
       } else if (rt === "ASR_SUBLIMIT" || rt === "FACILITY_OBLIGOR") {
         // Add an obligor to a seller's ASR (facility). Links an existing obligor
-        // or creates one inline, then records the sublimit + group expiry. One
-        // row per seller/obligor pair — repeat a row per seller to add one
-        // obligor to many sellers.
-        const seller = findEntity(allSellers(), r.seller_name, r.seller_cdl);
-        if (!seller) throw new Error(`no seller found for '${r.seller_name || r.seller_cdl}'`);
+        // or creates one inline, then records the sublimit + group expiry. Set
+        // seller_name (or seller_cdl) to ALL to add the obligor to EVERY seller
+        // in one row; otherwise one row per seller/obligor pair.
+        const allFlag = ["ALL", "ALL SELLERS", "*"].includes((r.seller_name || "").toUpperCase())
+          || ["ALL", "*"].includes((r.seller_cdl || "").toUpperCase());
+        let targetSellers: { id: string; name: string; cdl: string }[];
+        if (allFlag) {
+          targetSellers = allSellers();
+        } else {
+          const seller = findEntity(allSellers(), r.seller_name, r.seller_cdl);
+          if (!seller) throw new Error(`no seller found for '${r.seller_name || r.seller_cdl}'`);
+          targetSellers = [seller];
+        }
         const obName = r.obligor_name;
         const obCdl = r.obligor_cdl;
         const sublimit = Number((r.asr_sublimit || r.approved_limit || "").replace(/[$,]/g, "")) || 0;
@@ -100,12 +109,19 @@ export async function POST(request: Request) {
         } else if (groupExpiry) {
           updateObligor(obligor.id, { expiryDate: groupExpiry });
         }
-        if (sellerObligorLimit(seller.id, obligor.id)) throw new Error(`${obligor.name} is already on ${seller.name}'s ASR`);
-        addSellerObligorLimit(seller.id, obligor.id, sublimit, tenor);
+        // Link to each target seller not already carrying it.
+        let linked = 0;
+        for (const s of targetSellers) {
+          if (sellerObligorLimit(s.id, obligor.id)) continue;
+          addSellerObligorLimit(s.id, obligor.id, sublimit, tenor);
+          linked += 1;
+        }
+        if (linked === 0) throw new Error(`${obligor.name} is already on ${allFlag ? "every seller" : targetSellers[0].name}'s ASR`);
+        rowAdds = linked;
       } else {
         throw new Error("record_type must be SELLER, OBLIGOR, LIMIT, or ASR_SUBLIMIT");
       }
-      added += 1;
+      added += rowAdds;
     } catch (e) {
       errors.push({ row: rowNo, error: e instanceof Error ? e.message : String(e) });
     }
