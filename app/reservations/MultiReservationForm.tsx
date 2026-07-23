@@ -163,12 +163,14 @@ export default function MultiReservationForm({
                     {r.status === "booked" && <span className="badge green">Booked {r.message}</span>}
                     {r.status === "error" && <span className="badge red">{r.message}</span>}
                     {r.status === "blocked" && (
-                      <div style={{ fontSize: 11 }}>
-                        <div className="check-pill orange">Did not clear</div>
-                        <div className="muted">{r.reasons?.join("; ")}</div>
+                      <div style={{ fontSize: 11, border: "1px solid var(--orange)", borderRadius: 6, padding: 6, background: "var(--orange-bg)" }}>
+                        <div className="check-pill red">Does not clear — {r.reasons?.join("; ")}</div>
+                        <div className="muted" style={{ fontSize: 10, margin: "3px 0" }}>
+                          Reserve anyway with a documented exception. It stays flagged until the breach is resolved and cannot be released to a transaction until then.
+                        </div>
                         <div style={{ display: "flex", gap: 4, marginTop: 3 }}>
-                          <input style={{ ...cell, fontSize: 11 }} placeholder="reason for exception" value={r.comment ?? ""} onChange={(e) => update(i, { comment: e.target.value })} />
-                          <button className="btn" style={{ padding: "3px 8px", fontSize: 11 }} type="button" disabled={busy || !(r.comment ?? "").trim()} onClick={() => overrideRow(i)}>Book w/ exception</button>
+                          <input style={{ ...cell, fontSize: 11 }} placeholder="Reason for exception (required)" value={r.comment ?? ""} onChange={(e) => update(i, { comment: e.target.value })} />
+                          <button className="btn" style={{ padding: "3px 8px", fontSize: 11, whiteSpace: "nowrap" }} type="button" disabled={busy || !(r.comment ?? "").trim()} onClick={() => overrideRow(i)}>Reserve with exception</button>
                         </div>
                       </div>
                     )}

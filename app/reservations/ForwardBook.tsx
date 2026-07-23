@@ -213,9 +213,7 @@ export default function ForwardBook({ rows, candidates, canBook }: { rows: BookR
                     <span
                       className="badge red"
                       style={{ marginLeft: 6, cursor: "help" }}
-                      title={`Soft-warning exception: ${r.exceptionComment ?? ""}${
-                        r.resolveByDate ? `\nResolve by: ${r.resolveByDate}` : ""
-                      }${r.exceptionReasons?.length ? `\nDid not clear: ${r.exceptionReasons.join("; ")}` : ""}`}
+                      title={r.exceptionComment ?? ""}
                     >
                       ⚠ exception
                     </span>

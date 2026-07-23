@@ -12,6 +12,7 @@ import {
 import { currentUserCan } from "@/lib/auth";
 import { mm } from "@/lib/format";
 import { fundedDeals } from "@/lib/deals";
+import { reservationStillBreaches } from "@/lib/reservationStatus";
 import ReservationForm from "./ReservationForm";
 import MultiReservationForm from "./MultiReservationForm";
 import ForwardBook, { type BookRow, type TxnCandidate } from "./ForwardBook";
@@ -33,26 +34,32 @@ export default async function ReservationsPage() {
     .filter((r) => r.status === "RESERVED")
     .reduce((a, r) => a + r.amount, 0);
 
-  const rows: BookRow[] = reservations.map((r) => ({
-    id: r.id,
-    kind: r.kind,
-    swinglineDirection: r.swinglineDirection,
-    sellerId: r.sellerId,
-    sellerName: r.sellerId ? (getSeller(r.sellerId)?.name ?? r.sellerId) : "",
-    obligorId: r.obligorId,
-    obligorName: r.obligorId ? (getObligor(r.obligorId)?.name ?? r.obligorId) : "",
-    amount: r.amount,
-    valueDate: r.valueDate,
-    maturityDate: r.maturityDate,
-    tenorDays: r.tenorDays,
-    pricingBps: r.pricingBps,
-    status: r.status,
-    exception: r.exception,
-    exceptionComment: r.exceptionComment,
-    exceptionReasons: r.exceptionReasons,
-    resolveByDate: r.resolveByDate,
-    fulfilledByInvoice: r.fulfilledByInvoice,
-  }));
+  const rows: BookRow[] = reservations.map((r) => {
+    // The exception flag is LIVE: if the breach that forced the soft-warning has
+    // since been resolved (e.g. the obligor group expiry was entered), it clears
+    // automatically. Only still-breaching open reservations stay flagged.
+    const stillFlagged = r.exception && r.status === "RESERVED" ? reservationStillBreaches(r) : false;
+    return {
+      id: r.id,
+      kind: r.kind,
+      swinglineDirection: r.swinglineDirection,
+      sellerId: r.sellerId,
+      sellerName: r.sellerId ? (getSeller(r.sellerId)?.name ?? r.sellerId) : "",
+      obligorId: r.obligorId,
+      obligorName: r.obligorId ? (getObligor(r.obligorId)?.name ?? r.obligorId) : "",
+      amount: r.amount,
+      valueDate: r.valueDate,
+      maturityDate: r.maturityDate,
+      tenorDays: r.tenorDays,
+      pricingBps: r.pricingBps,
+      status: r.status,
+      exception: stillFlagged,
+      exceptionComment: r.exceptionComment,
+      exceptionReasons: r.exceptionReasons,
+      resolveByDate: r.resolveByDate,
+      fulfilledByInvoice: r.fulfilledByInvoice,
+    };
+  });
 
   const candidates: TxnCandidate[] = fundedDeals({}).map((d) => ({
     invoiceNumber: d.invoiceNumber,
