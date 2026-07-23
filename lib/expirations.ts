@@ -1,7 +1,10 @@
 import {
   limitViews,
   allSellers,
+  allObligors,
+  allObligorEntities,
   activePolicies,
+  listParentGuarantees,
   getSeller,
   getObligor,
   getInvestor,
@@ -74,6 +77,40 @@ export function buildExpirations(asOf: string): ExpiringItem[] {
     if (s.rrlEnabled) push("RRL", s.rrlExpiry, "Risk Reimbursement Line");
   }
 
+  // Obligor group-level approval expiry (separate from the obligor limit line).
+  for (const o of allObligors()) {
+    if (!o.expiryDate) continue;
+    const d = days(asOf, o.expiryDate);
+    items.push({ kind: "Obligor group approval", ref: o.id, entity: o.name, detail: "Group approval / review", expiryDate: o.expiryDate, daysToExpiry: d, flag: flagFor(d) });
+  }
+
+  // Obligor legal-entity credentials — borrower rating, insurance, and PCG.
+  for (const e of allObligorEntities()) {
+    const parent = getObligor(e.groupId)?.name ?? e.groupId;
+    const label = `${e.name} (${parent})`;
+    if (e.borrowerRatingExpiry) {
+      const d = days(asOf, e.borrowerRatingExpiry);
+      items.push({ kind: "Obligor entity rating", ref: e.id, entity: label, detail: `Rating ${e.borrowerRating}`, expiryDate: e.borrowerRatingExpiry, daysToExpiry: d, flag: flagFor(d) });
+    }
+    if (e.insurancePolicyId && e.insuranceExpiry) {
+      const d = days(asOf, e.insuranceExpiry);
+      items.push({ kind: "Obligor entity insurance", ref: e.id, entity: label, detail: "Insurance coverage", expiryDate: e.insuranceExpiry, daysToExpiry: d, flag: flagFor(d) });
+    }
+    if (e.pcg === "Y" && e.pcgExpiry) {
+      const d = days(asOf, e.pcgExpiry);
+      items.push({ kind: "Obligor entity PCG", ref: e.id, entity: label, detail: "Parent company guarantee", expiryDate: e.pcgExpiry, daysToExpiry: d, flag: flagFor(d) });
+    }
+  }
+
+  // Parent Company Guarantees — only the ones with a fixed expiry (continuing
+  // unconditional guarantees are indefinite and never expire).
+  for (const g of listParentGuarantees()) {
+    if (g.continuing || !g.expiryDate) continue;
+    const parties = [g.sellerId ? getSeller(g.sellerId)?.name : null, g.obligorId ? getObligor(g.obligorId)?.name : null].filter(Boolean).join(" / ") || "—";
+    const d = days(asOf, g.expiryDate);
+    items.push({ kind: "Parent company guarantee", ref: g.id, entity: g.parentName, detail: `Supports ${parties}`, expiryDate: g.expiryDate, daysToExpiry: d, flag: flagFor(d) });
+  }
+
   for (const p of activePolicies()) {
     const d = days(asOf, p.expiryDate);
     items.push({
@@ -87,6 +124,8 @@ export function buildExpirations(asOf: string): ExpiringItem[] {
     });
   }
 
+  // Continuing (indefinite) items are not expirations, so they are not added
+  // here; they are shown as such in the full register on the page.
   return items.sort((a, b) => a.daysToExpiry - b.daysToExpiry);
 }
 

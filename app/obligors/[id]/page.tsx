@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getObligor, findLimit, viewLimit } from "@/lib/data/store";
+import { getObligor, findLimit, viewLimit, allCountries } from "@/lib/data/store";
 import { currentUserCan } from "@/lib/auth";
 import { mm, pct } from "@/lib/format";
 import EntityDetail from "../../entity/EntityDetail";
 import DeleteObligorButton from "./DeleteObligorButton";
+import EditObligorGroup from "./EditObligorGroup";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,24 @@ export default async function ObligorPage({ params }: { params: Promise<{ id: st
       </p>
 
       {canEdit && <DeleteObligorButton obligorId={id} obligorName={obligor.name} />}
+
+      {canEdit && (
+        <EditObligorGroup
+          obligor={{
+            id: obligor.id,
+            name: obligor.name,
+            cdl: obligor.cdl,
+            country: obligor.country,
+            sector: obligor.sector,
+            status: obligor.status,
+            eligible: obligor.eligible,
+            expiryDate: obligor.expiryDate ?? "",
+            hasGuarantee: obligor.hasGuarantee,
+            guaranteeEligible: obligor.guaranteeEligible,
+          }}
+          countries={allCountries().map((c) => ({ code: c.code, name: c.name }))}
+        />
+      )}
 
       <EntityDetail mode="OBLIGOR" id={id} />
     </>

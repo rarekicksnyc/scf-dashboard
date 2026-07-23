@@ -11,6 +11,7 @@ import {
   allCountries,
   activeInvestors,
   activePolicies,
+  listParentGuarantees,
 } from "@/lib/data/store";
 import { currentUserCan } from "@/lib/auth";
 import { mm, dateShort } from "@/lib/format";
@@ -22,6 +23,8 @@ import EditSellerEntityRow from "./EditSellerEntityRow";
 import EditObligorEntityRow from "./EditObligorEntityRow";
 import EditAsrSublimitRow from "./EditAsrSublimitRow";
 import DeleteSellerButton from "./DeleteSellerButton";
+import EditSellerFacility from "./EditSellerFacility";
+import PcgRegister from "./PcgRegister";
 import ResetExposure from "./ResetExposure";
 
 export const dynamic = "force-dynamic";
@@ -97,15 +100,30 @@ export default async function DataManagementPage({
           <span>{seller?.name} — facility &amp; eligible seller entities</span>
           {canEdit && seller && <DeleteSellerButton sellerId={seller.id} sellerName={seller.name} />}
         </h2>
-        <div style={{ padding: 14, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10, fontSize: 13 }}>
-          <Field label="Seller line" value={sellerLimit ? `${mm(sellerLimit.approvedLimit)} (exp ${dateShort(sellerLimit.expiryDate)})` : "—"} />
-          <Field label="ASR rating" value={seller ? `${seller.asrRating} (exp ${dateShort(seller.asrExpiry)})` : "—"} />
-          <Field label="Swingline" value={swl ? `${mm(swl.approvedLimit)} (exp ${dateShort(swl.expiryDate)})` : "none"} />
-          <Field label="RRL" value={rrl ? `${mm(rrl.approvedLimit)} (exp ${dateShort(rrl.expiryDate)})` : "N/A"} />
-          <Field label="RRL swingline" value={rrlSwl ? `${mm(rrlSwl.approvedLimit)} (exp ${dateShort(rrlSwl.expiryDate)})` : "N/A"} />
-          <Field label="Borrower rating" value={seller ? `${seller.borrowerRating} (exp ${dateShort(seller.borrowerRatingExpiry)})` : "—"} />
-          <Field label="GCARS #" value={seller?.gcarsNumber || "—"} />
-        </div>
+        {seller && (
+          <EditSellerFacility
+            seller={{
+              id: seller.id,
+              name: seller.name,
+              asrRating: seller.asrRating,
+              asrExpiry: seller.asrExpiry,
+              borrowerRating: seller.borrowerRating,
+              borrowerRatingExpiry: seller.borrowerRatingExpiry,
+              gcarsNumber: seller.gcarsNumber,
+              guarantor: seller.guarantor,
+              minPricingBps: seller.minPricingBps,
+              rrlEnabled: seller.rrlEnabled,
+              status: seller.status,
+            }}
+            limits={{
+              sellerLine: sellerLimit ? `${mm(sellerLimit.approvedLimit)} (exp ${dateShort(sellerLimit.expiryDate)})` : "—",
+              swingline: swl ? `${mm(swl.approvedLimit)} (exp ${dateShort(swl.expiryDate)})` : "none",
+              rrl: rrl ? `${mm(rrl.approvedLimit)} (exp ${dateShort(rrl.expiryDate)})` : "N/A",
+              rrlSwingline: rrlSwl ? `${mm(rrlSwl.approvedLimit)} (exp ${dateShort(rrlSwl.expiryDate)})` : "N/A",
+            }}
+            canEdit={canEdit}
+          />
+        )}
         <div className="table-scroll">
           <table>
             <thead><tr><th style={th}>Eligible seller entity</th><th style={th}>CDL</th><th style={th}>Domicile</th>{canEdit && <th style={th}>&nbsp;</th>}</tr></thead>
@@ -212,6 +230,20 @@ export default async function DataManagementPage({
       </p>
       <LimitRegister />
 
+      {/* Parent Company Guarantees — track/edit across all sellers and obligors */}
+      <h2 className="page-title" style={{ fontSize: 20, marginTop: 8 }}>Parent Company Guarantees</h2>
+      <p className="page-sub">
+        Record a parent company guarantee against any seller and/or obligor — parent name, the
+        seller and obligor it supports, the obligor covered, guarantee limit, and an expiry date or a
+        continuing unconditional (indefinite) guarantee. Dated guarantees flow into the Expirations tab.
+      </p>
+      <PcgRegister
+        pcgs={listParentGuarantees()}
+        sellers={sellers.map((s) => ({ id: s.id, name: s.name }))}
+        obligors={allObligors().map((o) => ({ id: o.id, name: o.name }))}
+        canEdit={canEdit}
+      />
+
       {canEdit && (
         <>
           <h2 className="page-title" style={{ fontSize: 20, marginTop: 8, color: "var(--red)" }}>Danger zone</h2>
@@ -222,11 +254,3 @@ export default async function DataManagementPage({
   );
 }
 
-function Field({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div className="muted" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.03em" }}>{label}</div>
-      <div style={{ fontWeight: 600 }}>{value}</div>
-    </div>
-  );
-}

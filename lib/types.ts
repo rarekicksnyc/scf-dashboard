@@ -192,6 +192,22 @@ export interface ParticipationAgreement {
   executed: boolean;
 }
 
+// Parent Company Guarantee (PCG). A parent company guarantees a seller and/or an
+// obligor. It can carry a fixed expiry, or be a "continuing unconditional
+// guarantee" (indefinite — no expiry). Tracked and edited in Data Management and
+// surfaced (when not continuing) in the Expirations tab.
+export interface ParentCompanyGuarantee {
+  id: string;
+  parentName: string; // the guarantor parent company
+  sellerId?: string; // seller the PCG is associated with
+  obligorId?: string; // obligor the PCG is associated with
+  coveredObligorId?: string; // the specific obligor being covered
+  continuing: boolean; // continuing unconditional guarantee (indefinite)
+  expiryDate?: string; // ISO — used only when not continuing
+  limitAmount?: number; // guaranteed amount (USD)
+  notes?: string;
+}
+
 export interface InsurancePolicy {
   id: string;
   insurerName: string;

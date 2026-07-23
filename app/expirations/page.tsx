@@ -20,8 +20,11 @@ export default function ExpirationsPage() {
     <>
       <h1 className="page-title">Expirations</h1>
       <p className="page-sub">
-        Limits and facility credentials approaching expiry. Flagged at 60 days and
-        30 days before the expiry date, and once expired. As of {asOf}.
+        Every limit and dated field across the book — seller lines, obligor lines,
+        swinglines, RRL and RRL swinglines, ASR and borrower ratings, obligor
+        group approvals, obligor entity credentials, insurance policies, and parent
+        company guarantees. Flagged at 60 days and 30 days before expiry, and once
+        expired. As of {asOf}.
       </p>
 
       <div className="cards">
@@ -80,6 +83,43 @@ export default function ExpirationsPage() {
             </table>
           </div>
         )}
+      </div>
+
+      <div className="panel">
+        <h2>All tracked dates ({all.length})</h2>
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Flag</th>
+                <th>Type</th>
+                <th>Reference</th>
+                <th>Entity</th>
+                <th>Detail</th>
+                <th>Expiry date</th>
+                <th className="num">Days</th>
+              </tr>
+            </thead>
+            <tbody>
+              {all.map((i, idx) => {
+                const b = FLAG_BADGE[i.flag];
+                return (
+                  <tr key={idx}>
+                    <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
+                    <td>{i.kind}</td>
+                    <td><code style={{ fontSize: 12 }}>{i.ref}</code></td>
+                    <td>{i.entity}</td>
+                    <td className="muted">{i.detail}</td>
+                    <td>{i.expiryDate || "—"}</td>
+                    <td className="num">
+                      {!isFinite(i.daysToExpiry) ? "—" : i.daysToExpiry < 0 ? `${-i.daysToExpiry}d ago` : `${i.daysToExpiry}d`}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </>
   );

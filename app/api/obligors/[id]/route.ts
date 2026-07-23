@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { updateObligor, removeObligor, addAudit } from "@/lib/data/store";
 import { getCurrentUser, roleHas } from "@/lib/auth";
+import type { Obligor } from "@/lib/types";
 
 // Edit an obligor group (group-level expiry) from Data Management.
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -11,8 +12,19 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   const b = await request.json().catch(() => ({}));
-  const patch: { expiryDate?: string } = {};
+  const patch: Partial<Obligor> = {};
+  if (typeof b.name === "string" && b.name.trim()) patch.name = b.name.trim();
+  if (typeof b.cdl === "string") {
+    if (!/^\d{8}$/.test(b.cdl)) return NextResponse.json({ error: "CDL must be an 8-digit customer code." }, { status: 422 });
+    patch.cdl = b.cdl;
+  }
+  if (typeof b.country === "string" && b.country.trim()) patch.country = b.country.trim();
+  if (typeof b.sector === "string") patch.sector = b.sector.trim();
   if (typeof b.expiryDate === "string") patch.expiryDate = b.expiryDate;
+  if (typeof b.status === "string") patch.status = b.status as Obligor["status"];
+  if (typeof b.eligible === "boolean") patch.eligible = b.eligible;
+  if (typeof b.hasGuarantee === "boolean") patch.hasGuarantee = b.hasGuarantee;
+  if (typeof b.guaranteeEligible === "boolean") patch.guaranteeEligible = b.guaranteeEligible;
 
   const updated = updateObligor(id, patch);
   if (!updated) return NextResponse.json({ error: "Obligor not found." }, { status: 404 });

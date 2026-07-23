@@ -14,6 +14,7 @@ import type {
   LimitView,
   SellerObligorLimit,
   ParticipationAgreement,
+  ParentCompanyGuarantee,
   InsuranceBuyerSublimit,
   InsuranceCountryLimit,
   Currency,
@@ -54,6 +55,7 @@ interface Store {
   obligorEntities: ObligorEntity[];
   sellerObligorLimits: SellerObligorLimit[];
   participationAgreements: ParticipationAgreement[];
+  parentGuarantees: ParentCompanyGuarantee[];
   insuranceBuyerSublimits: InsuranceBuyerSublimit[];
   insuranceCountryLimits: InsuranceCountryLimit[];
   users: User[];
@@ -83,6 +85,7 @@ function seedStore(): Store {
     obligorEntities: structuredClone(seed.obligorEntities),
     sellerObligorLimits: structuredClone(seed.sellerObligorLimits),
     participationAgreements: structuredClone(seed.participationAgreements),
+    parentGuarantees: [],
     insuranceBuyerSublimits: structuredClone(seed.insuranceBuyerSublimits),
     insuranceCountryLimits: structuredClone(seed.insuranceCountryLimits),
     users: structuredClone(seed.users),
@@ -186,14 +189,74 @@ export function markSellerDocReceived(sellerId: string, docType: string): void {
 }
 
 // Inline edit of an obligor group (currently the group-level expiry date).
+// Edit seller facility fields (name changes, ratings + their expiries, GCARS,
+// guarantor, min pricing, RRL enable/limit/expiry, status/eligibility). The
+// seller-line / swingline / RRL limit amounts + expiries live on the limits and
+// are edited in the limit register (single source).
+export function updateSeller(
+  id: string,
+  patch: Partial<
+    Pick<
+      Seller,
+      | "name" | "cdl" | "asrRating" | "asrExpiry" | "borrowerRating" | "borrowerRatingExpiry"
+      | "gcarsNumber" | "guarantor" | "minPricingBps" | "rrlEnabled" | "rrlLimit" | "rrlExpiry"
+      | "status" | "eligible" | "internalRating"
+    >
+  >,
+): Seller | undefined {
+  const s = store.sellers.find((x) => x.id === id);
+  if (!s) return undefined;
+  Object.assign(s, patch);
+  return s;
+}
+
 export function updateObligor(
   id: string,
-  patch: Partial<Pick<Obligor, "expiryDate" | "status" | "eligible">>,
+  patch: Partial<
+    Pick<
+      Obligor,
+      | "name" | "cdl" | "country" | "sector" | "expiryDate" | "status" | "eligible"
+      | "hasGuarantee" | "guaranteeEligible" | "internalRating"
+    >
+  >,
 ): Obligor | undefined {
   const o = store.obligors.find((x) => x.id === id);
   if (!o) return undefined;
   Object.assign(o, patch);
   return o;
+}
+
+// ---------------------------------------------------------------------------
+// Parent Company Guarantees (PCG)
+// ---------------------------------------------------------------------------
+
+export function listParentGuarantees(): ParentCompanyGuarantee[] {
+  return store.parentGuarantees;
+}
+
+export function addParentGuarantee(input: Omit<ParentCompanyGuarantee, "id">): ParentCompanyGuarantee {
+  const pcg: ParentCompanyGuarantee = { ...input, id: nextId("PCG") };
+  store.parentGuarantees.push(pcg);
+  return pcg;
+}
+
+export function updateParentGuarantee(
+  id: string,
+  patch: Partial<Omit<ParentCompanyGuarantee, "id">>,
+): ParentCompanyGuarantee | undefined {
+  const p = store.parentGuarantees.find((x) => x.id === id);
+  if (!p) return undefined;
+  Object.assign(p, patch);
+  // A continuing guarantee is indefinite — it never carries an expiry.
+  if (p.continuing) p.expiryDate = undefined;
+  return p;
+}
+
+export function removeParentGuarantee(id: string): boolean {
+  const i = store.parentGuarantees.findIndex((x) => x.id === id);
+  if (i < 0) return false;
+  store.parentGuarantees.splice(i, 1);
+  return true;
 }
 
 // Inline edits from Data Management. The route whitelists the fields; here we
@@ -1001,6 +1064,7 @@ export function removeSeller(id: string): void {
   store.sellerEntities = store.sellerEntities.filter((e) => e.facilityId !== id);
   store.sellerObligorLimits = store.sellerObligorLimits.filter((x) => x.sellerId !== id);
   store.participationAgreements = store.participationAgreements.filter((p) => p.sellerId !== id);
+  store.parentGuarantees = store.parentGuarantees.filter((p) => p.sellerId !== id);
   store.sellers = store.sellers.filter((s) => s.id !== id);
 }
 
@@ -1019,6 +1083,7 @@ export function removeObligor(id: string): void {
   store.obligorEntities = store.obligorEntities.filter((e) => e.groupId !== id);
   store.sellerObligorLimits = store.sellerObligorLimits.filter((x) => x.obligorId !== id);
   store.insuranceBuyerSublimits = store.insuranceBuyerSublimits.filter((b) => b.obligorId !== id);
+  store.parentGuarantees = store.parentGuarantees.filter((p) => p.obligorId !== id && p.coveredObligorId !== id);
   store.obligors = store.obligors.filter((o) => o.id !== id);
 }
 
