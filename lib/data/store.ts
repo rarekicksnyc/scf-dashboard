@@ -1055,6 +1055,9 @@ export function addObligor(input: {
     internalRating: "NR",
     hasGuarantee: false,
     guaranteeEligible: false,
+    // Seed the obligor group approval expiry so a new obligor clears the
+    // group-expiry check (a missing one is a hard fail in the engine).
+    expiryDate: input.expiryDate || undefined,
   };
   store.obligors.push(obligor);
   addLimit({

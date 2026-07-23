@@ -24,6 +24,7 @@ import EditObligorEntityRow from "./EditObligorEntityRow";
 import EditAsrSublimitRow from "./EditAsrSublimitRow";
 import DeleteSellerButton from "./DeleteSellerButton";
 import EditSellerFacility from "./EditSellerFacility";
+import AddObligorToFacility from "./AddObligorToFacility";
 import PcgRegister from "./PcgRegister";
 import ResetExposure from "./ResetExposure";
 
@@ -144,6 +145,15 @@ export default async function DataManagementPage({
       {/* Box 2: obligor groups under this seller's ASR */}
       <div className="panel">
         <h2>Obligor groups under {seller?.name}&rsquo;s ASR ({asrObligors.length})</h2>
+        {canEdit && seller && (
+          <AddObligorToFacility
+            sellerId={seller.id}
+            sellerName={seller.name}
+            availableObligors={allObligors()
+              .filter((o) => !asrObligors.some((x) => x.obligorId === o.id))
+              .map((o) => ({ id: o.id, name: o.name }))}
+          />
+        )}
         <div className="table-scroll">
           <table>
             <thead>
