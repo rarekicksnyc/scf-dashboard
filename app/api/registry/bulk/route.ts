@@ -4,6 +4,9 @@ import {
   addSeller,
   addObligor,
   addLimit,
+  addSellerObligorLimit,
+  updateObligor,
+  sellerObligorLimit,
   addAudit,
   allSellers,
   allObligors,
@@ -59,23 +62,48 @@ export async function POST(request: Request) {
       const amount = Number(r.approved_limit.replace(/[$,]/g, "")) || 0;
       const tenor = Number(r.max_tenor_days) || 90;
       const expiry = r.expiry_date || "2026-12-31";
-      if (!/^\d{8}$/.test(cdl)) throw new Error("cdl must be an 8-digit code");
+      const requireCdl = () => { if (!/^\d{8}$/.test(cdl)) throw new Error("cdl must be an 8-digit code"); };
 
       if (rt === "SELLER") {
         if (!name) throw new Error("name is required");
+        requireCdl();
         addSeller({ name, cdl, creditLimit: amount, maxTenorDays: tenor, expiryDate: expiry });
       } else if (rt === "OBLIGOR") {
         if (!name) throw new Error("name is required");
+        requireCdl();
         addObligor({ name, cdl, country: r.country || "US", masterLimit: amount, maxTenorDays: tenor, expiryDate: expiry });
       } else if (rt === "LIMIT") {
+        requireCdl();
         const lt = (r.limit_type || "").toUpperCase() as LimitType;
         const isSeller = SELLER_LIMIT_TYPES.includes(lt);
         const entityType: EntityType = isSeller ? "SELLER" : "OBLIGOR";
         const ent = findEntity(isSeller ? allSellers() : allObligors(), name, cdl);
         if (!ent) throw new Error(`no ${entityType.toLowerCase()} found for '${name || cdl}' — add it first`);
         addLimit({ type: lt, cdl, entityType, entityId: ent.id, approvedLimit: amount, maxTenorDays: tenor, expiryDate: expiry });
+      } else if (rt === "ASR_SUBLIMIT" || rt === "FACILITY_OBLIGOR") {
+        // Add an obligor to a seller's ASR (facility). Links an existing obligor
+        // or creates one inline, then records the sublimit + group expiry. One
+        // row per seller/obligor pair — repeat a row per seller to add one
+        // obligor to many sellers.
+        const seller = findEntity(allSellers(), r.seller_name, r.seller_cdl);
+        if (!seller) throw new Error(`no seller found for '${r.seller_name || r.seller_cdl}'`);
+        const obName = r.obligor_name;
+        const obCdl = r.obligor_cdl;
+        const sublimit = Number((r.asr_sublimit || r.approved_limit || "").replace(/[$,]/g, "")) || 0;
+        const groupExpiry = r.group_expiry || r.expiry_date || "";
+        let obligor = findEntity(allObligors(), obName, obCdl);
+        if (!obligor) {
+          if (!obName || !/^\d{8}$/.test(obCdl)) throw new Error("obligor not found — to create it, give obligor_name and an 8-digit obligor_cdl");
+          if (!groupExpiry) throw new Error("group_expiry is required when creating a new obligor");
+          const created = addObligor({ name: obName, cdl: obCdl, country: r.country || "US", masterLimit: Number((r.master_limit || "").replace(/[$,]/g, "")) || 0, maxTenorDays: tenor, expiryDate: groupExpiry });
+          obligor = { id: created.id, name: created.name, cdl: created.cdl };
+        } else if (groupExpiry) {
+          updateObligor(obligor.id, { expiryDate: groupExpiry });
+        }
+        if (sellerObligorLimit(seller.id, obligor.id)) throw new Error(`${obligor.name} is already on ${seller.name}'s ASR`);
+        addSellerObligorLimit(seller.id, obligor.id, sublimit, tenor);
       } else {
-        throw new Error("record_type must be SELLER, OBLIGOR, or LIMIT");
+        throw new Error("record_type must be SELLER, OBLIGOR, LIMIT, or ASR_SUBLIMIT");
       }
       added += 1;
     } catch (e) {

@@ -152,6 +152,7 @@ export default async function DataManagementPage({
             availableObligors={allObligors()
               .filter((o) => !asrObligors.some((x) => x.obligorId === o.id))
               .map((o) => ({ id: o.id, name: o.name }))}
+            everyObligor={allObligors().map((o) => ({ id: o.id, name: o.name }))}
           />
         )}
         <div className="table-scroll">

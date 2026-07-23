@@ -223,20 +223,33 @@ export default function AddToRegistry({
 
         {mode === "BULK" && (
           <div>
-            <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
-              Add many records at once. Download the template, fill in one row per seller, obligor, or
-              limit (record_type = SELLER / OBLIGOR / LIMIT), and re-upload. Only the immediate fields
-              are needed — the rest can be filled in per-seller afterwards.
+            <p className="muted" style={{ marginTop: 0, fontSize: 13, maxWidth: "90ch" }}>
+              Add many records at once. Download the template for what you are adding, fill in one row per
+              record, and re-upload (a single file can mix record types). The obligor-to-facility template
+              links obligors to a seller&rsquo;s ASR with the sublimit and group expiry — repeat a row per
+              seller to add one obligor to several sellers.
             </p>
             {bulkMsg && <div className={`notice ${bulkMsg.ok ? "ok" : "err"}`} style={{ marginBottom: 12 }}>{bulkMsg.text}</div>}
-            <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-              <a className="btn secondary" href="/api/registry/template">Download template</a>
-              <label className="btn" style={{ cursor: "pointer" }}>
-                {busy ? "Uploading…" : "Upload filled template"}
-                <input type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }} disabled={busy}
-                  onChange={(e) => { const file = e.target.files?.[0]; if (file) bulkUpload(file); e.target.value = ""; }} />
-              </label>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Download a template</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {([
+                  ["sellers", "Sellers"],
+                  ["obligors", "Obligors"],
+                  ["asr", "Obligor → facility (ASR)"],
+                  ["limits", "Limits"],
+                  ["", "Combined (all types)"],
+                ] as [string, string][]).map(([t, label]) => (
+                  <a key={t || "combined"} className="btn secondary" style={{ fontSize: 12, padding: "6px 12px" }}
+                    href={`/api/registry/template${t ? `?type=${t}` : ""}`}>{label}</a>
+                ))}
+              </div>
             </div>
+            <label className="btn" style={{ cursor: "pointer" }}>
+              {busy ? "Uploading…" : "Upload filled template"}
+              <input type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }} disabled={busy}
+                onChange={(e) => { const file = e.target.files?.[0]; if (file) bulkUpload(file); e.target.value = ""; }} />
+            </label>
           </div>
         )}
 

@@ -13,15 +13,17 @@ export default function AddObligorToFacility({
   sellerId,
   sellerName,
   availableObligors,
+  everyObligor,
 }: {
   sellerId: string;
   sellerName: string;
   availableObligors: Opt[]; // obligors not yet on this seller's ASR
+  everyObligor: Opt[]; // all obligors (used when adding to all sellers)
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<"EXISTING" | "NEW">(availableObligors.length ? "EXISTING" : "NEW");
   const [f, setF] = useState({
-    obligorId: availableObligors[0]?.id ?? "",
+    obligorId: availableObligors[0]?.id ?? everyObligor[0]?.id ?? "",
     name: "",
     cdl: "",
     country: "US",
@@ -31,6 +33,7 @@ export default function AddObligorToFacility({
     groupExpiry: "2026-12-31",
   });
   const [busy, setBusy] = useState(false);
+  const [allSellers, setAllSellers] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((s) => ({ ...s, [k]: v }));
 
@@ -42,6 +45,7 @@ export default function AddObligorToFacility({
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         sellerId,
+        allSellers,
         mode,
         obligorId: mode === "EXISTING" ? f.obligorId : undefined,
         name: f.name,
@@ -59,14 +63,23 @@ export default function AddObligorToFacility({
       setMsg({ ok: false, text: data.error ?? "Failed to add obligor." });
       return;
     }
-    setMsg({ ok: true, text: "Obligor added to the facility." });
+    const skip = Array.isArray(data.skipped) && data.skipped.length ? ` (already on ${data.skipped.length})` : "";
+    setMsg({ ok: true, text: `Obligor added to ${data.linked} facility ASR list(s)${skip}.` });
     setF((s) => ({ ...s, name: "", cdl: "" }));
     router.refresh();
   }
 
   return (
     <div style={{ padding: 14, borderBottom: "1px solid var(--border)", background: "#fafbfd" }}>
-      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Add an obligor to {sellerName}&rsquo;s ASR</div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 8 }}>
+        <div style={{ fontSize: 13, fontWeight: 600 }}>
+          Add an obligor to {allSellers ? "every seller's" : `${sellerName}’s`} ASR
+        </div>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+          <input type="checkbox" checked={allSellers} onChange={(e) => setAllSellers(e.target.checked)} />
+          Add to all sellers
+        </label>
+      </div>
       {msg && <div className={`notice ${msg.ok ? "ok" : "err"}`} style={{ marginBottom: 10 }}>{msg.text}</div>}
 
       <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
@@ -86,9 +99,9 @@ export default function AddObligorToFacility({
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10, alignItems: "end" }}>
         {mode === "EXISTING" ? (
           <label style={{ ...field, gridColumn: "span 2" }}>Obligor
-            {availableObligors.length ? (
+            {(allSellers ? everyObligor : availableObligors).length ? (
               <select style={input} value={f.obligorId} onChange={(e) => set("obligorId", e.target.value)}>
-                {availableObligors.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                {(allSellers ? everyObligor : availableObligors).map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
               </select>
             ) : (
               <span className="muted" style={{ fontSize: 12 }}>Every obligor is already on this ASR — use “New obligor”.</span>
