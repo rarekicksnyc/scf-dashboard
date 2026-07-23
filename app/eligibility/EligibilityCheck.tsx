@@ -83,6 +83,7 @@ export default function EligibilityCheck({
     insured: false,
     // UTRC (unfunded commitment) fields
     committedAmount: "10000000",
+    commitmentDueDate: "2027-02-01",
     finalDemandDate: "2027-08-01",
   });
   const isUtrc = f.productType === "UTRC";
@@ -120,6 +121,7 @@ export default function EligibilityCheck({
       pricingBps: Number(f.pricingBps),
       productType: f.productType,
       committedAmount: isUtrc ? Number(f.committedAmount) || 0 : undefined,
+      commitmentDueDate: isUtrc ? f.commitmentDueDate : undefined,
       finalDemandDate: isUtrc ? f.finalDemandDate : undefined,
       baseRateType: f.baseRateType,
       baseRate: Number(f.baseRate),
@@ -191,7 +193,7 @@ export default function EligibilityCheck({
             <label style={field}>{isUtrc ? "Reference #" : "Invoice #"}
               <input style={input} value={f.invoiceNumber} onChange={(e) => set("invoiceNumber", e.target.value)} />
             </label>
-            <label style={field}>Value date
+            <label style={field}>{isUtrc ? "Commitment date" : "Value date"}
               <input style={input} type="date" value={f.valueDate} onChange={(e) => set("valueDate", e.target.value)} />
             </label>
             <label style={field}>Margin (bps)
@@ -204,6 +206,10 @@ export default function EligibilityCheck({
                 <label style={field}>Committed amount (USD)
                   <input style={input} type="number" min="0" value={f.committedAmount} onChange={(e) => set("committedAmount", e.target.value)} />
                   <span className="muted" style={{ fontSize: 10 }}>consumes the same limits as a DTR of this size</span>
+                </label>
+                <label style={field}>Commitment due date
+                  <input style={input} type="date" value={f.commitmentDueDate} onChange={(e) => set("commitmentDueDate", e.target.value)} />
+                  <span className="muted" style={{ fontSize: 10 }}>when the commitment falls due</span>
                 </label>
                 <label style={field}>Final permitted demand date
                   <input style={input} type="date" value={f.finalDemandDate} onChange={(e) => set("finalDemandDate", e.target.value)} />

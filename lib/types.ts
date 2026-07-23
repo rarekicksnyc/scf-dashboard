@@ -467,7 +467,8 @@ export interface DiscountTransaction {
   // final demand date acts as the maturity for tenor and time-phasing. A
   // commitment fee is charged instead of a discount / purchase price.
   committedAmount?: number; // UTRC only
-  finalDemandDate?: string; // UTRC only — ISO, the final permitted demand date
+  commitmentDueDate?: string; // UTRC only — ISO, the commitment due date
+  finalDemandDate?: string; // UTRC only — ISO, the final permitted demand date (maturity)
   baseRateType?: BaseRateType;
   baseRate?: number; // percent, e.g. 5.00
   // Distribution — one or more investors

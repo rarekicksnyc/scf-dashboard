@@ -30,6 +30,7 @@ export async function POST(request: Request) {
     pricingBps: Number(b.pricingBps) || 0,
     productType: isUtrc ? "UTRC" : "DTR",
     committedAmount: isUtrc ? Number(b.committedAmount) || 0 : undefined,
+    commitmentDueDate: isUtrc ? b.commitmentDueDate || undefined : undefined,
     finalDemandDate: isUtrc ? b.finalDemandDate || undefined : undefined,
     baseRateType: b.baseRateType ?? "SOFR",
     baseRate: Number(b.baseRate) || 0,

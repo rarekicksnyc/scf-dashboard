@@ -296,11 +296,17 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
       "Unfunded receivables purchase commitment — committed amount consumes limits; a commitment fee is charged.");
     add("TRANSACTION", "Committed amount", "Amount checked against limits", mm(advanceAmount), advanceAmount > 0 ? "GREEN" : "RED",
       advanceAmount > 0 ? "Committed amount consumes the seller and obligor limits." : "A committed amount is required for a UTRC.");
+    // Commitment due date — required, and cannot fall before the commitment date.
+    const hasDueDate = Boolean(txn.commitmentDueDate);
+    const dueAfterStart = hasDueDate && (txn.commitmentDueDate as string) >= txn.valueDate;
+    add("TRANSACTION", "Commitment due date", "Required, on/after commitment date", hasDueDate ? (txn.commitmentDueDate as string) : "— none —",
+      !hasDueDate ? "RED" : dueAfterStart ? "GREEN" : "RED",
+      !hasDueDate ? "No commitment due date on file — required, does not clear." : dueAfterStart ? "Commitment due date is on/after the commitment date." : "Commitment due date cannot fall before the commitment date.");
     const hasDemandDate = Boolean(txn.finalDemandDate);
-    add("TRANSACTION", "Final permitted demand date", "Required, after value date", hasDemandDate ? maturityDate : "— none —",
+    add("TRANSACTION", "Final permitted demand date", "Required, after commitment date", hasDemandDate ? maturityDate : "— none —",
       !hasDemandDate ? "RED" : tenorDays > 0 ? "GREEN" : "RED",
-      !hasDemandDate ? "No final permitted demand date on file — required, does not clear." : tenorDays > 0 ? "Final permitted demand date is after the value date." : "Final permitted demand date must be after the value date.");
-    add("TRANSACTION", "Commitment tenor", "Value date → final demand date", `${tenorDays}d`, "GREEN",
+      !hasDemandDate ? "No final permitted demand date on file — required, does not clear." : tenorDays > 0 ? "Final permitted demand date is after the commitment date." : "Final permitted demand date must be after the commitment date.");
+    add("TRANSACTION", "Commitment tenor", "Commitment date → final demand date", `${tenorDays}d`, "GREEN",
       "The commitment fee is charged over this period.");
   } else {
     const inRange = txn.advanceRate >= ADVANCE_RATE_MIN && txn.advanceRate <= ADVANCE_RATE_MAX;
