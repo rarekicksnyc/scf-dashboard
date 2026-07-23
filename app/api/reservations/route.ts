@@ -158,6 +158,10 @@ export async function POST(request: Request) {
     pricingBps: Number(b.pricingBps) || 0,
     rrlAmount: Math.min(Math.max(Number(b.rrlAmount) || 0, 0), coverage),
     tenorDays,
+    // Hold the distribution / insurance capacity too (time-phased) when the
+    // reservation is distributed / insured.
+    investorAllocations: txn.distributed ? txn.investorAllocations : undefined,
+    insurerAllocations: txn.insured ? txn.insurerAllocations : undefined,
     usesSwingline:
       Boolean(entitySwingline("SELLER", b.sellerId)) ||
       Boolean(entitySwingline("OBLIGOR", b.obligorId)),

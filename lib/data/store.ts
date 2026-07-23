@@ -608,11 +608,44 @@ export function reservationConsumedForLimit(limit: Limit, asOf?: AsOf): number {
       }
       return total;
     }
-    // ASR is consumed at actual discounting, not by forward reservations; and
-    // investor/insurance capacity is a funding-side control, not a reservation.
+    case "INVESTOR":
+      // A distributed reservation holds each named investor's capacity for its
+      // window — sum the allocations booked to this investor.
+      return active.reduce(
+        (a, r) => a + (r.investorAllocations?.filter((x) => x.investorId === limit.entityId).reduce((s, x) => s + x.amount, 0) ?? 0),
+        0,
+      );
+    case "INSURANCE":
+      // An insured reservation holds each named policy's capacity for its window.
+      return active.reduce(
+        (a, r) => a + (r.insurerAllocations?.filter((x) => x.policyId === limit.entityId).reduce((s, x) => s + x.amount, 0) ?? 0),
+        0,
+      );
+    // ASR is consumed at actual discounting (handled via sellerObligorUsage).
     default:
       return 0;
   }
+}
+
+// Reserved insurance held against a policy within a window, optionally narrowed
+// to the obligor being covered or that obligor's country — used to time-phase
+// the per-policy buyer sublimit and country limit in the eligibility engine.
+export function reservedInsurance(
+  policyId: string,
+  filter: { obligorId?: string; country?: string },
+  asOf?: AsOf,
+): number {
+  const w = toWindow(asOf);
+  let total = 0;
+  for (const r of store.reservations) {
+    if (r.status !== "RESERVED" || !reservationInWindow(r, w)) continue;
+    if (filter.obligorId && r.obligorId !== filter.obligorId) continue;
+    if (filter.country && getObligor(r.obligorId)?.country !== filter.country) continue;
+    for (const a of r.insurerAllocations ?? []) {
+      if (a.policyId === policyId) total += a.amount;
+    }
+  }
+  return total;
 }
 
 function sum(rs: Reservation[]): number {

@@ -12,7 +12,10 @@ export function buildScheduleEvents(): ScheduleEvent[] {
   const events: ScheduleEvent[] = [];
 
   for (const r of getReservations()) {
-    if (r.status === "CANCELLED") continue;
+    // Only OPEN reservations are forward exposure. A fulfilled (FUNDED)
+    // reservation has become a real transaction — it is represented by its
+    // funded invoice below, so including it here would double-count the deal.
+    if (r.status !== "RESERVED") continue;
 
     // Standalone swingline movement — one event on its value date.
     if (r.kind === "SWINGLINE") {

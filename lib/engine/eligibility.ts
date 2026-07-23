@@ -12,6 +12,7 @@ import {
   participationAgreement,
   insuranceBuyerSublimit,
   insuranceCountryLimit,
+  reservedInsurance,
 } from "@/lib/data/store";
 import { priceDeal } from "@/lib/pricing";
 import { obligorEntityFindings } from "@/lib/engine/obligorEntity";
@@ -337,7 +338,9 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
       }
       const il = findLimit("INVESTOR", investor.id);
       if (il) {
-        const v = viewLimit(il);
+        // Time-phased: existing reservations that hold this investor's capacity
+        // within the transaction window reduce what's available.
+        const v = viewLimit(il, window);
         capacity("DISTRIBUTION", `Investor limit — ${tag}`, v.available, v.approvedLimit, v.consumed, a.amount);
       }
       add("DISTRIBUTION", `Investor pricing — ${tag}`, `${investor.pricingFloorBps}bps floor`, `${txn.pricingBps}bps`,
@@ -379,13 +382,17 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
         if (!bsl) {
           add("INSURANCE", `Buyer sublimit — ${tag}`, "Buyer covered", obligor.name, "RED", "Buyer not covered under this policy.");
         } else {
-          capacity("INSURANCE", `Buyer sublimit — ${tag}`, bsl.sublimit, bsl.sublimit, 0, alloc.amount);
+          // Time-phased: reservations that hold this policy's capacity for this
+          // obligor within the window reduce the buyer sublimit available.
+          const reserved = reservedInsurance(policy.id, { obligorId: obligor.id }, window);
+          capacity("INSURANCE", `Buyer sublimit — ${tag}`, bsl.sublimit - reserved, bsl.sublimit, reserved, alloc.amount);
         }
         const cl = insuranceCountryLimit(policy.id, obligor.country);
         if (!cl) {
           add("INSURANCE", `Country limit — ${tag}`, `${obligor.country} covered`, obligor.country, "RED", "Country not covered under this policy.");
         } else {
-          capacity("INSURANCE", `Country limit — ${tag}`, cl.limit, cl.limit, 0, alloc.amount);
+          const reservedC = reservedInsurance(policy.id, { country: obligor.country }, window);
+          capacity("INSURANCE", `Country limit — ${tag}`, cl.limit - reservedC, cl.limit, reservedC, alloc.amount);
         }
       }
       add("INSURANCE", `Insurance max tenor — ${tag}`, `${policy.maxTenorDays}d`, `${tenorDays}d`,

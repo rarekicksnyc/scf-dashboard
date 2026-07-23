@@ -363,6 +363,11 @@ export interface Reservation {
   tenorDays: number; // maturityDate - valueDate
   usesSwingline: boolean;
   rrlAmount?: number; // portion of the amount booked on the seller's RRL
+  // Distribution / insurance held by this reservation. When present, the reserved
+  // amounts also hold each investor's and policy's capacity for the reservation's
+  // [valueDate, maturityDate] window (time-phased, like the credit lines).
+  investorAllocations?: InvestorAllocation[];
+  insurerAllocations?: InsurerAllocation[];
   status: ReservationStatus;
   createdAt: string;
   createdBy: string;
