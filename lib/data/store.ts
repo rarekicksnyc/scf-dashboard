@@ -474,13 +474,18 @@ export function removeSellerObligorLimit(sellerId: string, obligorId: string): v
 }
 
 // Usage of an ASR sublimit = active reservations for that seller/obligor pair.
-export function sellerObligorUsage(sellerId: string, obligorId: string): number {
+// Time-phased like every other limit: pass the transaction window so only
+// reservations whose own [valueDate, maturityDate] overlaps it count — a future
+// reservation does not reduce an earlier transaction's ASR sublimit capacity.
+export function sellerObligorUsage(sellerId: string, obligorId: string, asOf?: AsOf): number {
+  const w = toWindow(asOf);
   return store.reservations
     .filter(
       (r) =>
         r.status === "RESERVED" &&
         r.sellerId === sellerId &&
-        r.obligorId === obligorId,
+        r.obligorId === obligorId &&
+        reservationInWindow(r, w),
     )
     .reduce((a, r) => a + r.amount, 0);
 }

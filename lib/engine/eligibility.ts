@@ -277,7 +277,7 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
     } else {
       add("ASR", "ASR approved obligor", `${seller.name} ASR approved list`, obligor.name, "GREEN",
         "Obligor approved under seller ASR.");
-      const usage = sellerObligorUsage(seller.id, obligor.id);
+      const usage = sellerObligorUsage(seller.id, obligor.id, window);
       const available = sol.approvedLimit - usage;
       capacity("ASR", "ASR obligor sublimit", available, sol.approvedLimit, usage, advanceAmount);
       add("ASR", "ASR sublimit tenor", `${sol.maxTenorDays}d`, `${tenorDays}d`,
