@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getObligor, findLimit, viewLimit } from "@/lib/data/store";
+import { currentUserCan } from "@/lib/auth";
 import { mm, pct } from "@/lib/format";
 import EntityDetail from "../../entity/EntityDetail";
+import DeleteObligorButton from "./DeleteObligorButton";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +15,7 @@ export default async function ObligorPage({ params }: { params: Promise<{ id: st
 
   const ol = findLimit("OBLIGOR", id);
   const view = ol ? viewLimit(ol) : undefined;
+  const canEdit = await currentUserCan("CHANGE_LIMIT");
 
   return (
     <>
@@ -30,6 +33,8 @@ export default async function ObligorPage({ params }: { params: Promise<{ id: st
           "no obligor limit"
         )}
       </p>
+
+      {canEdit && <DeleteObligorButton obligorId={id} obligorName={obligor.name} />}
 
       <EntityDetail mode="OBLIGOR" id={id} />
     </>
