@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { updateObligorEntity, addAudit } from "@/lib/data/store";
+import { updateObligorEntity, removeObligorEntity, addAudit } from "@/lib/data/store";
 import { getCurrentUser, roleHas } from "@/lib/auth";
 import type { PcgFlag } from "@/lib/types";
 
@@ -51,4 +51,25 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   });
 
   return NextResponse.json({ ok: true, entity: updated });
+}
+
+// Remove an eligible obligor legal entity.
+export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const user = await getCurrentUser();
+  if (!roleHas(user.role, "CHANGE_LIMIT")) {
+    return NextResponse.json({ error: `Role ${user.role} is not permitted to remove entities.` }, { status: 403 });
+  }
+  if (!removeObligorEntity(id)) {
+    return NextResponse.json({ error: "Obligor entity not found." }, { status: 404 });
+  }
+  addAudit({
+    actorUserId: user.id,
+    actorName: user.name,
+    action: "OBLIGOR_ENTITY_DELETE",
+    entityType: "OBLIGOR_ENTITY",
+    entityId: id,
+    detail: `Removed obligor entity ${id}.`,
+  });
+  return NextResponse.json({ ok: true });
 }

@@ -28,7 +28,7 @@ import type {
   AsOf,
   DateWindow,
 } from "@/lib/types";
-import { toLimitView } from "@/lib/engine/availability";
+import { toLimitView, computeConsumed } from "@/lib/engine/availability";
 import * as seed from "./seed";
 
 // ---------------------------------------------------------------------------
@@ -224,6 +224,23 @@ export function updateObligorEntity(
   return e;
 }
 
+// Remove an eligible legal entity. The aggregate line stays; only this named
+// entity is dropped. Reservations key on the seller/obligor group, not the
+// entity, so nothing is orphaned.
+export function removeSellerEntity(id: string): boolean {
+  const i = store.sellerEntities.findIndex((x) => x.id === id);
+  if (i < 0) return false;
+  store.sellerEntities.splice(i, 1);
+  return true;
+}
+
+export function removeObligorEntity(id: string): boolean {
+  const i = store.obligorEntities.findIndex((x) => x.id === id);
+  if (i < 0) return false;
+  store.obligorEntities.splice(i, 1);
+  return true;
+}
+
 export function allSellerEntities(): SellerEntity[] {
   return store.sellerEntities;
 }
@@ -374,6 +391,23 @@ export function updateSellerObligorLimit(
   if (!sol) return undefined;
   Object.assign(sol, patch);
   return sol;
+}
+
+// Remove an obligor group from a seller's ASR approved list. Blocked while an
+// active reservation exists for that seller/obligor pair, so a live forward
+// book can never be pointed at a sublimit that no longer exists.
+export function removeSellerObligorLimit(sellerId: string, obligorId: string): void {
+  const active = store.reservations.some(
+    (r) => r.status === "RESERVED" && r.sellerId === sellerId && r.obligorId === obligorId,
+  );
+  if (active) {
+    throw new Error("This obligor has active reservations under the seller — cancel them first.");
+  }
+  const i = store.sellerObligorLimits.findIndex(
+    (x) => x.sellerId === sellerId && x.obligorId === obligorId,
+  );
+  if (i < 0) throw new Error("ASR sublimit not found.");
+  store.sellerObligorLimits.splice(i, 1);
 }
 
 // Usage of an ASR sublimit = active reservations for that seller/obligor pair.
@@ -726,6 +760,21 @@ export function updateLimit(
   return l;
 }
 
+// Remove a limit line entirely (e.g. drop a swingline or RRL from a seller).
+// Its utilization row is cleared too so no orphan booked figure survives.
+// Blocked while the limit still carries outstanding booked exposure — reset or
+// unwind that first (capacity is always derived, never stored).
+export function removeLimit(id: string): void {
+  const l = store.limits.find((x) => x.id === id);
+  if (!l) throw new Error("Limit not found.");
+  const u = store.utilizations.get(id);
+  if (u && computeConsumed(u) > 0) {
+    throw new Error("This limit has outstanding booked exposure — clear it before deleting.");
+  }
+  store.utilizations.delete(id);
+  store.limits.splice(store.limits.indexOf(l), 1);
+}
+
 // ---------------------------------------------------------------------------
 // Reservations (forward book)
 // ---------------------------------------------------------------------------
@@ -934,6 +983,43 @@ export function addSellerObligorLimit(
   } else {
     store.sellerObligorLimits.push({ sellerId, obligorId, approvedLimit, maxTenorDays });
   }
+}
+
+// Remove a seller and everything that belongs only to it — its limits (line,
+// ASR, swingline, RRL, RRL swingline), eligible entities, ASR sublimits, and
+// participation agreements — so no orphan record can point at a seller that no
+// longer exists (single source of truth). Blocked while it has an active
+// forward book; cancel or fulfill those reservations first.
+export function removeSeller(id: string): void {
+  if (!store.sellers.some((s) => s.id === id)) throw new Error("Seller not found.");
+  if (store.reservations.some((r) => r.status === "RESERVED" && r.sellerId === id)) {
+    throw new Error("This seller has active reservations — cancel them first.");
+  }
+  const limitIds = store.limits.filter((l) => l.entityType === "SELLER" && l.entityId === id).map((l) => l.id);
+  for (const lid of limitIds) store.utilizations.delete(lid);
+  store.limits = store.limits.filter((l) => !(l.entityType === "SELLER" && l.entityId === id));
+  store.sellerEntities = store.sellerEntities.filter((e) => e.facilityId !== id);
+  store.sellerObligorLimits = store.sellerObligorLimits.filter((x) => x.sellerId !== id);
+  store.participationAgreements = store.participationAgreements.filter((p) => p.sellerId !== id);
+  store.sellers = store.sellers.filter((s) => s.id !== id);
+}
+
+// Remove an obligor group and everything tied only to it — its master and
+// swingline limits, eligible entities, every seller's ASR sublimit for it, and
+// its insurance buyer sublimits. Blocked while any seller has an active
+// reservation against it.
+export function removeObligor(id: string): void {
+  if (!store.obligors.some((o) => o.id === id)) throw new Error("Obligor not found.");
+  if (store.reservations.some((r) => r.status === "RESERVED" && r.obligorId === id)) {
+    throw new Error("This obligor has active reservations — cancel them first.");
+  }
+  const limitIds = store.limits.filter((l) => l.entityType === "OBLIGOR" && l.entityId === id).map((l) => l.id);
+  for (const lid of limitIds) store.utilizations.delete(lid);
+  store.limits = store.limits.filter((l) => !(l.entityType === "OBLIGOR" && l.entityId === id));
+  store.obligorEntities = store.obligorEntities.filter((e) => e.groupId !== id);
+  store.sellerObligorLimits = store.sellerObligorLimits.filter((x) => x.obligorId !== id);
+  store.insuranceBuyerSublimits = store.insuranceBuyerSublimits.filter((b) => b.obligorId !== id);
+  store.obligors = store.obligors.filter((o) => o.id !== id);
 }
 
 // An ACTIVE swingline limit for an entity, if one exists.

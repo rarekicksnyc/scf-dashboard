@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { updateLimit, addAudit } from "@/lib/data/store";
+import { updateLimit, removeLimit, addAudit } from "@/lib/data/store";
 import { getCurrentUser, roleHas } from "@/lib/auth";
 import type { EntityStatus } from "@/lib/types";
 
@@ -51,4 +51,30 @@ export async function PATCH(
   });
 
   return NextResponse.json({ ok: true, limit: updated });
+}
+
+// Remove a limit line entirely (e.g. drop a swingline or RRL from a seller).
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+  const user = await getCurrentUser();
+  if (!roleHas(user.role, "CHANGE_LIMIT")) {
+    return NextResponse.json({ error: `Role ${user.role} is not permitted to remove limits.` }, { status: 403 });
+  }
+  try {
+    removeLimit(id);
+    addAudit({
+      actorUserId: user.id,
+      actorName: user.name,
+      action: "LIMIT_DELETE",
+      entityType: "LIMIT",
+      entityId: id,
+      detail: `Removed limit ${id}.`,
+    });
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return NextResponse.json({ error: (err as Error).message }, { status: 422 });
+  }
 }

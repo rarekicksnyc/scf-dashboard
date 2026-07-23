@@ -98,6 +98,19 @@ export default function EditObligorEntityRow({
     router.refresh();
   }
 
+  async function remove() {
+    if (!confirm(`Remove eligible obligor entity "${entity.name}"?`)) return;
+    setBusy(true);
+    setMsg(null);
+    const res = await fetch(`/api/entities/obligor/${entity.id}`, { method: "DELETE" });
+    setBusy(false);
+    if (!res.ok) {
+      setMsg((await res.json().catch(() => ({}))).error ?? "Failed");
+      return;
+    }
+    router.refresh();
+  }
+
   const domOpts = countries.some((c) => c.code === f.domicile) ? countries : [{ code: f.domicile, name: f.domicile }, ...countries];
 
   return (
@@ -143,6 +156,9 @@ export default function EditObligorEntityRow({
       <td>
         <button className="btn" style={{ padding: "4px 10px", fontSize: 12 }} onClick={save} disabled={busy} type="button">
           {busy ? "…" : "Save"}
+        </button>
+        <button className="btn secondary" style={{ padding: "4px 10px", fontSize: 12, marginTop: 4, borderColor: "var(--red)", color: "var(--red)" }} onClick={remove} disabled={busy} type="button">
+          Delete
         </button>
         {msg && <div className="muted" style={{ fontSize: 11, marginTop: 3 }}>{msg}</div>}
       </td>

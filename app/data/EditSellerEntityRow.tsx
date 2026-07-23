@@ -50,6 +50,19 @@ export default function EditSellerEntityRow({
     router.refresh();
   }
 
+  async function remove() {
+    if (!confirm(`Remove eligible seller entity "${entity.name}"?`)) return;
+    setBusy(true);
+    setMsg(null);
+    const res = await fetch(`/api/entities/seller/${entity.id}`, { method: "DELETE" });
+    setBusy(false);
+    if (!res.ok) {
+      setMsg((await res.json().catch(() => ({}))).error ?? "Failed");
+      return;
+    }
+    router.refresh();
+  }
+
   const opts = countries.some((c) => c.code === domicile) ? countries : [{ code: domicile, name: domicile }, ...countries];
 
   return (
@@ -64,6 +77,9 @@ export default function EditSellerEntityRow({
       <td>
         <button className="btn" style={{ padding: "4px 10px", fontSize: 12 }} onClick={save} disabled={busy} type="button">
           {busy ? "…" : "Save"}
+        </button>
+        <button className="btn secondary" style={{ padding: "4px 10px", fontSize: 12, marginLeft: 6, borderColor: "var(--red)", color: "var(--red)" }} onClick={remove} disabled={busy} type="button">
+          Delete
         </button>
         {msg && <span className="muted" style={{ marginLeft: 6, fontSize: 11 }}>{msg}</span>}
       </td>

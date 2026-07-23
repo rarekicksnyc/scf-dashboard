@@ -62,6 +62,23 @@ export default function EditAsrSublimitRow({
     router.refresh();
   }
 
+  async function remove() {
+    if (!confirm(`Remove ${group.name} from this seller's ASR approved list?`)) return;
+    setBusy(true);
+    setMsg(null);
+    const res = await fetch("/api/asr-sublimit", {
+      method: "DELETE",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sellerId, obligorId: group.id }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      setMsg((await res.json().catch(() => ({}))).error ?? "Failed");
+      return;
+    }
+    router.refresh();
+  }
+
   return (
     <tr style={{ background: selected ? "var(--brand-soft)" : undefined }}>
       <td>{group.name}</td>
@@ -86,6 +103,11 @@ export default function EditAsrSublimitRow({
           {canEdit && (
             <button className="btn" style={{ padding: "4px 10px", fontSize: 12 }} onClick={save} disabled={busy} type="button">
               {busy ? "…" : "Save"}
+            </button>
+          )}
+          {canEdit && (
+            <button className="btn secondary" style={{ padding: "4px 10px", fontSize: 12, borderColor: "var(--red)", color: "var(--red)" }} onClick={remove} disabled={busy} type="button">
+              Delete
             </button>
           )}
           {msg && <span className="muted" style={{ fontSize: 11 }}>{msg}</span>}

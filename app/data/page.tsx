@@ -21,6 +21,7 @@ import SwinglineAdjustment from "./SwinglineAdjustment";
 import EditSellerEntityRow from "./EditSellerEntityRow";
 import EditObligorEntityRow from "./EditObligorEntityRow";
 import EditAsrSublimitRow from "./EditAsrSublimitRow";
+import DeleteSellerButton from "./DeleteSellerButton";
 import ResetExposure from "./ResetExposure";
 
 export const dynamic = "force-dynamic";
@@ -92,7 +93,10 @@ export default async function DataManagementPage({
 
       {/* Box 1: seller facility + eligible seller entities */}
       <div className="panel">
-        <h2>{seller?.name} — facility &amp; eligible seller entities</h2>
+        <h2 style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <span>{seller?.name} — facility &amp; eligible seller entities</span>
+          {canEdit && seller && <DeleteSellerButton sellerId={seller.id} sellerName={seller.name} />}
+        </h2>
         <div style={{ padding: 14, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10, fontSize: 13 }}>
           <Field label="Seller line" value={sellerLimit ? `${mm(sellerLimit.approvedLimit)} (exp ${dateShort(sellerLimit.expiryDate)})` : "—"} />
           <Field label="ASR rating" value={seller ? `${seller.asrRating} (exp ${dateShort(seller.asrExpiry)})` : "—"} />

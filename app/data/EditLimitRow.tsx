@@ -50,6 +50,19 @@ export default function EditLimitRow({
     router.refresh();
   }
 
+  async function remove() {
+    if (!confirm(`Delete limit ${view.limit.id} (${entityName})? This removes the line entirely.`)) return;
+    setBusy(true);
+    setErr(null);
+    const res = await fetch(`/api/limits/${view.limit.id}`, { method: "DELETE" });
+    setBusy(false);
+    if (!res.ok) {
+      setErr((await res.json().catch(() => ({}))).error ?? "Failed");
+      return;
+    }
+    router.refresh();
+  }
+
   if (!canEdit) {
     return (
       <tr>
@@ -92,9 +105,14 @@ export default function EditLimitRow({
         </select>
       </td>
       <td>
-        <button className="btn" style={{ padding: "4px 10px", fontSize: 12 }} onClick={save} disabled={busy} type="button">
-          {busy ? "…" : saved ? "Saved ✓" : "Save"}
-        </button>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button className="btn" style={{ padding: "4px 10px", fontSize: 12 }} onClick={save} disabled={busy} type="button">
+            {busy ? "…" : saved ? "Saved ✓" : "Save"}
+          </button>
+          <button className="btn secondary" style={{ padding: "4px 10px", fontSize: 12, borderColor: "var(--red)", color: "var(--red)" }} onClick={remove} disabled={busy} type="button">
+            Delete
+          </button>
+        </div>
         {err && <div className="check-pill red" style={{ marginTop: 3 }}>{err}</div>}
       </td>
     </tr>

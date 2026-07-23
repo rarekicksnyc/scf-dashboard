@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { updateSellerEntity, addAudit } from "@/lib/data/store";
+import { updateSellerEntity, removeSellerEntity, addAudit } from "@/lib/data/store";
 import { getCurrentUser, roleHas } from "@/lib/auth";
 
 // Edit an eligible seller legal entity (name, CDL, domicile) from Data Management.
@@ -34,4 +34,25 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   });
 
   return NextResponse.json({ ok: true, entity: updated });
+}
+
+// Remove an eligible seller legal entity.
+export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const user = await getCurrentUser();
+  if (!roleHas(user.role, "CHANGE_LIMIT")) {
+    return NextResponse.json({ error: `Role ${user.role} is not permitted to remove entities.` }, { status: 403 });
+  }
+  if (!removeSellerEntity(id)) {
+    return NextResponse.json({ error: "Seller entity not found." }, { status: 404 });
+  }
+  addAudit({
+    actorUserId: user.id,
+    actorName: user.name,
+    action: "SELLER_ENTITY_DELETE",
+    entityType: "SELLER_ENTITY",
+    entityId: id,
+    detail: `Removed seller entity ${id}.`,
+  });
+  return NextResponse.json({ ok: true });
 }
