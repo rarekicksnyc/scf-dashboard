@@ -6,9 +6,11 @@ import {
   activePolicies,
   getReservations,
   getObligor,
+  listDocTemplates,
 } from "@/lib/data/store";
 import EligibilityCheck from "./EligibilityCheck";
 import MultiTransactionCheck from "./MultiTransactionCheck";
+import DocsSection from "./DocsSection";
 import Collapsible from "../Collapsible";
 
 export const dynamic = "force-dynamic";
@@ -58,6 +60,8 @@ export default function EligibilityPage() {
           policies={policies}
         />
       </Collapsible>
+
+      <DocsSection sellers={sellers} reservations={reservations} templates={listDocTemplates()} />
     </>
   );
 }

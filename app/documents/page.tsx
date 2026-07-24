@@ -1,7 +1,8 @@
-import { allSellers, allObligors } from "@/lib/data/store";
+import { allSellers, allObligors, listDocTemplates } from "@/lib/data/store";
 import { currentUserCan } from "@/lib/auth";
 import { listDocuments } from "@/lib/documents";
 import DocumentsClient from "./DocumentsClient";
+import TemplateEditor from "./TemplateEditor";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,7 @@ export default async function DocumentsPage() {
         every action is audited.
       </p>
       <DocumentsClient documents={documents} sellers={sellers} obligors={obligors} canEdit={canEdit} />
+      <TemplateEditor templates={listDocTemplates()} sellers={sellers} canEdit={canEdit} />
     </>
   );
 }

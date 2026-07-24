@@ -208,6 +208,24 @@ export interface ParentCompanyGuarantee {
   notes?: string;
 }
 
+// Editable document/email templates. Word docs (Purchase / Commitment Request)
+// and the email drafts are filled from these with {{placeholders}}. A template
+// with a sellerId overrides the default (sellerId undefined) for that seller.
+export type DocTemplateType =
+  | "PURCHASE_REQUEST"
+  | "COMMITMENT_REQUEST"
+  | "CLIENT_EMAIL"
+  | "BOOKING_EMAIL";
+
+export interface DocTemplate {
+  id: string;
+  type: DocTemplateType;
+  sellerId?: string; // undefined = default template for all sellers
+  subject?: string; // email templates only
+  body: string; // template text with {{placeholders}}
+  updatedAt?: string;
+}
+
 export interface InsurancePolicy {
   id: string;
   insurerName: string;

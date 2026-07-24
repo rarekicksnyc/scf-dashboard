@@ -28,7 +28,10 @@ import type {
   BaseRateType,
   AsOf,
   DateWindow,
+  DocTemplate,
+  DocTemplateType,
 } from "@/lib/types";
+import { DEFAULT_TEMPLATES } from "@/lib/data/templates";
 import { toLimitView, computeConsumed } from "@/lib/engine/availability";
 import * as seed from "./seed";
 
@@ -62,6 +65,7 @@ interface Store {
   rolePermissions: Record<Role, Permission[]>;
   countries: Country[];
   rates: RateRow[];
+  docTemplates: DocTemplate[];
   seq: number; // monotonic id counter
   migrations?: string[]; // one-time data fixes already applied to this store
 }
@@ -92,6 +96,7 @@ function seedStore(): Store {
     rolePermissions: structuredClone(seed.rolePermissions),
     countries: structuredClone(seed.countries),
     rates: structuredClone(seed.rates),
+    docTemplates: structuredClone(DEFAULT_TEMPLATES),
     // Start the id counter past the seeded reservation ids (RSV-0000N) so
     // generated ids never collide with seed ids.
     seq: seed.reservations.length,
@@ -256,6 +261,53 @@ export function removeParentGuarantee(id: string): boolean {
   const i = store.parentGuarantees.findIndex((x) => x.id === id);
   if (i < 0) return false;
   store.parentGuarantees.splice(i, 1);
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Document / email templates (editable; a seller copy overrides the default)
+// ---------------------------------------------------------------------------
+
+export function listDocTemplates(): DocTemplate[] {
+  return store.docTemplates;
+}
+
+// The effective template for a type — the seller's override if one exists,
+// otherwise the default.
+export function getDocTemplate(type: DocTemplateType, sellerId?: string): DocTemplate | undefined {
+  if (sellerId) {
+    const override = store.docTemplates.find((t) => t.type === type && t.sellerId === sellerId);
+    if (override) return override;
+  }
+  return store.docTemplates.find((t) => t.type === type && !t.sellerId);
+}
+
+export function upsertDocTemplate(input: { type: DocTemplateType; sellerId?: string; subject?: string; body: string }): DocTemplate {
+  const key = input.sellerId ?? "";
+  const existing = store.docTemplates.find((t) => t.type === input.type && (t.sellerId ?? "") === key);
+  if (existing) {
+    existing.body = input.body;
+    if (input.subject !== undefined) existing.subject = input.subject;
+    existing.updatedAt = new Date().toISOString();
+    return existing;
+  }
+  const t: DocTemplate = {
+    id: nextId("TMPL"),
+    type: input.type,
+    sellerId: input.sellerId || undefined,
+    subject: input.subject,
+    body: input.body,
+    updatedAt: new Date().toISOString(),
+  };
+  store.docTemplates.push(t);
+  return t;
+}
+
+// Delete a seller override (defaults can be edited but not removed).
+export function deleteDocTemplate(id: string): boolean {
+  const t = store.docTemplates.find((x) => x.id === id);
+  if (!t || !t.sellerId) return false;
+  store.docTemplates.splice(store.docTemplates.indexOf(t), 1);
   return true;
 }
 
