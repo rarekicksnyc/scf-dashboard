@@ -28,8 +28,11 @@ export function toLimitView(
   limit: Limit,
   u: Utilization,
   reserved = 0,
+  bookedOutstanding = 0,
 ): LimitView {
-  const outstanding = computeConsumed(u);
+  // Outstanding = seed utilization + booked transactions (both are real drawn
+  // exposure); reserved = the forward book. Both reduce available capacity.
+  const outstanding = computeConsumed(u) + bookedOutstanding;
   const consumed = outstanding + reserved;
   const available = limit.approvedLimit - consumed;
   const utilizationPct =

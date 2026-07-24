@@ -367,6 +367,95 @@ export type ReservationKind = "DISCOUNT" | "SWINGLINE";
 export type SwinglineDirection = "REDUCTION" | "INCREASE";
 export type ReservationScope = "BOTH" | "SELLER_ONLY" | "OBLIGOR_ONLY";
 
+// ---------------------------------------------------------------------------
+// Transaction Flow — an in-progress transaction moving from checked reservation
+// through docs, execution, signature verification, and booking.
+// ---------------------------------------------------------------------------
+export type WorkflowStatus =
+  | "IN_PROGRESS" // docs stage
+  | "CLIENT_EMAILED" // execution request sent to the client
+  | "EXECUTED" // executed doc uploaded
+  | "SIGNATURE_FLAGGED" // signer not on the authorized list — needs review
+  | "SIGNATURE_VERIFIED" // signer confirmed authorized
+  | "BOOKING_EMAILED" // sent to booking / funding team
+  | "BOOKED" // booked in system; reservation replaced
+  | "CANCELLED";
+
+export interface WorkflowEvent {
+  at: string;
+  by: string;
+  event: string;
+}
+
+export interface TransactionWorkflow {
+  id: string;
+  reservationId?: string; // the reservation this realises (removed at booking)
+  sellerId: string;
+  sellerName: string;
+  obligorId: string;
+  obligorName: string;
+  obligorEntityId?: string;
+  productType: ProductType;
+  reference: string;
+  currency: Currency;
+  amount: number; // invoice (DTR) or committed (UTRC)
+  advanceRate: number; // 0..1 (DTR)
+  coverage: number; // funded amount that consumes limits
+  valueDate: string;
+  maturityDate: string;
+  commitmentDueDate?: string;
+  finalDemandDate?: string;
+  pricingBps: number;
+  scope?: ReservationScope;
+  status: WorkflowStatus;
+  createdAt: string;
+  createdBy: string;
+  timeline: WorkflowEvent[];
+  // Execution / signature
+  executedDocId?: string; // uploaded executed document (repository id)
+  signerName?: string;
+  signerTitle?: string;
+  signatureValid?: boolean; // undefined = not yet checked
+  signatureReviewedBy?: string;
+  // Booking
+  bookedAt?: string;
+  bookedTransactionId?: string;
+}
+
+// A booked transaction — real drawn exposure, time-phased over its
+// [valueDate, maturityDate] window exactly like a reservation, but counted as
+// OUTSTANDING rather than reserved.
+export interface BookedTransaction {
+  id: string;
+  workflowId?: string;
+  fromReservationId?: string;
+  sellerId: string;
+  obligorId: string;
+  productType: ProductType;
+  reference: string;
+  currency: Currency;
+  amount: number; // coverage / funded amount
+  rrlAmount?: number;
+  scope?: ReservationScope;
+  valueDate: string;
+  maturityDate: string;
+  pricingBps: number;
+  investorAllocations?: InvestorAllocation[];
+  insurerAllocations?: InsurerAllocation[];
+  bookedAt: string;
+  bookedBy: string;
+}
+
+// Authorized signatory for a seller (group-wide) or a specific seller entity.
+export interface AuthorizedSignatory {
+  id: string;
+  sellerId: string;
+  entityId?: string; // undefined = authorized group-wide
+  name: string;
+  title: string;
+  signingLimit?: number;
+}
+
 export interface Reservation {
   id: string;
   kind?: ReservationKind; // undefined = DISCOUNT (backward compatible)

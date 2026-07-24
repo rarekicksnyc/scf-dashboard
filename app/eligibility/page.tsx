@@ -7,10 +7,13 @@ import {
   getReservations,
   getObligor,
   listDocTemplates,
+  listTransactionWorkflows,
+  allSellerEntities,
 } from "@/lib/data/store";
 import EligibilityCheck from "./EligibilityCheck";
 import MultiTransactionCheck from "./MultiTransactionCheck";
 import DocsSection from "./DocsSection";
+import WorkflowPanel from "./WorkflowPanel";
 import Collapsible from "../Collapsible";
 
 export const dynamic = "force-dynamic";
@@ -62,6 +65,11 @@ export default function EligibilityPage() {
       </Collapsible>
 
       <DocsSection sellers={sellers} reservations={reservations} templates={listDocTemplates()} />
+
+      <WorkflowPanel
+        workflows={listTransactionWorkflows()}
+        sellerEntities={allSellerEntities().map((e) => ({ sellerId: e.facilityId, id: e.id, name: e.name }))}
+      />
     </>
   );
 }

@@ -12,6 +12,7 @@ import {
   activeInvestors,
   activePolicies,
   listParentGuarantees,
+  listSignatories,
 } from "@/lib/data/store";
 import { currentUserCan } from "@/lib/auth";
 import { mm, dateShort } from "@/lib/format";
@@ -24,6 +25,7 @@ import EditObligorEntityRow from "./EditObligorEntityRow";
 import EditAsrSublimitRow from "./EditAsrSublimitRow";
 import DeleteSellerButton from "./DeleteSellerButton";
 import EditSellerFacility from "./EditSellerFacility";
+import SignatoryManager from "./SignatoryManager";
 import AddObligorToFacility from "./AddObligorToFacility";
 import PcgRegister from "./PcgRegister";
 import ResetExposure from "./ResetExposure";
@@ -141,6 +143,16 @@ export default async function DataManagementPage({
           </table>
         </div>
       </div>
+
+      {seller && (
+        <SignatoryManager
+          sellerId={seller.id}
+          sellerName={seller.name}
+          entities={sellerEntitiesOf(seller.id).map((e) => ({ id: e.id, name: e.name }))}
+          signatories={listSignatories(seller.id).map((s) => ({ id: s.id, entityId: s.entityId, name: s.name, title: s.title, signingLimit: s.signingLimit }))}
+          canEdit={canEdit}
+        />
+      )}
 
       {/* Box 2: obligor groups under this seller's ASR */}
       <div className="panel">

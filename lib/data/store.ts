@@ -30,6 +30,10 @@ import type {
   DateWindow,
   DocTemplate,
   DocTemplateType,
+  TransactionWorkflow,
+  WorkflowStatus,
+  BookedTransaction,
+  AuthorizedSignatory,
 } from "@/lib/types";
 import { DEFAULT_TEMPLATES } from "@/lib/data/templates";
 import { toLimitView, computeConsumed } from "@/lib/engine/availability";
@@ -66,6 +70,9 @@ interface Store {
   countries: Country[];
   rates: RateRow[];
   docTemplates: DocTemplate[];
+  transactionWorkflows: TransactionWorkflow[];
+  bookedTransactions: BookedTransaction[];
+  signatories: AuthorizedSignatory[];
   seq: number; // monotonic id counter
   migrations?: string[]; // one-time data fixes already applied to this store
 }
@@ -97,6 +104,9 @@ function seedStore(): Store {
     countries: structuredClone(seed.countries),
     rates: structuredClone(seed.rates),
     docTemplates: structuredClone(DEFAULT_TEMPLATES),
+    transactionWorkflows: [],
+    bookedTransactions: [],
+    signatories: [],
     // Start the id counter past the seeded reservation ids (RSV-0000N) so
     // generated ids never collide with seed ids.
     seq: seed.reservations.length,
@@ -309,6 +319,126 @@ export function deleteDocTemplate(id: string): boolean {
   if (!t || !t.sellerId) return false;
   store.docTemplates.splice(store.docTemplates.indexOf(t), 1);
   return true;
+}
+
+// ---------------------------------------------------------------------------
+// Transaction Flow — in-progress workflows, booked transactions, signatories
+// ---------------------------------------------------------------------------
+
+export function listTransactionWorkflows(): TransactionWorkflow[] {
+  return store.transactionWorkflows;
+}
+export function getTransactionWorkflow(id: string): TransactionWorkflow | undefined {
+  return store.transactionWorkflows.find((w) => w.id === id);
+}
+
+export function createTransactionWorkflow(
+  input: Omit<TransactionWorkflow, "id" | "status" | "createdAt" | "timeline">,
+): TransactionWorkflow {
+  const now = new Date().toISOString();
+  const wf: TransactionWorkflow = {
+    ...input,
+    id: nextId("TXF"),
+    status: "IN_PROGRESS",
+    createdAt: now,
+    timeline: [{ at: now, by: input.createdBy, event: "Proceeded with transaction — documents stage." }],
+  };
+  store.transactionWorkflows.unshift(wf);
+  return wf;
+}
+
+// Advance a workflow: set a new status (optional), merge a patch, and append a
+// timeline entry.
+export function advanceWorkflow(
+  id: string,
+  opts: { status?: WorkflowStatus; by: string; event: string; patch?: Partial<TransactionWorkflow> },
+): TransactionWorkflow | undefined {
+  const wf = getTransactionWorkflow(id);
+  if (!wf) return undefined;
+  if (opts.patch) Object.assign(wf, opts.patch);
+  if (opts.status) wf.status = opts.status;
+  wf.timeline.push({ at: new Date().toISOString(), by: opts.by, event: opts.event });
+  return wf;
+}
+
+export function cancelTransactionWorkflow(id: string, by: string): boolean {
+  const wf = getTransactionWorkflow(id);
+  if (!wf || wf.status === "BOOKED") return false;
+  wf.status = "CANCELLED";
+  wf.timeline.push({ at: new Date().toISOString(), by, event: "Transaction cancelled." });
+  return true;
+}
+
+export function listBookedTransactions(): BookedTransaction[] {
+  return store.bookedTransactions;
+}
+
+// Final booking step: turn a workflow into a booked transaction (real, time-
+// phased outstanding), remove the reservation it realises, and mark the workflow
+// BOOKED. Carries the reservation's RRL split / scope / allocations if present.
+export function bookTransactionFromWorkflow(id: string, by: string): { workflow: TransactionWorkflow; booked: BookedTransaction } | undefined {
+  const wf = getTransactionWorkflow(id);
+  if (!wf || wf.status === "BOOKED") return undefined;
+  const rsv = wf.reservationId ? store.reservations.find((r) => r.id === wf.reservationId) : undefined;
+  const now = new Date().toISOString();
+  const booked: BookedTransaction = {
+    id: nextId("BKD"),
+    workflowId: wf.id,
+    fromReservationId: wf.reservationId,
+    sellerId: wf.sellerId,
+    obligorId: wf.obligorId,
+    productType: wf.productType,
+    reference: wf.reference,
+    currency: wf.currency,
+    amount: wf.coverage, // funded amount that consumes limits
+    rrlAmount: rsv?.rrlAmount,
+    scope: wf.scope ?? rsv?.scope,
+    valueDate: wf.valueDate,
+    maturityDate: wf.productType === "UTRC" ? wf.finalDemandDate || wf.maturityDate : wf.maturityDate,
+    pricingBps: wf.pricingBps,
+    investorAllocations: rsv?.investorAllocations,
+    insurerAllocations: rsv?.insurerAllocations,
+    bookedAt: now,
+    bookedBy: by,
+  };
+  store.bookedTransactions.unshift(booked);
+  // Remove the reservation it realises (forward book + calendar drop it).
+  if (wf.reservationId) {
+    const i = store.reservations.findIndex((r) => r.id === wf.reservationId);
+    if (i >= 0) store.reservations.splice(i, 1);
+  }
+  wf.status = "BOOKED";
+  wf.bookedAt = now;
+  wf.bookedTransactionId = booked.id;
+  wf.timeline.push({ at: now, by, event: `Booked in system (${booked.id})${wf.reservationId ? ` — reservation ${wf.reservationId} removed` : ""}.` });
+  return { workflow: wf, booked };
+}
+
+// -- Authorized signatories (per seller, or a specific seller entity) --------
+export function listSignatories(sellerId?: string): AuthorizedSignatory[] {
+  return sellerId ? store.signatories.filter((s) => s.sellerId === sellerId) : store.signatories;
+}
+export function addSignatory(input: Omit<AuthorizedSignatory, "id">): AuthorizedSignatory {
+  const s: AuthorizedSignatory = { ...input, id: nextId("SIG"), name: input.name.trim(), title: input.title.trim() };
+  store.signatories.push(s);
+  return s;
+}
+export function removeSignatory(id: string): boolean {
+  const i = store.signatories.findIndex((s) => s.id === id);
+  if (i < 0) return false;
+  store.signatories.splice(i, 1);
+  return true;
+}
+
+// Is a signer authorized for a seller (optionally a specific entity)? Matches by
+// name (case/space-insensitive). An entity-scoped transaction accepts either an
+// entity-specific signatory or a group-wide one.
+export function isAuthorizedSigner(sellerId: string, entityId: string | undefined, name: string): boolean {
+  const norm = (v: string) => v.trim().toLowerCase().replace(/\s+/g, " ");
+  const target = norm(name);
+  return store.signatories.some(
+    (s) => s.sellerId === sellerId && (!s.entityId || s.entityId === entityId) && norm(s.name) === target,
+  );
 }
 
 // Inline edits from Data Management. The route whitelists the fields; here we
@@ -557,7 +687,7 @@ export function removeSellerObligorLimit(sellerId: string, obligorId: string): v
 // reservation does not reduce an earlier transaction's ASR sublimit capacity.
 export function sellerObligorUsage(sellerId: string, obligorId: string, asOf?: AsOf): number {
   const w = toWindow(asOf);
-  return store.reservations
+  const reserved = store.reservations
     .filter(
       (r) =>
         r.status === "RESERVED" &&
@@ -567,6 +697,10 @@ export function sellerObligorUsage(sellerId: string, obligorId: string, asOf?: A
         reservationInWindow(r, w),
     )
     .reduce((a, r) => a + r.amount, 0);
+  const booked = store.bookedTransactions
+    .filter((t) => t.sellerId === sellerId && t.obligorId === obligorId && t.scope !== "SELLER_ONLY" && reservationInWindow(t, w))
+    .reduce((a, t) => a + t.amount, 0);
+  return reserved + booked;
 }
 
 export function participationAgreement(
@@ -631,7 +765,7 @@ function toWindow(asOf?: AsOf): DateWindow | undefined {
 // is the core of time-phasing: a reservation is "on the books" for a given
 // window only if the two spans intersect. For an instant window [d,d] this is
 // exactly valueDate <= d <= maturityDate (the old single-date behaviour).
-function reservationInWindow(r: Reservation, w?: DateWindow): boolean {
+function reservationInWindow(r: { valueDate: string; maturityDate: string }, w?: DateWindow): boolean {
   if (!w) return true;
   return r.valueDate <= w.to && r.maturityDate >= w.from;
 }
@@ -721,14 +855,16 @@ export function reservedInsurance(
 ): number {
   const w = toWindow(asOf);
   let total = 0;
-  for (const r of store.reservations) {
-    if (r.status !== "RESERVED" || !reservationInWindow(r, w)) continue;
-    if (filter.obligorId && r.obligorId !== filter.obligorId) continue;
-    if (filter.country && getObligor(r.obligorId)?.country !== filter.country) continue;
-    for (const a of r.insurerAllocations ?? []) {
-      if (a.policyId === policyId) total += a.amount;
+  const scan = (items: { obligorId: string; insurerAllocations?: { policyId: string; amount: number }[]; valueDate: string; maturityDate: string }[]) => {
+    for (const r of items) {
+      if (!reservationInWindow(r, w)) continue;
+      if (filter.obligorId && r.obligorId !== filter.obligorId) continue;
+      if (filter.country && getObligor(r.obligorId)?.country !== filter.country) continue;
+      for (const a of r.insurerAllocations ?? []) if (a.policyId === policyId) total += a.amount;
     }
-  }
+  };
+  scan(store.reservations.filter((r) => r.status === "RESERVED"));
+  scan(store.bookedTransactions);
   return total;
 }
 
@@ -736,10 +872,52 @@ function sum(rs: Reservation[]): number {
   return rs.reduce((a, r) => a + r.amount, 0);
 }
 
-// The single reservation-aware view of a limit — used by every screen. Pass
-// asOf for the time-phased view (an ISO date = instant, a {from,to} = span).
+// How much a set of discount-style draws (reservations or booked transactions)
+// consumes a given limit. Scope gates which side each draw blocks. This is the
+// shared draw logic so booked transactions consume EXACTLY like reservations.
+function drawForLimit(limit: Limit, items: BookedTransaction[]): number {
+  switch (limit.type) {
+    case "SELLER":
+      return items.filter((r) => r.sellerId === limit.entityId && r.scope !== "OBLIGOR_ONLY").reduce((a, r) => a + r.amount - (r.rrlAmount ?? 0), 0);
+    case "RRL":
+      return items.filter((r) => r.sellerId === limit.entityId && r.scope !== "OBLIGOR_ONLY").reduce((a, r) => a + (r.rrlAmount ?? 0), 0);
+    case "OBLIGOR":
+      return items.filter((r) => r.obligorId === limit.entityId && r.scope !== "SELLER_ONLY").reduce((a, r) => a + r.amount, 0);
+    case "SWINGLINE": {
+      const onSeller = limit.entityType === "SELLER";
+      let total = 0;
+      for (const r of items) {
+        if (onSeller) { if (r.sellerId !== limit.entityId || r.scope === "OBLIGOR_ONLY") continue; total += r.amount - (r.rrlAmount ?? 0); }
+        else if (limit.entityType === "OBLIGOR") { if (r.obligorId !== limit.entityId || r.scope === "SELLER_ONLY") continue; total += r.amount; }
+      }
+      return total;
+    }
+    case "INVESTOR":
+      return items.reduce((a, r) => a + (r.investorAllocations?.filter((x) => x.investorId === limit.entityId).reduce((s, x) => s + x.amount, 0) ?? 0), 0);
+    case "INSURANCE":
+      return items.reduce((a, r) => a + (r.insurerAllocations?.filter((x) => x.policyId === limit.entityId).reduce((s, x) => s + x.amount, 0) ?? 0), 0);
+    default:
+      return 0;
+  }
+}
+
+// Booked transactions consuming a limit, time-phased (real OUTSTANDING exposure).
+export function bookedConsumedForLimit(limit: Limit, asOf?: AsOf): number {
+  const w = toWindow(asOf);
+  const active = store.bookedTransactions.filter((t) => reservationInWindow(t, w));
+  return drawForLimit(limit, active);
+}
+
+// The single exposure-aware view of a limit — used by every screen. Outstanding
+// = seed utilization + booked transactions (time-phased); reserved = the forward
+// book (time-phased). Pass asOf for the time-phased view.
 export function viewLimit(limit: Limit, asOf?: AsOf): LimitView {
-  return toLimitView(limit, getUtilization(limit.id), reservationConsumedForLimit(limit, asOf));
+  return toLimitView(
+    limit,
+    getUtilization(limit.id),
+    reservationConsumedForLimit(limit, asOf),
+    bookedConsumedForLimit(limit, asOf),
+  );
 }
 
 export function limitViews(asOf?: AsOf) {

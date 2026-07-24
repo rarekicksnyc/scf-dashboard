@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { usd } from "@/lib/format";
 import { inputBase as input, fieldLabel as field } from "@/lib/ui";
 import { buildDocSet, fillTemplate, wordDocument, type DocTokens, type GeneratedDoc } from "@/lib/docgen";
@@ -33,9 +34,12 @@ export default function DocsSection({
   reservations: ResvOpt[];
   templates: DocTemplate[];
 }) {
+  const router = useRouter();
   const today = new Date().toISOString().slice(0, 10);
+  const [proceedMsg, setProceedMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [f, setF] = useState({
     reservationId: "",
+    obligorId: "",
     sellerId: sellers[0]?.id ?? "",
     productType: "DTR",
     obligor: "",
@@ -59,6 +63,7 @@ export default function DocsSection({
     setF((s) => ({
       ...s,
       reservationId: rid,
+      obligorId: rv.obligorId,
       sellerId: rv.sellerId,
       obligor: rv.obligorName,
       amount: String(rv.amount),
@@ -104,6 +109,33 @@ export default function DocsSection({
     const reqType = isUtrc ? "COMMITMENT_REQUEST" : "PURCHASE_REQUEST";
     const requestBody = fillTemplate(resolveTemplate(reqType), tokens);
     setDocs(buildDocSet({ isUtrc, tokens, requestBody }));
+  }
+
+  async function proceed() {
+    setProceedMsg(null);
+    const res = await fetch("/api/transaction-flow", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        reservationId: f.reservationId,
+        sellerId: f.sellerId,
+        obligorId: f.obligorId,
+        productType: f.productType,
+        reference: f.reference,
+        currency: f.currency,
+        amount,
+        advanceRate: (Number(f.advanceRate) || 0) / 100,
+        valueDate: f.valueDate,
+        maturityDate: f.maturityDate,
+        commitmentDueDate: isUtrc ? f.commitmentDueDate : undefined,
+        finalDemandDate: isUtrc ? f.finalDemandDate : undefined,
+        pricingBps: Number(f.pricingBps),
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { setProceedMsg({ ok: false, text: data.error ?? "Could not proceed." }); return; }
+    setProceedMsg({ ok: true, text: `Transaction ${data.workflow.id} is now in progress — see In-progress transactions below.` });
+    router.refresh();
   }
 
   function exportWord(doc: GeneratedDoc) {
@@ -201,7 +233,14 @@ export default function DocsSection({
           </label>
         </div>
 
-        <button className="btn" type="button" onClick={generate}>Generate documents</button>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <button className="btn" type="button" onClick={generate}>Generate documents</button>
+          <button className="btn secondary" type="button" onClick={proceed} disabled={!f.reservationId} title={f.reservationId ? "" : "Load a reservation first"}>
+            Proceed with Transaction
+          </button>
+          {!f.reservationId && <span className="muted" style={{ fontSize: 11 }}>Load a reservation to proceed.</span>}
+        </div>
+        {proceedMsg && <div className={`notice ${proceedMsg.ok ? "ok" : "err"}`} style={{ marginTop: 10 }}>{proceedMsg.text}</div>}
 
         {docs && (
           <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 16 }}>
