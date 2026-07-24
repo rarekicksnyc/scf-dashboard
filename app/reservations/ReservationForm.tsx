@@ -39,6 +39,7 @@ export default function ReservationForm({
     valueDate: "2026-08-15",
     maturityDate: "2026-11-13",
     pricingBps: "125",
+    scope: "BOTH",
     bookRrl: false,
     rrlAmount: "0",
     distributed: false,
@@ -95,6 +96,7 @@ export default function ReservationForm({
               invoiceType: form.invoiceType,
               advanceRate: Number(form.advanceRate) / 100,
               pricingBps: Number(form.pricingBps),
+              scope: form.scope,
               rrlAmount: form.bookRrl && rrlSellers.includes(form.sellerId) ? Number(form.rrlAmount) : 0,
               valueDate: form.valueDate,
               maturityDate: form.maturityDate,
@@ -217,6 +219,14 @@ export default function ReservationForm({
               </label>
               <label style={field}>Margin (bps)
                 <input style={input} type="number" value={form.pricingBps} onChange={(e) => set("pricingBps", e.target.value)} />
+              </label>
+              <label style={field}>Block lines
+                <select style={input} value={form.scope} onChange={(e) => set("scope", e.target.value)}>
+                  <option value="BOTH">Both seller &amp; obligor (normal)</option>
+                  <option value="SELLER_ONLY">Seller line only</option>
+                  <option value="OBLIGOR_ONLY">Obligor line only</option>
+                </select>
+                <span className="muted" style={{ fontSize: 10 }}>which side this reservation reserves</span>
               </label>
               <label style={field}>Expected value date
                 <input style={input} type="date" value={form.valueDate} onChange={(e) => set("valueDate", e.target.value)} />

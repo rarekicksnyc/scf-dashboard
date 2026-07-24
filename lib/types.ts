@@ -347,6 +347,7 @@ export type ReservationStatus = "RESERVED" | "FUNDED" | "MATURED" | "CANCELLED";
 // SWINGLINE = a standalone swingline movement on a single entity, no pricing.
 export type ReservationKind = "DISCOUNT" | "SWINGLINE";
 export type SwinglineDirection = "REDUCTION" | "INCREASE";
+export type ReservationScope = "BOTH" | "SELLER_ONLY" | "OBLIGOR_ONLY";
 
 export interface Reservation {
   id: string;
@@ -363,6 +364,11 @@ export interface Reservation {
   tenorDays: number; // maturityDate - valueDate
   usesSwingline: boolean;
   rrlAmount?: number; // portion of the amount booked on the seller's RRL
+  // Which credit lines this reservation blocks. BOTH (default) draws the seller
+  // and obligor sides; SELLER_ONLY draws only the seller line/swingline/RRL;
+  // OBLIGOR_ONLY draws only the obligor line/swingline/ASR sublimit. Used for the
+  // uncommon case where only one side should be reserved.
+  scope?: ReservationScope;
   // Distribution / insurance held by this reservation. When present, the reserved
   // amounts also hold each investor's and policy's capacity for the reservation's
   // [valueDate, maturityDate] window (time-phased, like the credit lines).

@@ -4,6 +4,8 @@ import {
   addSeller,
   addObligor,
   addSellerObligorLimit,
+  addSellerEntity,
+  addObligorEntity,
   addAudit,
   getSeller,
   getObligor,
@@ -87,6 +89,16 @@ export async function POST(request: Request) {
       );
       created = { sellerId: b.sellerId, obligorId: b.obligorId };
       audit = `Added ASR sublimit ${Number(b.approvedLimit).toLocaleString()} for ${b.obligorId} under ${b.sellerId}.`;
+    } else if (b.kind === "SELLER_ENTITY") {
+      if (!b.name || !isCdl(b.cdl)) return NextResponse.json({ error: "Entity needs a name and an 8-digit CDL." }, { status: 422 });
+      if (!getSeller(b.groupId)) return NextResponse.json({ error: "Choose the seller group to add the entity under." }, { status: 422 });
+      created = addSellerEntity({ facilityId: b.groupId, name: b.name, cdl: b.cdl, domicile: b.country || "US" });
+      audit = `Added seller legal entity ${b.name} (${b.cdl}) under ${b.groupId}.`;
+    } else if (b.kind === "OBLIGOR_ENTITY") {
+      if (!b.name || !isCdl(b.cdl)) return NextResponse.json({ error: "Entity needs a name and an 8-digit CDL." }, { status: 422 });
+      if (!getObligor(b.groupId)) return NextResponse.json({ error: "Choose the obligor group to add the entity under." }, { status: 422 });
+      created = addObligorEntity({ groupId: b.groupId, name: b.name, cdl: b.cdl, bookingCdl: b.bookingCdl || b.cdl, domicile: b.country || "US" });
+      audit = `Added obligor legal entity ${b.name} (${b.cdl}) under ${b.groupId}.`;
     } else {
       return NextResponse.json({ error: "Unknown kind." }, { status: 400 });
     }

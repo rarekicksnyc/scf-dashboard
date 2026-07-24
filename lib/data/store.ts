@@ -287,6 +287,32 @@ export function updateObligorEntity(
   return e;
 }
 
+// Add a legal entity under an existing seller (facility) group.
+export function addSellerEntity(input: { facilityId: string; name: string; cdl: string; domicile: string }): SellerEntity {
+  if (!store.sellers.some((s) => s.id === input.facilityId)) throw new Error("Unknown seller group.");
+  const e: SellerEntity = { id: nextId("SE"), facilityId: input.facilityId, name: input.name.trim(), cdl: input.cdl, domicile: input.domicile || "US" };
+  store.sellerEntities.push(e);
+  return e;
+}
+
+// Add a legal entity under an existing obligor group.
+export function addObligorEntity(input: { groupId: string; name: string; cdl: string; bookingCdl?: string; domicile: string }): ObligorEntity {
+  if (!store.obligors.some((o) => o.id === input.groupId)) throw new Error("Unknown obligor group.");
+  const e: ObligorEntity = {
+    id: nextId("OE"),
+    groupId: input.groupId,
+    name: input.name.trim(),
+    cdl: input.cdl,
+    bookingCdl: input.bookingCdl || input.cdl,
+    domicile: input.domicile || "US",
+    borrowerRating: "NR",
+    borrowerRatingExpiry: "",
+    pcg: "N/A",
+  };
+  store.obligorEntities.push(e);
+  return e;
+}
+
 // Remove an eligible legal entity. The aggregate line stays; only this named
 // entity is dropped. Reservations key on the seller/obligor group, not the
 // entity, so nothing is orphaned.
@@ -485,6 +511,7 @@ export function sellerObligorUsage(sellerId: string, obligorId: string, asOf?: A
         r.status === "RESERVED" &&
         r.sellerId === sellerId &&
         r.obligorId === obligorId &&
+        r.scope !== "SELLER_ONLY" && // ASR follows the obligor side
         reservationInWindow(r, w),
     )
     .reduce((a, r) => a + r.amount, 0);
@@ -570,26 +597,29 @@ export function reservationConsumedForLimit(limit: Limit, asOf?: AsOf): number {
   );
   // Discount reservations draw the credit lines; standalone SWINGLINE movements
   // only touch the swingline (handled in the SWINGLINE case / swinglineAdjustmentNet).
+  // Scope gates which side a reservation blocks: SELLER_ONLY skips the obligor
+  // side, OBLIGOR_ONLY skips the seller side (undefined = BOTH).
   const discounts = active.filter((r) => r.kind !== "SWINGLINE");
   switch (limit.type) {
     case "SELLER":
       // Seller line takes the amount net of any RRL portion.
       return discounts
-        .filter((r) => r.sellerId === limit.entityId)
+        .filter((r) => r.sellerId === limit.entityId && r.scope !== "OBLIGOR_ONLY")
         .reduce((a, r) => a + r.amount - (r.rrlAmount ?? 0), 0);
     case "RRL":
       return discounts
-        .filter((r) => r.sellerId === limit.entityId)
+        .filter((r) => r.sellerId === limit.entityId && r.scope !== "OBLIGOR_ONLY")
         .reduce((a, r) => a + (r.rrlAmount ?? 0), 0);
     case "OBLIGOR":
       // Obligor line takes the FULL amount (RRL split does not reduce it).
-      return sum(discounts.filter((r) => r.obligorId === limit.entityId));
+      return sum(discounts.filter((r) => r.obligorId === limit.entityId && r.scope !== "SELLER_ONLY"));
     case "SWINGLINE": {
       // A swingline is a core limit. Discount reservations draw it; standalone
       // SWINGLINE reservations adjust it (reduction draws down available,
       // increase releases it).
+      const onSeller = limit.entityType === "SELLER";
       const matches = (r: Reservation) =>
-        limit.entityType === "SELLER"
+        onSeller
           ? r.sellerId === limit.entityId
           : limit.entityType === "OBLIGOR"
             ? r.obligorId === limit.entityId
@@ -600,10 +630,12 @@ export function reservationConsumedForLimit(limit: Limit, asOf?: AsOf): number {
         if (r.kind === "SWINGLINE") {
           total += r.swinglineDirection === "INCREASE" ? -r.amount : r.amount;
         } else {
-          // Discount reservation draws the swingline. A seller swingline draws
-          // the amount NET of the RRL portion (matching the seller line); an
-          // obligor swingline draws the full amount (obligor books it all).
-          total += limit.entityType === "SELLER" ? r.amount - (r.rrlAmount ?? 0) : r.amount;
+          // A discount reservation draws the swingline only on the side it
+          // blocks. A seller swingline draws the amount NET of the RRL portion
+          // (matching the seller line); an obligor swingline draws the full amount.
+          if (onSeller && r.scope === "OBLIGOR_ONLY") continue;
+          if (!onSeller && r.scope === "SELLER_ONLY") continue;
+          total += onSeller ? r.amount - (r.rrlAmount ?? 0) : r.amount;
         }
       }
       return total;

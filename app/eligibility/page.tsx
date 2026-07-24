@@ -4,6 +4,8 @@ import {
   allObligorEntities,
   activeInvestors,
   activePolicies,
+  getReservations,
+  getObligor,
 } from "@/lib/data/store";
 import EligibilityCheck from "./EligibilityCheck";
 import MultiTransactionCheck from "./MultiTransactionCheck";
@@ -21,18 +23,31 @@ export default function EligibilityPage() {
     id: p.id,
     name: `${p.insurerName} · ${p.policyNumber}`,
   }));
+  // Open discount reservations, to autofill a transaction from.
+  const reservations = getReservations()
+    .filter((r) => r.status === "RESERVED" && r.kind !== "SWINGLINE")
+    .map((r) => ({
+      id: r.id,
+      sellerId: r.sellerId,
+      obligorId: r.obligorId,
+      obligorName: getObligor(r.obligorId)?.name ?? r.obligorId,
+      amount: r.amount,
+      valueDate: r.valueDate,
+      maturityDate: r.maturityDate,
+      pricingBps: r.pricingBps,
+    }));
 
   return (
     <>
-      <h1 className="page-title">Eligibility Check</h1>
+      <h1 className="page-title">Transaction Flow</h1>
       <p className="page-sub">
-        Run one discount transaction against every seller-facility and
-        transaction control at once — seller, obligor, ASR approved-obligor
-        sublimit, transaction terms, distribution, and insurance. Limits are
-        checked against the funded (advance) amount; the obligor is checked
-        against both its master line and the per-seller ASR sublimit.
+        Take a transaction from check to booking. Select a reservation to autofill
+        its details, run every eligibility control at once (seller, obligor, ASR
+        sublimit, transaction terms, distribution, insurance), then proceed to
+        purchase / commitment docs, execution, and booking. Limits are checked
+        against the funded (advance) amount.
       </p>
-      <MultiTransactionCheck sellers={sellers} obligors={obligors} obligorEntities={obligorEntities} />
+      <MultiTransactionCheck sellers={sellers} obligors={obligors} obligorEntities={obligorEntities} reservations={reservations} />
       <Collapsible summary="Single detailed check (full breakdown, distribution & insurance)">
         <EligibilityCheck
           sellers={sellers}

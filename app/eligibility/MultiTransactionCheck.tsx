@@ -8,7 +8,20 @@ interface Opt { id: string; name: string }
 interface EntityOpt { groupId: string; id: string; name: string }
 interface Check { name?: string; category?: string; message: string; severity: string; status?: string; checkedAgainst?: string; txnValue?: string }
 
+// An open reservation the user can autofill a transaction from.
+export interface ResvOpt {
+  id: string;
+  sellerId: string;
+  obligorId: string;
+  obligorName: string;
+  amount: number;
+  valueDate: string;
+  maturityDate: string;
+  pricingBps: number;
+}
+
 interface Row {
+  reservationId?: string; // set when this row was autofilled from a reservation
   sellerId: string;
   obligorId: string;
   obligorEntityId: string;
@@ -37,7 +50,7 @@ const DECISION: Record<string, string> = {
 const SEV: Record<string, string> = { GREEN: "green", YELLOW: "yellow", ORANGE: "orange", RED: "red", GREY: "grey" };
 const mw = cellInput;
 
-export default function MultiTransactionCheck({ sellers, obligors, obligorEntities }: { sellers: Opt[]; obligors: Opt[]; obligorEntities: EntityOpt[] }) {
+export default function MultiTransactionCheck({ sellers, obligors, obligorEntities, reservations }: { sellers: Opt[]; obligors: Opt[]; obligorEntities: EntityOpt[]; reservations: ResvOpt[] }) {
   const blank = (): Row => ({
     sellerId: sellers[0]?.id ?? "",
     obligorId: obligors[0]?.id ?? "",
@@ -64,6 +77,27 @@ export default function MultiTransactionCheck({ sellers, obligors, obligorEntiti
   }
   function addRow() { setRows((rs) => [...rs, blank()]); }
   function removeRow(i: number) { setRows((rs) => rs.filter((_, j) => j !== i)); }
+
+  // Autofill the first transaction row from a selected reservation. The
+  // reservation amount is the coverage (funded) amount, so advance = 100%.
+  function loadReservation(rid: string) {
+    const rv = reservations.find((r) => r.id === rid);
+    if (!rv) return;
+    setRows((rs) => {
+      const filled: Row = {
+        ...blank(),
+        reservationId: rv.id,
+        sellerId: rv.sellerId,
+        obligorId: rv.obligorId,
+        invoiceAmount: String(rv.amount),
+        advanceRate: "100",
+        valueDate: rv.valueDate,
+        maturityDate: rv.maturityDate,
+        pricingBps: String(rv.pricingBps),
+      };
+      return [filled, ...rs.slice(1)];
+    });
+  }
 
   async function runAll() {
     setBusy(true);
@@ -98,6 +132,23 @@ export default function MultiTransactionCheck({ sellers, obligors, obligorEntiti
     <div className="panel">
       <h2>Check transactions ({rows.length})</h2>
       <div style={{ padding: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12, padding: "10px 12px", border: "1px solid var(--border)", borderRadius: 8, background: "#fafbfd" }}>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>Autofill from a reservation</span>
+          <select
+            defaultValue=""
+            onChange={(e) => { if (e.target.value) loadReservation(e.target.value); e.currentTarget.selectedIndex = 0; }}
+            style={{ border: "1px solid var(--border)", borderRadius: 6, padding: "8px 10px", fontSize: 13, minWidth: 320 }}
+          >
+            <option value="">Select an open reservation…</option>
+            {reservations.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.obligorName} | {usd(r.amount)} | {r.valueDate}
+              </option>
+            ))}
+          </select>
+          {reservations.length === 0 && <span className="muted" style={{ fontSize: 12 }}>No open reservations to load.</span>}
+          {rows[0]?.reservationId && <span className="badge grey" title="First row is loaded from this reservation">from {rows[0].reservationId}</span>}
+        </div>
         <div className="table-scroll">
           <table>
             <thead>

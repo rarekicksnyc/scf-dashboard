@@ -158,6 +158,8 @@ export async function POST(request: Request) {
     pricingBps: Number(b.pricingBps) || 0,
     rrlAmount: Math.min(Math.max(Number(b.rrlAmount) || 0, 0), coverage),
     tenorDays,
+    // Which lines this reservation blocks (BOTH default, or one side only).
+    scope: b.scope === "SELLER_ONLY" || b.scope === "OBLIGOR_ONLY" ? b.scope : "BOTH",
     // Hold the distribution / insurance capacity too (time-phased) when the
     // reservation is distributed / insured.
     investorAllocations: txn.distributed ? txn.investorAllocations : undefined,

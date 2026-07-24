@@ -10,7 +10,7 @@ interface Opt {
   name: string;
   cdl?: string;
 }
-type Mode = "LIMIT" | "SELLER" | "OBLIGOR" | "ASR_SUBLIMIT" | "BULK";
+type Mode = "LIMIT" | "SELLER" | "OBLIGOR" | "SELLER_ENTITY" | "OBLIGOR_ENTITY" | "ASR_SUBLIMIT" | "BULK";
 
 const LIMIT_TYPES: LimitType[] = [
   "SELLER",
@@ -151,6 +151,14 @@ export default function AddToRegistry({
         maxTenorDays: Number(f.maxTenorDays),
         expiryDate: f.expiryDate,
       };
+    } else if (mode === "SELLER_ENTITY" || mode === "OBLIGOR_ENTITY") {
+      body = {
+        kind: mode,
+        groupId: mode === "SELLER_ENTITY" ? f.sellerId : f.obligorId,
+        name: f.name,
+        cdl: f.cdl,
+        country: f.country,
+      };
     } else {
       body = {
         kind: "ASR_SUBLIMIT",
@@ -175,6 +183,7 @@ export default function AddToRegistry({
     router.refresh();
   }
 
+  const isEntity = mode === "SELLER_ENTITY" || mode === "OBLIGOR_ENTITY";
   const amountLabel =
     mode === "SELLER"
       ? "Credit limit (USD)"
@@ -194,8 +203,10 @@ export default function AddToRegistry({
           <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>What would you like to add?</div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {([
-              ["SELLER", "New seller"],
-              ["OBLIGOR", "New obligor"],
+              ["SELLER", "New seller group"],
+              ["SELLER_ENTITY", "Seller entity → group"],
+              ["OBLIGOR", "New obligor group"],
+              ["OBLIGOR_ENTITY", "Obligor entity → group"],
               ["LIMIT", "New limit"],
               ["ASR_SUBLIMIT", "ASR sublimit"],
               ["BULK", "Bulk upload (Excel)"],
@@ -314,16 +325,45 @@ export default function AddToRegistry({
             </>
           )}
 
-          <label style={field}>{amountLabel}
-            <input style={input} type="number" value={f.approvedLimit} onChange={(e) => set("approvedLimit", e.target.value)} />
-          </label>
-          <label style={field}>Max tenor (days)
-            <input style={input} type="number" value={f.maxTenorDays} onChange={(e) => set("maxTenorDays", e.target.value)} />
-          </label>
-          {mode !== "ASR_SUBLIMIT" && (
-            <label style={field}>Expiry date
-              <input style={input} type="date" value={f.expiryDate} onChange={(e) => set("expiryDate", e.target.value)} />
-            </label>
+          {(mode === "SELLER_ENTITY" || mode === "OBLIGOR_ENTITY") && (
+            <>
+              <label style={field}>{mode === "SELLER_ENTITY" ? "Seller group" : "Obligor group"}
+                {mode === "SELLER_ENTITY" ? (
+                  <select style={input} value={f.sellerId} onChange={(e) => set("sellerId", e.target.value)}>
+                    {sellers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                ) : (
+                  <select style={input} value={f.obligorId} onChange={(e) => set("obligorId", e.target.value)}>
+                    {obligors.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                  </select>
+                )}
+              </label>
+              <label style={field}>Legal entity name
+                <input style={input} value={f.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Global Buyer (UK) Ltd" />
+              </label>
+              <label style={field}>CDL (8-digit)
+                <input style={input} value={f.cdl} onChange={(e) => set("cdl", e.target.value)} placeholder="e.g. 10048231" />
+              </label>
+              <label style={field}>Domicile (country)
+                <input style={input} value={f.country} onChange={(e) => set("country", e.target.value)} />
+              </label>
+            </>
+          )}
+
+          {!isEntity && (
+            <>
+              <label style={field}>{amountLabel}
+                <input style={input} type="number" value={f.approvedLimit} onChange={(e) => set("approvedLimit", e.target.value)} />
+              </label>
+              <label style={field}>Max tenor (days)
+                <input style={input} type="number" value={f.maxTenorDays} onChange={(e) => set("maxTenorDays", e.target.value)} />
+              </label>
+              {mode !== "ASR_SUBLIMIT" && (
+                <label style={field}>Expiry date
+                  <input style={input} type="date" value={f.expiryDate} onChange={(e) => set("expiryDate", e.target.value)} />
+                </label>
+              )}
+            </>
           )}
         </div>
 

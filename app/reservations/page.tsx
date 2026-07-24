@@ -53,6 +53,7 @@ export default async function ReservationsPage() {
       tenorDays: r.tenorDays,
       pricingBps: r.pricingBps,
       status: r.status,
+      scope: r.scope,
       exception: stillFlagged,
       exceptionComment: r.exceptionComment,
       exceptionReasons: r.exceptionReasons,

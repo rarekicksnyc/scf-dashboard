@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { mm, dateShort } from "@/lib/format";
 import CancelButton from "./CancelButton";
 import EditReservationForm from "./EditReservationForm";
-import type { ReservationStatus, ReservationKind, SwinglineDirection } from "@/lib/types";
+import type { ReservationStatus, ReservationKind, SwinglineDirection, ReservationScope } from "@/lib/types";
 
 export interface BookRow {
   id: string;
@@ -21,6 +21,7 @@ export interface BookRow {
   tenorDays: number;
   pricingBps: number;
   status: ReservationStatus;
+  scope?: ReservationScope;
   exception?: boolean;
   exceptionComment?: string;
   exceptionReasons?: string[];
@@ -196,6 +197,8 @@ export default function ForwardBook({ rows, candidates, canBook }: { rows: BookR
                   ) : (
                     <span className="badge grey">Discount</span>
                   )}
+                  {r.scope === "SELLER_ONLY" && <span className="badge yellow" style={{ marginLeft: 4 }} title="Blocks the seller line only">seller only</span>}
+                  {r.scope === "OBLIGOR_ONLY" && <span className="badge yellow" style={{ marginLeft: 4 }} title="Blocks the obligor line only">obligor only</span>}
                 </td>
                 <td>{r.sellerId ? r.sellerName : <span className="muted">—</span>}</td>
                 <td>{r.obligorId ? r.obligorName : <span className="muted">—</span>}</td>
