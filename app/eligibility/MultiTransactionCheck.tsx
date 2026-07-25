@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usd } from "@/lib/format";
 import { cellInput, clampPct, coverageAmount } from "@/lib/ui";
 
@@ -50,7 +50,7 @@ const DECISION: Record<string, string> = {
 const SEV: Record<string, string> = { GREEN: "green", YELLOW: "yellow", ORANGE: "orange", RED: "red", GREY: "grey" };
 const mw = cellInput;
 
-export default function MultiTransactionCheck({ sellers, obligors, obligorEntities, reservations }: { sellers: Opt[]; obligors: Opt[]; obligorEntities: EntityOpt[]; reservations: ResvOpt[] }) {
+export default function MultiTransactionCheck({ sellers, obligors, obligorEntities, selected }: { sellers: Opt[]; obligors: Opt[]; obligorEntities: EntityOpt[]; selected: ResvOpt | null }) {
   const blank = (): Row => ({
     sellerId: sellers[0]?.id ?? "",
     obligorId: obligors[0]?.id ?? "",
@@ -78,26 +78,26 @@ export default function MultiTransactionCheck({ sellers, obligors, obligorEntiti
   function addRow() { setRows((rs) => [...rs, blank()]); }
   function removeRow(i: number) { setRows((rs) => rs.filter((_, j) => j !== i)); }
 
-  // Autofill the first transaction row from a selected reservation. The
+  // Autofill the first transaction row from the shared reservation selection. The
   // reservation amount is the coverage (funded) amount, so advance = 100%.
-  function loadReservation(rid: string) {
-    const rv = reservations.find((r) => r.id === rid);
-    if (!rv) return;
+  useEffect(() => {
+    if (!selected) return;
     setRows((rs) => {
       const filled: Row = {
         ...blank(),
-        reservationId: rv.id,
-        sellerId: rv.sellerId,
-        obligorId: rv.obligorId,
-        invoiceAmount: String(rv.amount),
+        reservationId: selected.id,
+        sellerId: selected.sellerId,
+        obligorId: selected.obligorId,
+        invoiceAmount: String(selected.amount),
         advanceRate: "100",
-        valueDate: rv.valueDate,
-        maturityDate: rv.maturityDate,
-        pricingBps: String(rv.pricingBps),
+        valueDate: selected.valueDate,
+        maturityDate: selected.maturityDate,
+        pricingBps: String(selected.pricingBps),
       };
       return [filled, ...rs.slice(1)];
     });
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.id]);
 
   async function runAll() {
     setBusy(true);
@@ -132,23 +132,7 @@ export default function MultiTransactionCheck({ sellers, obligors, obligorEntiti
     <div className="panel">
       <h2>Check transactions ({rows.length})</h2>
       <div style={{ padding: 14 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12, padding: "10px 12px", border: "1px solid var(--border)", borderRadius: 8, background: "#fafbfd" }}>
-          <span style={{ fontSize: 13, fontWeight: 600 }}>Autofill from a reservation</span>
-          <select
-            defaultValue=""
-            onChange={(e) => { if (e.target.value) loadReservation(e.target.value); e.currentTarget.selectedIndex = 0; }}
-            style={{ border: "1px solid var(--border)", borderRadius: 6, padding: "8px 10px", fontSize: 13, minWidth: 320 }}
-          >
-            <option value="">Select an open reservation…</option>
-            {reservations.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.obligorName} | {usd(r.amount)} | {r.valueDate}
-              </option>
-            ))}
-          </select>
-          {reservations.length === 0 && <span className="muted" style={{ fontSize: 12 }}>No open reservations to load.</span>}
-          {rows[0]?.reservationId && <span className="badge grey" title="First row is loaded from this reservation">from {rows[0].reservationId}</span>}
-        </div>
+        {rows[0]?.reservationId && <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>First row loaded from reservation <span className="badge grey">{rows[0].reservationId}</span></div>}
         <div className="table-scroll">
           <table>
             <thead>

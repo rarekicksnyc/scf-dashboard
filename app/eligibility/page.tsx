@@ -12,8 +12,7 @@ import {
 } from "@/lib/data/store";
 import { currentUserCan } from "@/lib/auth";
 import EligibilityCheck from "./EligibilityCheck";
-import MultiTransactionCheck from "./MultiTransactionCheck";
-import DocsSection from "./DocsSection";
+import TransactionFlowClient from "./TransactionFlowClient";
 import WorkflowPanel from "./WorkflowPanel";
 import Collapsible from "../Collapsible";
 
@@ -54,7 +53,14 @@ export default async function EligibilityPage() {
         purchase / commitment docs, execution, and booking. Limits are checked
         against the funded (advance) amount.
       </p>
-      <MultiTransactionCheck sellers={sellers} obligors={obligors} obligorEntities={obligorEntities} reservations={reservations} />
+      <TransactionFlowClient
+        sellers={sellers}
+        obligors={obligors}
+        obligorEntities={obligorEntities}
+        reservations={reservations}
+        templates={listDocTemplates()}
+        canBook={canBook}
+      />
       <Collapsible summary="Single detailed check (full breakdown, distribution & insurance)">
         <EligibilityCheck
           sellers={sellers}
@@ -65,8 +71,6 @@ export default async function EligibilityPage() {
           policies={policies}
         />
       </Collapsible>
-
-      <DocsSection sellers={sellers} reservations={reservations} templates={listDocTemplates()} canBook={canBook} />
 
       <WorkflowPanel
         workflows={listTransactionWorkflows()}

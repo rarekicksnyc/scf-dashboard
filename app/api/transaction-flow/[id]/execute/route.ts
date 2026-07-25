@@ -32,7 +32,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     executedDocId = doc.id;
   }
 
-  const authorized = isAuthorizedSigner(wf.sellerId, sellerEntityId, signerName);
+  // Amount-aware: a signatory's signing limit must cover the coverage amount.
+  const authorized = isAuthorizedSigner(wf.sellerId, sellerEntityId, signerName, wf.coverage);
   advanceWorkflow(id, {
     status: authorized ? "SIGNATURE_VERIFIED" : "SIGNATURE_FLAGGED",
     by: user.name,

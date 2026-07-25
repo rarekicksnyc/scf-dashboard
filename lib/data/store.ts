@@ -215,7 +215,7 @@ export function updateSeller(
       Seller,
       | "name" | "cdl" | "asrRating" | "asrExpiry" | "borrowerRating" | "borrowerRatingExpiry"
       | "gcarsNumber" | "guarantor" | "minPricingBps" | "rrlEnabled" | "rrlLimit" | "rrlExpiry"
-      | "status" | "eligible" | "internalRating"
+      | "status" | "eligible" | "internalRating" | "contactEmail"
     >
   >,
 ): Seller | undefined {
@@ -373,6 +373,23 @@ export function listBookedTransactions(): BookedTransaction[] {
   return store.bookedTransactions;
 }
 
+// Reverse a booking: remove the booked transaction (its outstanding exposure
+// drops everywhere and it leaves the calendar) and mark its workflow reversed.
+// The realised reservation is not restored — re-reserve if the deal is still live.
+export function removeBookedTransaction(id: string, by: string): BookedTransaction | undefined {
+  const i = store.bookedTransactions.findIndex((t) => t.id === id);
+  if (i < 0) return undefined;
+  const [removed] = store.bookedTransactions.splice(i, 1);
+  if (removed.workflowId) {
+    const wf = getTransactionWorkflow(removed.workflowId);
+    if (wf) {
+      wf.status = "CANCELLED";
+      wf.timeline.push({ at: new Date().toISOString(), by, event: `Booking reversed — booked transaction ${id} removed.` });
+    }
+  }
+  return removed;
+}
+
 // Final booking step: turn a workflow into a booked transaction (real, time-
 // phased outstanding), remove the reservation it realises, and mark the workflow
 // BOOKED. Carries the reservation's RRL split / scope / allocations if present.
@@ -430,14 +447,19 @@ export function removeSignatory(id: string): boolean {
   return true;
 }
 
-// Is a signer authorized for a seller (optionally a specific entity)? Matches by
-// name (case/space-insensitive). An entity-scoped transaction accepts either an
-// entity-specific signatory or a group-wide one.
-export function isAuthorizedSigner(sellerId: string, entityId: string | undefined, name: string): boolean {
+// Is a signer authorized for a seller (optionally a specific entity, and for an
+// amount)? Matches by name (case/space-insensitive); an entity-scoped
+// transaction accepts an entity-specific OR a group-wide signatory. A signatory
+// with a signing limit only qualifies when the amount is within it.
+export function isAuthorizedSigner(sellerId: string, entityId: string | undefined, name: string, amount = 0): boolean {
   const norm = (v: string) => v.trim().toLowerCase().replace(/\s+/g, " ");
   const target = norm(name);
   return store.signatories.some(
-    (s) => s.sellerId === sellerId && (!s.entityId || s.entityId === entityId) && norm(s.name) === target,
+    (s) =>
+      s.sellerId === sellerId &&
+      (!s.entityId || s.entityId === entityId) &&
+      norm(s.name) === target &&
+      (s.signingLimit == null || amount <= s.signingLimit),
   );
 }
 

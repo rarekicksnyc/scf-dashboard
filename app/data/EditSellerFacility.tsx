@@ -16,6 +16,7 @@ export interface SellerFacilityData {
   minPricingBps: number;
   rrlEnabled: boolean;
   status: string;
+  contactEmail: string;
 }
 
 // Read-only summary strings for the limit-backed lines (amounts + their expiries
@@ -48,6 +49,7 @@ export default function EditSellerFacility({
     minPricingBps: String(seller.minPricingBps ?? 0),
     rrlEnabled: seller.rrlEnabled,
     status: seller.status,
+    contactEmail: seller.contactEmail ?? "",
   });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -70,6 +72,7 @@ export default function EditSellerFacility({
         minPricingBps: Number(f.minPricingBps),
         rrlEnabled: f.rrlEnabled,
         status: f.status,
+        contactEmail: f.contactEmail,
       }),
     });
     setBusy(false);
@@ -126,6 +129,9 @@ export default function EditSellerFacility({
         </label>
         <label style={field}>Guarantor
           <input style={input} value={f.guarantor} onChange={(e) => set("guarantor", e.target.value)} placeholder="None" />
+        </label>
+        <label style={field}>Client contact email
+          <input style={input} type="email" value={f.contactEmail} onChange={(e) => set("contactEmail", e.target.value)} placeholder="for execution-request emails" />
         </label>
         <label style={field}>Min pricing (bps)
           <input style={input} type="number" value={f.minPricingBps} onChange={(e) => set("minPricingBps", e.target.value)} />

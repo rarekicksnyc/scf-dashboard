@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { usd } from "@/lib/format";
 import { inputBase as input, fieldLabel as field } from "@/lib/ui";
@@ -27,18 +27,20 @@ const slug = (s: string) => s.replace(/[^\w]+/g, "-").replace(/^-|-$/g, "");
 // to Word and Excel.
 export default function DocsSection({
   sellers,
-  reservations,
+  selected,
   templates,
   canBook,
 }: {
   sellers: Opt[];
-  reservations: ResvOpt[];
+  selected: ResvOpt | null;
   templates: DocTemplate[];
   canBook: boolean;
 }) {
   const router = useRouter();
   const today = new Date().toISOString().slice(0, 10);
   const [proceedMsg, setProceedMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [proceedBlock, setProceedBlock] = useState<string[] | null>(null);
+  const [proceedComment, setProceedComment] = useState("");
   const [f, setF] = useState({
     reservationId: "",
     obligorId: "",
@@ -59,23 +61,24 @@ export default function DocsSection({
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((s) => ({ ...s, [k]: v }));
   const isUtrc = f.productType === "UTRC";
 
-  function loadReservation(rid: string) {
-    const rv = reservations.find((r) => r.id === rid);
-    if (!rv) { set("reservationId", ""); return; }
+  // Autofill from the shared reservation selection.
+  useEffect(() => {
+    if (!selected) return;
     setF((s) => ({
       ...s,
-      reservationId: rid,
-      obligorId: rv.obligorId,
-      sellerId: rv.sellerId,
-      obligor: rv.obligorName,
-      amount: String(rv.amount),
+      reservationId: selected.id,
+      obligorId: selected.obligorId,
+      sellerId: selected.sellerId,
+      obligor: selected.obligorName,
+      amount: String(selected.amount),
       advanceRate: "100",
-      valueDate: rv.valueDate,
-      maturityDate: rv.maturityDate,
-      pricingBps: String(rv.pricingBps),
+      valueDate: selected.valueDate,
+      maturityDate: selected.maturityDate,
+      pricingBps: String(selected.pricingBps),
     }));
     setDocs(null);
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.id]);
 
   const sellerName = sellers.find((s) => s.id === f.sellerId)?.name ?? f.sellerId;
   const amount = Number(f.amount) || 0;
@@ -113,7 +116,7 @@ export default function DocsSection({
     setDocs(buildDocSet({ isUtrc, tokens, requestBody }));
   }
 
-  async function proceed() {
+  async function proceed(override = false) {
     setProceedMsg(null);
     const res = await fetch("/api/transaction-flow", {
       method: "POST",
@@ -132,10 +135,18 @@ export default function DocsSection({
         commitmentDueDate: isUtrc ? f.commitmentDueDate : undefined,
         finalDemandDate: isUtrc ? f.finalDemandDate : undefined,
         pricingBps: Number(f.pricingBps),
+        override,
+        comment: proceedComment,
       }),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) { setProceedMsg({ ok: false, text: data.error ?? "Could not proceed." }); return; }
+    if (!res.ok) {
+      if (data.canOverride) { setProceedBlock(data.breachReasons ?? []); setProceedMsg({ ok: false, text: data.error ?? "Does not clear." }); }
+      else setProceedMsg({ ok: false, text: data.error ?? "Could not proceed." });
+      return;
+    }
+    setProceedBlock(null);
+    setProceedComment("");
     setProceedMsg({ ok: true, text: `Transaction ${data.workflow.id} is now in progress — see In-progress transactions below.` });
     router.refresh();
   }
@@ -178,13 +189,8 @@ export default function DocsSection({
           export each to Word or Excel to view / edit. The request document is the one that gets signed.
         </p>
 
+        {f.reservationId && <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>Loaded from reservation <span className="badge grey">{f.reservationId}</span></div>}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10, marginBottom: 12 }}>
-          <label style={{ ...field, gridColumn: "span 2" }}>Autofill from reservation
-            <select style={input} value={f.reservationId} onChange={(e) => loadReservation(e.target.value)}>
-              <option value="">Select an open reservation…</option>
-              {reservations.map((r) => <option key={r.id} value={r.id}>{r.obligorName} | {usd(r.amount)} | {r.valueDate}</option>)}
-            </select>
-          </label>
           <label style={field}>Seller (template)
             <select style={input} value={f.sellerId} onChange={(e) => { set("sellerId", e.target.value); setDocs(null); }}>
               {sellers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -238,13 +244,26 @@ export default function DocsSection({
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <button className="btn" type="button" onClick={generate}>Generate documents</button>
           {canBook && (
-            <button className="btn secondary" type="button" onClick={proceed} disabled={!f.reservationId} title={f.reservationId ? "" : "Load a reservation first"}>
+            <button className="btn secondary" type="button" onClick={() => proceed(false)} disabled={!f.reservationId} title={f.reservationId ? "" : "Load a reservation first"}>
               Proceed with Transaction
             </button>
           )}
           {canBook && !f.reservationId && <span className="muted" style={{ fontSize: 11 }}>Load a reservation to proceed.</span>}
         </div>
         {proceedMsg && <div className={`notice ${proceedMsg.ok ? "ok" : "err"}`} style={{ marginTop: 10 }}>{proceedMsg.text}</div>}
+        {proceedBlock && (
+          <div style={{ marginTop: 10, border: "1px solid var(--orange)", borderRadius: 8, padding: 12, background: "var(--orange-bg)" }}>
+            <div style={{ fontWeight: 700, color: "var(--orange)", marginBottom: 6 }}>Does not clear — proceed with exception?</div>
+            <ul style={{ margin: "0 0 8px 18px", color: "var(--orange)", fontSize: 13 }}>{proceedBlock.map((r, i) => <li key={i}>{r}</li>)}</ul>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+              <label style={{ ...field, flex: 1, minWidth: 240 }}>Reason for exception (required)
+                <input style={input} value={proceedComment} onChange={(e) => setProceedComment(e.target.value)} placeholder="e.g. credit approved pending renewal" />
+              </label>
+              <button className="btn" type="button" disabled={!proceedComment.trim()} onClick={() => proceed(true)}>Proceed with exception</button>
+              <button className="btn secondary" type="button" onClick={() => { setProceedBlock(null); setProceedMsg(null); }}>Cancel</button>
+            </div>
+          </div>
+        )}
 
         {docs && (
           <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 16 }}>

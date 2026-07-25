@@ -31,6 +31,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (typeof b.rrlExpiry === "string") patch.rrlExpiry = b.rrlExpiry;
   if (typeof b.status === "string") patch.status = b.status as EntityStatus;
   if (typeof b.eligible === "boolean") patch.eligible = b.eligible;
+  if (typeof b.contactEmail === "string") patch.contactEmail = b.contactEmail.trim();
 
   const updated = updateSeller(id, patch);
   if (!updated) return NextResponse.json({ error: "Seller not found." }, { status: 404 });

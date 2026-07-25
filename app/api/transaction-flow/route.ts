@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { createTransactionWorkflow, getSeller, getObligor, addAudit } from "@/lib/data/store";
+import { createTransactionWorkflow, advanceWorkflow, getSeller, getObligor, addAudit } from "@/lib/data/store";
 import { getCurrentUser, roleHas } from "@/lib/auth";
+import { evaluateTxn } from "@/lib/workflowEligibility";
 import type { Currency, ProductType, ReservationScope } from "@/lib/types";
 
 // Proceed with a transaction — create an in-progress workflow from the checked
@@ -23,6 +24,27 @@ export async function POST(request: Request) {
   const coverage = productType === "UTRC" ? amount : Math.round(amount * advanceRate);
   if (!(coverage > 0)) return NextResponse.json({ error: "Amount must be greater than zero." }, { status: 422 });
 
+  const override = Boolean(b.override);
+  const comment = typeof b.comment === "string" ? b.comment.trim() : "";
+
+  // Governance: eligibility must clear (or be overridden with a reason) to
+  // proceed, so paperwork is only produced for a transaction that can book.
+  const evalr = evaluateTxn(
+    {
+      sellerId: seller.id, obligorId: obligor.id, obligorEntityId: b.obligorEntityId || undefined,
+      invoiceNumber: String(b.reference || "TXN"), invoiceAmount: amount, currency: (b.currency as Currency) || "USD", invoiceType: "FINAL",
+      advanceRate, valueDate: String(b.valueDate || ""), maturityDate: String(b.maturityDate || ""), pricingBps: Number(b.pricingBps) || 0,
+      productType, committedAmount: productType === "UTRC" ? amount : undefined,
+      commitmentDueDate: b.commitmentDueDate || undefined, finalDemandDate: b.finalDemandDate || undefined,
+      distributed: false, insured: false,
+    },
+    typeof b.reservationId === "string" ? b.reservationId : undefined,
+  );
+  if (!evalr.clears) {
+    if (!override) return NextResponse.json({ error: "This transaction does not clear the eligibility test.", canOverride: true, breachReasons: evalr.reasons }, { status: 422 });
+    if (!comment) return NextResponse.json({ error: "A reason is required to proceed despite the breach.", canOverride: true, breachReasons: evalr.reasons }, { status: 422 });
+  }
+
   const wf = createTransactionWorkflow({
     reservationId: typeof b.reservationId === "string" && b.reservationId ? b.reservationId : undefined,
     sellerId: seller.id,
@@ -44,6 +66,9 @@ export async function POST(request: Request) {
     scope: (b.scope as ReservationScope) || undefined,
     createdBy: user.name,
   });
+  if (!evalr.clears && override) {
+    advanceWorkflow(wf.id, { by: user.name, event: `Proceeded with exception (${evalr.decision}): ${comment}. Breach: ${evalr.reasons.join("; ")}` });
+  }
   addAudit({
     actorUserId: user.id,
     actorName: user.name,

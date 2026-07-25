@@ -117,6 +117,7 @@ export default async function DataManagementPage({
               minPricingBps: seller.minPricingBps,
               rrlEnabled: seller.rrlEnabled,
               status: seller.status,
+              contactEmail: seller.contactEmail ?? "",
             }}
             limits={{
               sellerLine: sellerLimit ? `${mm(sellerLimit.approvedLimit)} (exp ${dateShort(sellerLimit.expiryDate)})` : "—",

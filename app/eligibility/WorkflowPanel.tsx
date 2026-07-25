@@ -65,7 +65,23 @@ function Row({ w, sellerEntities, canBook }: { w: TransactionWorkflow; sellerEnt
   const [err, setErr] = useState<string | null>(null);
   const [showTimeline, setShowTimeline] = useState(false);
   const [exec, setExec] = useState({ signerName: "", signerTitle: "", sellerEntityId: "", fileName: "", fileBase64: "", contentType: "" });
+  const [bookBlock, setBookBlock] = useState<string[] | null>(null);
+  const [bookComment, setBookComment] = useState("");
   const st = STATUS[w.status];
+
+  async function book(override = false) {
+    setBusy(true); setErr(null);
+    const res = await fetch(`/api/transaction-flow/${w.id}/book`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ override, comment: bookComment }) });
+    const data = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) {
+      if (data.canOverride) { setBookBlock(data.breachReasons ?? []); setErr(data.error ?? "Does not clear."); }
+      else setErr(data.error ?? "Failed to book.");
+      return;
+    }
+    setBookBlock(null); setBookComment("");
+    router.refresh();
+  }
 
   async function post(path: string, body?: unknown) {
     setBusy(true); setErr(null);
@@ -147,13 +163,25 @@ function Row({ w, sellerEntities, canBook }: { w: TransactionWorkflow; sellerEnt
           <>
             <span className="badge green">Signer {w.signerName} verified</span>
             <button className="btn" style={{ padding: "6px 12px", fontSize: 12 }} type="button" disabled={busy} onClick={() => emailDraft("booking-email")}>Generate booking-team email</button>
-            <button className="btn" style={{ padding: "6px 12px", fontSize: 12, background: "var(--green)" }} type="button" disabled={busy} onClick={() => post("/book")}>Book transaction in system</button>
+            <button className="btn" style={{ padding: "6px 12px", fontSize: 12, background: "var(--green)" }} type="button" disabled={busy} onClick={() => book(false)}>Book transaction in system</button>
           </>
         )}
         {w.status === "BOOKING_EMAILED" && (
-          <button className="btn" style={{ padding: "6px 12px", fontSize: 12, background: "var(--green)" }} type="button" disabled={busy} onClick={() => post("/book")}>Book transaction in system</button>
+          <button className="btn" style={{ padding: "6px 12px", fontSize: 12, background: "var(--green)" }} type="button" disabled={busy} onClick={() => book(false)}>Book transaction in system</button>
         )}
       </div>
+      )}
+
+      {canBook && bookBlock && (
+        <div style={{ marginTop: 8, border: "1px solid var(--orange)", borderRadius: 8, padding: 12, background: "var(--orange-bg)" }}>
+          <div style={{ fontWeight: 700, color: "var(--orange)", marginBottom: 6, fontSize: 13 }}>No longer clears eligibility — book with exception?</div>
+          <ul style={{ margin: "0 0 8px 18px", color: "var(--orange)", fontSize: 12 }}>{bookBlock.map((r, i) => <li key={i}>{r}</li>)}</ul>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <input style={{ ...input, flex: 1, minWidth: 220, fontSize: 12 }} value={bookComment} onChange={(e) => setBookComment(e.target.value)} placeholder="Reason for exception (required)" />
+            <button className="btn" style={{ padding: "6px 12px", fontSize: 12, background: "var(--green)" }} type="button" disabled={busy || !bookComment.trim()} onClick={() => book(true)}>Book with exception</button>
+            <button className="btn secondary" style={{ padding: "6px 12px", fontSize: 12 }} type="button" onClick={() => { setBookBlock(null); setErr(null); }}>Cancel</button>
+          </div>
+        </div>
       )}
 
       {/* Executed-doc upload + signer check */}
