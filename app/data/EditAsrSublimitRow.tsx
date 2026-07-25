@@ -94,7 +94,9 @@ export default function EditAsrSublimitRow({
           ? <input style={{ ...inp, textAlign: "left" }} type="date" value={expiry} onChange={(e) => setExpiry(e.target.value)} />
           : (groupExpiry || "—")}
       </td>
-      <td className="muted">{groupSwingline}</td>
+      <td className="num" style={{ fontWeight: groupSwingline === "none" ? 400 : 600 }}>
+        {groupSwingline === "none" ? <span className="muted">none</span> : groupSwingline}
+      </td>
       <td>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Link href={`/data?seller=${sellerId}&group=${group.id}`} style={{ color: "var(--brand)", fontWeight: 600 }}>

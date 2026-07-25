@@ -177,7 +177,7 @@ export default async function DataManagementPage({
                 <th style={th} className="num">ASR sublimit</th>
                 <th style={th} className="num">Max tenor</th>
                 <th style={th}>Group expiry</th>
-                <th style={th}>Group swingline</th>
+                <th style={th} className="num">Obligor swingline limit</th>
                 <th style={th}>&nbsp;</th>
               </tr>
             </thead>
