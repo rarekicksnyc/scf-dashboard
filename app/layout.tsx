@@ -12,20 +12,20 @@ export const metadata: Metadata = {
 
 const NAV = [
   { href: "/", label: "Portfolio" },
-  { href: "/revenue", label: "Revenue" },
-  { href: "/eligibility", label: "Transaction Flow" },
-  { href: "/batches", label: "Batches" },
+  { href: "/schedule", label: "Schedule" },
   { href: "/data", label: "Data management" },
+  { href: "/reservations", label: "Reservations" },
+  { href: "/batches", label: "Batches" },
+  { href: "/eligibility", label: "Transaction Flow" },
   { href: "/documents", label: "Documents" },
   { href: "/rates", label: "Rate sheet" },
   { href: "/expirations", label: "Expirations" },
-  { href: "/reservations", label: "Reservations" },
-  { href: "/schedule", label: "Schedule" },
   { href: "/exceptions", label: "Exceptions" },
   { href: "/monitoring", label: "Enforceability" },
   { href: "/reports", label: "Reports", need: "VIEW_REPORTS" as const },
   { href: "/audit", label: "Audit log", need: "VIEW_AUDIT" as const },
   { href: "/access", label: "Roles & access", need: "MANAGE_ROLES" as const },
+  { href: "/revenue", label: "Revenue" },
 ];
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
