@@ -29,10 +29,12 @@ export default function DocsSection({
   sellers,
   reservations,
   templates,
+  canBook,
 }: {
   sellers: Opt[];
   reservations: ResvOpt[];
   templates: DocTemplate[];
+  canBook: boolean;
 }) {
   const router = useRouter();
   const today = new Date().toISOString().slice(0, 10);
@@ -235,10 +237,12 @@ export default function DocsSection({
 
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <button className="btn" type="button" onClick={generate}>Generate documents</button>
-          <button className="btn secondary" type="button" onClick={proceed} disabled={!f.reservationId} title={f.reservationId ? "" : "Load a reservation first"}>
-            Proceed with Transaction
-          </button>
-          {!f.reservationId && <span className="muted" style={{ fontSize: 11 }}>Load a reservation to proceed.</span>}
+          {canBook && (
+            <button className="btn secondary" type="button" onClick={proceed} disabled={!f.reservationId} title={f.reservationId ? "" : "Load a reservation first"}>
+              Proceed with Transaction
+            </button>
+          )}
+          {canBook && !f.reservationId && <span className="muted" style={{ fontSize: 11 }}>Load a reservation to proceed.</span>}
         </div>
         {proceedMsg && <div className={`notice ${proceedMsg.ok ? "ok" : "err"}`} style={{ marginTop: 10 }}>{proceedMsg.text}</div>}
 

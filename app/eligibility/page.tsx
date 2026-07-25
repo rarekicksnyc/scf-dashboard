@@ -10,6 +10,7 @@ import {
   listTransactionWorkflows,
   allSellerEntities,
 } from "@/lib/data/store";
+import { currentUserCan } from "@/lib/auth";
 import EligibilityCheck from "./EligibilityCheck";
 import MultiTransactionCheck from "./MultiTransactionCheck";
 import DocsSection from "./DocsSection";
@@ -18,7 +19,8 @@ import Collapsible from "../Collapsible";
 
 export const dynamic = "force-dynamic";
 
-export default function EligibilityPage() {
+export default async function EligibilityPage() {
+  const canBook = await currentUserCan("UPLOAD_BATCH");
   const sellers = allSellers().map((s) => ({ id: s.id, name: s.name }));
   const obligors = allObligors().map((o) => ({ id: o.id, name: o.name }));
   const obligorEntities = allObligorEntities().map((e) => ({ groupId: e.groupId, id: e.id, name: e.name }));
@@ -64,11 +66,12 @@ export default function EligibilityPage() {
         />
       </Collapsible>
 
-      <DocsSection sellers={sellers} reservations={reservations} templates={listDocTemplates()} />
+      <DocsSection sellers={sellers} reservations={reservations} templates={listDocTemplates()} canBook={canBook} />
 
       <WorkflowPanel
         workflows={listTransactionWorkflows()}
         sellerEntities={allSellerEntities().map((e) => ({ sellerId: e.facilityId, id: e.id, name: e.name }))}
+        canBook={canBook}
       />
     </>
   );

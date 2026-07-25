@@ -31,7 +31,7 @@ async function downloadEml(url: string) {
   return true;
 }
 
-export default function WorkflowPanel({ workflows, sellerEntities }: { workflows: TransactionWorkflow[]; sellerEntities: SellerEntityOpt[] }) {
+export default function WorkflowPanel({ workflows, sellerEntities, canBook }: { workflows: TransactionWorkflow[]; sellerEntities: SellerEntityOpt[]; canBook: boolean }) {
   const active = workflows.filter((w) => w.status !== "BOOKED" && w.status !== "CANCELLED");
   const done = workflows.filter((w) => w.status === "BOOKED" || w.status === "CANCELLED");
   return (
@@ -39,7 +39,7 @@ export default function WorkflowPanel({ workflows, sellerEntities }: { workflows
       <h2>In-progress transactions ({active.length})</h2>
       <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
         {active.length === 0 && <div className="muted" style={{ fontSize: 13 }}>None yet. Load a reservation above and click Proceed with Transaction.</div>}
-        {active.map((w) => <Row key={w.id} w={w} sellerEntities={sellerEntities.filter((e) => e.sellerId === w.sellerId)} />)}
+        {active.map((w) => <Row key={w.id} w={w} sellerEntities={sellerEntities.filter((e) => e.sellerId === w.sellerId)} canBook={canBook} />)}
         {done.length > 0 && (
           <details>
             <summary className="muted" style={{ cursor: "pointer", fontSize: 13 }}>Booked / cancelled ({done.length})</summary>
@@ -59,7 +59,7 @@ export default function WorkflowPanel({ workflows, sellerEntities }: { workflows
   );
 }
 
-function Row({ w, sellerEntities }: { w: TransactionWorkflow; sellerEntities: SellerEntityOpt[] }) {
+function Row({ w, sellerEntities, canBook }: { w: TransactionWorkflow; sellerEntities: SellerEntityOpt[]; canBook: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -117,7 +117,7 @@ function Row({ w, sellerEntities }: { w: TransactionWorkflow; sellerEntities: Se
         <button type="button" onClick={() => setShowTimeline((s) => !s)} style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--brand)", cursor: "pointer", fontSize: 12 }}>
           {showTimeline ? "▾ hide history" : `▸ history (${w.timeline.length})`}
         </button>
-        <button className="btn secondary" style={{ padding: "3px 8px", fontSize: 11, borderColor: "var(--red)", color: "var(--red)" }} type="button" onClick={cancel} disabled={busy}>Cancel</button>
+        {canBook && <button className="btn secondary" style={{ padding: "3px 8px", fontSize: 11, borderColor: "var(--red)", color: "var(--red)" }} type="button" onClick={cancel} disabled={busy}>Cancel</button>}
       </div>
 
       {showTimeline && (
@@ -129,6 +129,7 @@ function Row({ w, sellerEntities }: { w: TransactionWorkflow; sellerEntities: Se
       {err && <div className="notice err" style={{ marginTop: 8 }}>{err}</div>}
 
       {/* Stage actions */}
+      {canBook && (
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10, alignItems: "center" }}>
         {(w.status === "IN_PROGRESS" || w.status === "CLIENT_EMAILED") && (
           <button className="btn" style={{ padding: "6px 12px", fontSize: 12 }} type="button" disabled={busy} onClick={() => emailDraft("client-email")}>
@@ -153,9 +154,10 @@ function Row({ w, sellerEntities }: { w: TransactionWorkflow; sellerEntities: Se
           <button className="btn" style={{ padding: "6px 12px", fontSize: 12, background: "var(--green)" }} type="button" disabled={busy} onClick={() => post("/book")}>Book transaction in system</button>
         )}
       </div>
+      )}
 
       {/* Executed-doc upload + signer check */}
-      {canExecute && (
+      {canBook && canExecute && (
         <div style={{ marginTop: 10, padding: 10, border: "1px solid var(--border)", borderRadius: 8, background: "#fafbfd" }}>
           <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Upload executed document &amp; check signer</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 8, alignItems: "end" }}>

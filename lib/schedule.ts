@@ -1,4 +1,4 @@
-import { getReservations, getBatches } from "@/lib/data/store";
+import { getReservations, getBatches, listBookedTransactions } from "@/lib/data/store";
 import type { ScheduleEvent } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -60,6 +60,13 @@ export function buildScheduleEvents(): ScheduleEvent[] {
       refId: r.id,
       label: `Expected repayment ${r.id}`,
     });
+  }
+
+  // Booked transactions — real outstanding, time-phased: a funding on the value
+  // date and an expected repayment on the maturity date, just like the batch.
+  for (const t of listBookedTransactions()) {
+    events.push({ date: t.valueDate, type: "FUNDING", amount: t.amount, sellerId: t.sellerId, obligorId: t.obligorId, refId: t.id, label: `Booked ${t.reference} (${t.id})` });
+    events.push({ date: t.maturityDate, type: "REPAYMENT", amount: t.amount, sellerId: t.sellerId, obligorId: t.obligorId, refId: t.id, label: `Repayment ${t.reference}` });
   }
 
   // Funded batch invoices contribute a funding (value date) and an expected
