@@ -14,6 +14,7 @@ const NAV = [
   { href: "/", label: "Portfolio" },
   { href: "/schedule", label: "Schedule" },
   { href: "/data", label: "Data management" },
+  { href: "/revenue", label: "Revenue" },
   { href: "/reservations", label: "Reservations" },
   { href: "/batches", label: "Batches" },
   { href: "/eligibility", label: "Transaction Flow" },
@@ -25,7 +26,6 @@ const NAV = [
   { href: "/reports", label: "Reports", need: "VIEW_REPORTS" as const },
   { href: "/audit", label: "Audit log", need: "VIEW_AUDIT" as const },
   { href: "/access", label: "Roles & access", need: "MANAGE_ROLES" as const },
-  { href: "/revenue", label: "Revenue" },
 ];
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
