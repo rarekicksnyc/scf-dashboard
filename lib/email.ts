@@ -8,6 +8,21 @@ export interface EmlAttachment {
   base64: string; // already base64-encoded content
 }
 
+// Normalise one or more recipients — a delimited string ("a@x.com, b@y.com")
+// or a list — into a single RFC822 To/Cc header value. Splits on comma,
+// semicolon, or whitespace; trims; de-dupes (case-insensitive); drops blanks.
+export function toRecipients(input?: string | string[]): string | undefined {
+  if (!input) return undefined;
+  const raw = Array.isArray(input) ? input : input.split(/[,;\s]+/);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const e of raw) {
+    const v = e.trim();
+    if (v && !seen.has(v.toLowerCase())) { seen.add(v.toLowerCase()); out.push(v); }
+  }
+  return out.length ? out.join(", ") : undefined;
+}
+
 const BOUNDARY = "----=_scf_boundary_9f2c1a7b3e";
 
 function wrap76(s: string): string {

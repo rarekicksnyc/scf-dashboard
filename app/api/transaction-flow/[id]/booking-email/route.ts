@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { getTransactionWorkflow, advanceWorkflow, addAudit } from "@/lib/data/store";
+import { getTransactionWorkflow, advanceWorkflow, getSettings, addAudit } from "@/lib/data/store";
 import { getCurrentUser, roleHas } from "@/lib/auth";
 import { getDocument } from "@/lib/documents";
 import { workflowEmail, workflowAttachments } from "@/lib/txndocs";
-import { emlResponse, type EmlAttachment } from "@/lib/email";
+import { emlResponse, toRecipients, type EmlAttachment } from "@/lib/email";
 
 // Draft the booking / funding-team email (.eml) with the EXECUTED document and
 // Schedule A attached. Only once the signature is verified.
@@ -36,5 +36,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   }
   addAudit({ actorUserId: user.id, actorName: user.name, action: "TXN_FLOW_BOOKING_EMAIL", entityType: "TRANSACTION_WORKFLOW", entityId: id, detail: `Drafted booking email for ${wf.reference}.` });
 
-  return emlResponse(`booking-email-${wf.reference}.eml`, { subject, body, attachments });
+  const to = toRecipients(getSettings().bookingTeamEmails); // booking / funding-team distribution list
+  return emlResponse(`booking-email-${wf.reference}.eml`, { subject, body, to, attachments });
 }

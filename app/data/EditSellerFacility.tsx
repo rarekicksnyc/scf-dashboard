@@ -130,8 +130,8 @@ export default function EditSellerFacility({
         <label style={field}>Guarantor
           <input style={input} value={f.guarantor} onChange={(e) => set("guarantor", e.target.value)} placeholder="None" />
         </label>
-        <label style={field}>Client contact email
-          <input style={input} type="email" value={f.contactEmail} onChange={(e) => set("contactEmail", e.target.value)} placeholder="for execution-request emails" />
+        <label style={field}>Client contact email(s)
+          <input style={input} value={f.contactEmail} onChange={(e) => set("contactEmail", e.target.value)} placeholder="one or more, separated by commas" />
         </label>
         <label style={field}>Min pricing (bps)
           <input style={input} type="number" value={f.minPricingBps} onChange={(e) => set("minPricingBps", e.target.value)} />

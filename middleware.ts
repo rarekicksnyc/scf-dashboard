@@ -11,8 +11,8 @@ import { verifySession, SESSION_COOKIE, sessionSecret } from "@/lib/session";
 //    are redirected to /login; API calls get 401.
 // ---------------------------------------------------------------------------
 
-// Reachable without being logged in.
-const PUBLIC_PATHS = ["/login", "/api/login", "/api/logout"];
+// Reachable without being logged in (the guide is onboarding documentation).
+const PUBLIC_PATHS = ["/login", "/api/login", "/api/logout", "/guide"];
 
 export async function middleware(req: NextRequest) {
   // Layer 1 — optional shared site password.

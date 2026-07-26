@@ -138,7 +138,7 @@ export interface Seller {
   rrlEnabled: boolean;
   rrlLimit: number;
   rrlExpiry: string;
-  contactEmail?: string; // client contact for execution-request emails
+  contactEmail?: string; // client contact(s) for execution emails — one or more, comma/semicolon separated
   documents: LegalDocument[]; // program legal documentation checklist
 }
 

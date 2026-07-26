@@ -48,6 +48,10 @@ export default function LoginForm({ users }: { users: UserOpt[] }) {
         <button className="btn" type="submit" disabled={busy} style={{ width: "100%", padding: "10px 12px" }}>
           {busy ? "Signing in…" : "Sign in"}
         </button>
+
+        <div style={{ textAlign: "center", marginTop: 16, fontSize: 12 }} className="muted">
+          New here? <a href="/guide">Read the operations guide</a>
+        </div>
       </form>
     </div>
   );

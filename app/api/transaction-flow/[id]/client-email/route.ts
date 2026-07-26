@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getTransactionWorkflow, getSeller, advanceWorkflow, addAudit } from "@/lib/data/store";
 import { getCurrentUser, roleHas } from "@/lib/auth";
 import { workflowEmail, workflowAttachments } from "@/lib/txndocs";
-import { emlResponse } from "@/lib/email";
+import { emlResponse, toRecipients } from "@/lib/email";
 
 // Generate the client execution-request email draft (.eml) with the request doc
 // and Schedule A attached, and mark the workflow CLIENT_EMAILED. The user opens
@@ -18,7 +18,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   const { subject, body } = workflowEmail("CLIENT_EMAIL", wf);
   const attachments = workflowAttachments(wf);
-  const to = getSeller(wf.sellerId)?.contactEmail || undefined; // client contact, if on file
+  const to = toRecipients(getSeller(wf.sellerId)?.contactEmail); // one or more client contacts
 
   // Advance the workflow (once past docs). Keep BOOKED/EXECUTED states as-is.
   if (wf.status === "IN_PROGRESS") {

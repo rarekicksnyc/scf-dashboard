@@ -81,8 +81,16 @@ interface Store {
   transactionWorkflows: TransactionWorkflow[];
   bookedTransactions: BookedTransaction[];
   signatories: AuthorizedSignatory[];
+  settings: OrgSettings; // desk-wide, runtime-editable settings
   seq: number; // monotonic id counter
   migrations?: string[]; // one-time data fixes already applied to this store
+}
+
+// Desk-wide settings edited on-screen (not per entity). bookingTeamEmails is the
+// booking / funding-team distribution list — one or more addresses, comma or
+// semicolon separated — pre-filled as the To on every booking-team email draft.
+export interface OrgSettings {
+  bookingTeamEmails?: string;
 }
 
 function seedStore(): Store {
@@ -115,6 +123,7 @@ function seedStore(): Store {
     transactionWorkflows: [],
     bookedTransactions: [],
     signatories: [],
+    settings: {},
     // Start the id counter past the seeded reservation ids (RSV-0000N) so
     // generated ids never collide with seed ids.
     seq: seed.reservations.length,
@@ -1328,6 +1337,17 @@ export function getAuditLog(): AuditEntry[] {
 // ---------------------------------------------------------------------------
 // Users, roles & permissions (runtime-editable authority model)
 // ---------------------------------------------------------------------------
+
+// Desk-wide settings (booking-team recipients, etc.). Resilient to older
+// snapshots hydrated before the field existed.
+export function getSettings(): OrgSettings {
+  return (store.settings ??= {});
+}
+
+export function updateSettings(patch: Partial<OrgSettings>): OrgSettings {
+  store.settings = { ...getSettings(), ...patch };
+  return store.settings;
+}
 
 export function getUsers(): User[] {
   return store.users;

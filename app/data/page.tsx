@@ -13,6 +13,7 @@ import {
   activePolicies,
   listParentGuarantees,
   listSignatories,
+  getSettings,
 } from "@/lib/data/store";
 import { currentUserCan } from "@/lib/auth";
 import { mm, dateShort } from "@/lib/format";
@@ -26,6 +27,7 @@ import ObligorGroupsTable from "./ObligorGroupsTable";
 import DeleteSellerButton from "./DeleteSellerButton";
 import EditSellerFacility from "./EditSellerFacility";
 import SignatoryManager from "./SignatoryManager";
+import BookingRecipients from "./BookingRecipients";
 import AddObligorToFacility from "./AddObligorToFacility";
 import PcgRegister from "./PcgRegister";
 import ResetExposure from "./ResetExposure";
@@ -74,6 +76,10 @@ export default async function DataManagementPage({
         and ASR sublimits, and edit every facility, entity, and limit inline. All
         changes take effect immediately, feed the eligibility engine, and are audited.
       </p>
+
+      <Collapsible summary="Booking / funding-team email recipients">
+        <BookingRecipients value={getSettings().bookingTeamEmails ?? ""} canEdit={canEdit} />
+      </Collapsible>
 
       {canEdit && (
         <Collapsible summary="Add to register — new seller/obligor group, entity, limit, ASR sublimit, or bulk upload">
