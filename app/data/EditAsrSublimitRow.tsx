@@ -17,6 +17,8 @@ export default function EditAsrSublimitRow({
   maxTenorDays,
   selected,
   canEdit,
+  subRev,
+  groupRev,
 }: {
   sellerId: string;
   group: { id: string; name: string };
@@ -27,6 +29,8 @@ export default function EditAsrSublimitRow({
   maxTenorDays: number;
   selected: boolean;
   canEdit: boolean;
+  subRev?: number;
+  groupRev?: number;
 }) {
   const router = useRouter();
   const [sub, setSub] = useState(String(approvedLimit));
@@ -43,17 +47,21 @@ export default function EditAsrSublimitRow({
       fetch("/api/asr-sublimit", {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ sellerId, obligorId: group.id, approvedLimit: Number(sub), maxTenorDays: Number(tenor) }),
+        body: JSON.stringify({ sellerId, obligorId: group.id, approvedLimit: Number(sub), maxTenorDays: Number(tenor), rev: subRev }),
       }),
       expiry !== groupExpiry
         ? fetch(`/api/obligors/${group.id}`, {
             method: "PATCH",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ expiryDate: expiry }),
+            body: JSON.stringify({ expiryDate: expiry, rev: groupRev }),
           })
         : Promise.resolve(null),
     ]);
     setBusy(false);
+    if (subRes.status === 409 || (grpRes && grpRes.status === 409)) {
+      setMsg("Changed by another user — refresh and re-apply.");
+      return;
+    }
     if (!subRes.ok || (grpRes && !grpRes.ok)) {
       setMsg("Failed");
       return;

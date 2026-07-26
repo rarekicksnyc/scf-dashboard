@@ -151,6 +151,7 @@ export default async function DataManagementPage({
                   entity={{ id: e.id, name: e.name, cdl: e.cdl, domicile: e.domicile }}
                   countries={countries}
                   canEdit={canEdit}
+                  rev={recordRev(`sellerEntity:${e.id}`)}
                 />
               ))}
             </tbody>
@@ -198,6 +199,8 @@ export default async function DataManagementPage({
               maxTenorDays: x.maxTenorDays,
               selected: x.obligorId === groupId,
               canEdit,
+              subRev: recordRev(`asr:${sellerId}:${x.obligorId}`),
+              groupRev: recordRev(`obligor:${x.obligorId}`),
             };
           })}
         />
@@ -234,6 +237,7 @@ export default async function DataManagementPage({
                   countries={countries}
                   policies={policies}
                   canEdit={canEdit}
+                  rev={recordRev(`obligorEntity:${e.id}`)}
                 />
               ))}
             </tbody>
@@ -256,6 +260,7 @@ export default async function DataManagementPage({
             sellers={sellers.map((s) => ({ id: s.id, name: s.name }))}
             obligors={allObligors().map((o) => ({ id: o.id, name: o.name }))}
             canEdit={canEdit}
+            revs={Object.fromEntries(listParentGuarantees().map((p) => [p.id, recordRev(`pcg:${p.id}`)]))}
           />
         </Collapsible>
       </div>

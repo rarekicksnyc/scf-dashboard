@@ -3,6 +3,9 @@ import {
   addParentGuarantee,
   updateParentGuarantee,
   removeParentGuarantee,
+  recordUnchanged,
+  recordRev,
+  bumpRecordRev,
   addAudit,
 } from "@/lib/data/store";
 import { getCurrentUser, roleHas } from "@/lib/auth";
@@ -65,12 +68,17 @@ export async function PATCH(request: Request) {
   }
   const b = await request.json().catch(() => ({}));
   if (typeof b.id !== "string") return NextResponse.json({ error: "Expected a PCG id." }, { status: 400 });
+  const revKey = `pcg:${b.id}`;
+  if (b.rev != null && !recordUnchanged(revKey, Number(b.rev))) {
+    return NextResponse.json({ error: "This guarantee was changed by another user since you opened it.", current: recordRev(revKey) }, { status: 409 });
+  }
   const patch = readFields(b);
   if (patch.continuing === false && "expiryDate" in patch && !patch.expiryDate) {
     return NextResponse.json({ error: "A non-continuing guarantee needs an expiry date." }, { status: 422 });
   }
   const updated = updateParentGuarantee(b.id, patch);
   if (!updated) return NextResponse.json({ error: "PCG not found." }, { status: 404 });
+  const newRev = bumpRecordRev(revKey);
   addAudit({
     actorUserId: user.id,
     actorName: user.name,
@@ -79,7 +87,7 @@ export async function PATCH(request: Request) {
     entityId: b.id,
     detail: `Updated ${Object.keys(patch).join(", ")}.`,
   });
-  return NextResponse.json({ ok: true, pcg: updated });
+  return NextResponse.json({ ok: true, pcg: updated, rev: newRev });
 }
 
 export async function DELETE(request: Request) {

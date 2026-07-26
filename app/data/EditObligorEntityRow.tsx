@@ -31,11 +31,13 @@ export default function EditObligorEntityRow({
   countries,
   policies,
   canEdit,
+  rev,
 }: {
   entity: ObligorEntityData;
   countries: Country[];
   policies: Policy[];
   canEdit: boolean;
+  rev?: number;
 }) {
   const router = useRouter();
   const [f, setF] = useState({
@@ -87,9 +89,14 @@ export default function EditObligorEntityRow({
         pcg: f.pcg,
         pcgExpiry: f.pcgExpiry,
         pcgLimit: f.pcgLimit === "" ? undefined : Number(f.pcgLimit),
+        rev,
       }),
     });
     setBusy(false);
+    if (res.status === 409) {
+      setMsg("Changed by another user — refresh and re-apply.");
+      return;
+    }
     if (!res.ok) {
       setMsg((await res.json()).error ?? "Failed");
       return;

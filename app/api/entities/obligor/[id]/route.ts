@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { updateObligorEntity, removeObligorEntity, addAudit } from "@/lib/data/store";
+import { updateObligorEntity, removeObligorEntity, recordUnchanged, recordRev, bumpRecordRev, addAudit } from "@/lib/data/store";
 import { getCurrentUser, roleHas } from "@/lib/auth";
 import type { PcgFlag } from "@/lib/types";
 
@@ -13,6 +13,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   const b = await request.json().catch(() => ({}));
+  const revKey = `obligorEntity:${id}`;
+  if (b.rev != null && !recordUnchanged(revKey, Number(b.rev))) {
+    return NextResponse.json({ error: "This obligor entity was changed by another user since you opened it.", current: recordRev(revKey) }, { status: 409 });
+  }
   const patch: {
     name?: string; cdl?: string; bookingCdl?: string; domicile?: string;
     borrowerRating?: string; borrowerRatingExpiry?: string;
@@ -40,6 +44,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const updated = updateObligorEntity(id, patch);
   if (!updated) return NextResponse.json({ error: "Obligor entity not found." }, { status: 404 });
+  const newRev = bumpRecordRev(revKey);
 
   addAudit({
     actorUserId: user.id,
@@ -50,7 +55,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     detail: `Updated ${Object.keys(patch).join(", ")}.`,
   });
 
-  return NextResponse.json({ ok: true, entity: updated });
+  return NextResponse.json({ ok: true, entity: updated, rev: newRev });
 }
 
 // Remove an eligible obligor legal entity.

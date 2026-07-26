@@ -20,11 +20,13 @@ export default function PcgRegister({
   sellers,
   obligors,
   canEdit,
+  revs,
 }: {
   pcgs: ParentCompanyGuarantee[];
   sellers: Opt[];
   obligors: Opt[];
   canEdit: boolean;
+  revs?: Record<string, number>;
 }) {
   const router = useRouter();
   const blank = { parentName: "", sellerId: "", obligorId: "", coveredObligorId: "", continuing: false, expiryDate: "", limitAmount: "" };
@@ -128,7 +130,7 @@ export default function PcgRegister({
                 <tr><td colSpan={canEdit ? 7 : 6} className="muted" style={{ padding: 14 }}>No parent company guarantees on file.</td></tr>
               ) : (
                 pcgs.map((p) => (
-                  <PcgRow key={p.id} pcg={p} sellers={sellers} obligors={obligors} canEdit={canEdit} />
+                  <PcgRow key={p.id} pcg={p} sellers={sellers} obligors={obligors} canEdit={canEdit} rev={revs?.[p.id]} />
                 ))
               )}
             </tbody>
@@ -139,7 +141,7 @@ export default function PcgRegister({
   );
 }
 
-function PcgRow({ pcg, sellers, obligors, canEdit }: { pcg: ParentCompanyGuarantee; sellers: Opt[]; obligors: Opt[]; canEdit: boolean }) {
+function PcgRow({ pcg, sellers, obligors, canEdit, rev }: { pcg: ParentCompanyGuarantee; sellers: Opt[]; obligors: Opt[]; canEdit: boolean; rev?: number }) {
   const router = useRouter();
   const [edit, setEdit] = useState(false);
   const [f, setF] = useState({
@@ -168,9 +170,11 @@ function PcgRow({ pcg, sellers, obligors, canEdit }: { pcg: ParentCompanyGuarant
         continuing: f.continuing,
         expiryDate: f.continuing ? undefined : f.expiryDate,
         limitAmount: f.limitAmount === "" ? undefined : Number(f.limitAmount),
+        rev,
       }),
     });
     setBusy(false);
+    if (res.status === 409) { alert("This guarantee was changed by another user since you opened it. Refresh and re-apply."); return; }
     if (res.ok) { setEdit(false); router.refresh(); }
   }
 

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { updateSellerEntity, removeSellerEntity, addAudit } from "@/lib/data/store";
+import { updateSellerEntity, removeSellerEntity, recordUnchanged, recordRev, bumpRecordRev, addAudit } from "@/lib/data/store";
 import { getCurrentUser, roleHas } from "@/lib/auth";
 
 // Edit an eligible seller legal entity (name, CDL, domicile) from Data Management.
@@ -11,6 +11,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   const b = await request.json().catch(() => ({}));
+  const key = `sellerEntity:${id}`;
+  if (b.rev != null && !recordUnchanged(key, Number(b.rev))) {
+    return NextResponse.json({ error: "This seller entity was changed by another user since you opened it.", current: recordRev(key) }, { status: 409 });
+  }
   const patch: { name?: string; cdl?: string; domicile?: string } = {};
   if (typeof b.name === "string" && b.name.trim()) patch.name = b.name.trim();
   if (typeof b.cdl === "string") {
@@ -23,6 +27,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const updated = updateSellerEntity(id, patch);
   if (!updated) return NextResponse.json({ error: "Seller entity not found." }, { status: 404 });
+  const newRev = bumpRecordRev(key);
 
   addAudit({
     actorUserId: user.id,
@@ -33,7 +38,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     detail: `Updated ${Object.entries(patch).map(([k, v]) => `${k}=${v}`).join(", ")}.`,
   });
 
-  return NextResponse.json({ ok: true, entity: updated });
+  return NextResponse.json({ ok: true, entity: updated, rev: newRev });
 }
 
 // Remove an eligible seller legal entity.

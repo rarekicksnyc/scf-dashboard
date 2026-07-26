@@ -11,10 +11,12 @@ export default function EditSellerEntityRow({
   entity,
   countries,
   canEdit,
+  rev,
 }: {
   entity: { id: string; name: string; cdl: string; domicile: string };
   countries: Country[];
   canEdit: boolean;
+  rev?: number;
 }) {
   const router = useRouter();
   const [name, setName] = useState(entity.name);
@@ -39,9 +41,13 @@ export default function EditSellerEntityRow({
     const res = await fetch(`/api/entities/seller/${entity.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name, cdl, domicile }),
+      body: JSON.stringify({ name, cdl, domicile, rev }),
     });
     setBusy(false);
+    if (res.status === 409) {
+      setMsg("Changed by another user — refresh and re-apply.");
+      return;
+    }
     if (!res.ok) {
       setMsg((await res.json()).error ?? "Failed");
       return;

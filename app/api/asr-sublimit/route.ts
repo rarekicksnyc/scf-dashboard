@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { updateSellerObligorLimit, removeSellerObligorLimit, addAudit } from "@/lib/data/store";
+import { updateSellerObligorLimit, removeSellerObligorLimit, recordUnchanged, recordRev, bumpRecordRev, addAudit } from "@/lib/data/store";
 import { getCurrentUser, roleHas } from "@/lib/auth";
 
 // Edit an ASR approved-obligor sublimit (amount / max tenor) — keyed by the
@@ -15,12 +15,18 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Expected sellerId and obligorId." }, { status: 400 });
   }
 
+  const key = `asr:${b.sellerId}:${b.obligorId}`;
+  if (b.rev != null && !recordUnchanged(key, Number(b.rev))) {
+    return NextResponse.json({ error: "This ASR sublimit was changed by another user since you opened it.", current: recordRev(key) }, { status: 409 });
+  }
+
   const patch: { approvedLimit?: number; maxTenorDays?: number } = {};
   if (b.approvedLimit != null && Number(b.approvedLimit) >= 0) patch.approvedLimit = Number(b.approvedLimit);
   if (b.maxTenorDays != null && Number(b.maxTenorDays) >= 0) patch.maxTenorDays = Number(b.maxTenorDays);
 
   const updated = updateSellerObligorLimit(b.sellerId, b.obligorId, patch);
   if (!updated) return NextResponse.json({ error: "ASR sublimit not found." }, { status: 404 });
+  const newRev = bumpRecordRev(key);
 
   addAudit({
     actorUserId: user.id,
@@ -31,7 +37,7 @@ export async function PATCH(request: Request) {
     detail: `Updated ${Object.entries(patch).map(([k, v]) => `${k}=${v}`).join(", ")}.`,
   });
 
-  return NextResponse.json({ ok: true, sublimit: updated });
+  return NextResponse.json({ ok: true, sublimit: updated, rev: newRev });
 }
 
 // Remove an obligor group from a seller's ASR approved list.

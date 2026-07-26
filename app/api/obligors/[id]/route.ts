@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { updateObligor, removeObligor, addAudit } from "@/lib/data/store";
+import { updateObligor, removeObligor, recordUnchanged, recordRev, bumpRecordRev, addAudit } from "@/lib/data/store";
 import { getCurrentUser, roleHas } from "@/lib/auth";
 import type { Obligor } from "@/lib/types";
 
@@ -12,6 +12,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   const b = await request.json().catch(() => ({}));
+  const key = `obligor:${id}`;
+  if (b.rev != null && !recordUnchanged(key, Number(b.rev))) {
+    return NextResponse.json({ error: "This obligor was changed by another user since you opened it.", current: recordRev(key) }, { status: 409 });
+  }
   const patch: Partial<Obligor> = {};
   if (typeof b.name === "string" && b.name.trim()) patch.name = b.name.trim();
   if (typeof b.cdl === "string") {
@@ -28,6 +32,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const updated = updateObligor(id, patch);
   if (!updated) return NextResponse.json({ error: "Obligor not found." }, { status: 404 });
+  const newRev = bumpRecordRev(key);
 
   addAudit({
     actorUserId: user.id,
@@ -38,7 +43,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     detail: `Updated ${Object.entries(patch).map(([k, v]) => `${k}=${v}`).join(", ")}.`,
   });
 
-  return NextResponse.json({ ok: true, obligor: updated });
+  return NextResponse.json({ ok: true, obligor: updated, rev: newRev });
 }
 
 // Remove an obligor group and everything tied only to it.

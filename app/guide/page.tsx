@@ -29,7 +29,7 @@ const BATCH_FLOW = "Batches upload many invoices at once. Each is run through th
 const CONCURRENCY: [string, string][] = [
   ["One shared live book", "Everyone works on the same book on one server. The moment anyone books a deal, edits a limit, or records a collection, the change is saved for every user at once — there are no separate copies to reconcile."],
   ["Screens update on their own", "Each screen quietly checks for changes and refreshes itself within about fifteen seconds of anyone making one, so you are never looking at stale numbers. It pauses while a tab is in the background and never interrupts you mid-typing. You do not need to reload manually."],
-  ["Edit-conflict protection", "If you and a colleague edit the same limit or seller facility at the same time, the second save is blocked with a “changed since you opened it” notice instead of silently overwriting the other person. Reload the latest and re-apply your change."],
+  ["Edit-conflict protection", "If you and a colleague edit the same record the engine tests against — a limit, seller facility, obligor, ASR sublimit, eligible entity, or parent guarantee — at the same time, the second save is blocked with a “changed since you opened it” notice instead of silently overwriting the other person. Reload the latest and re-apply your change."],
   ["Every change is traceable", "The Audit log records who did what and when, so simultaneous activity across the desk is always accountable. Breaches additionally need a second approver (four eyes)."],
 ];
 

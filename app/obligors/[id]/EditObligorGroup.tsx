@@ -19,7 +19,7 @@ export interface ObligorGroupData {
 
 // Edit an obligor group's own fields (name changes, country, sector, status,
 // eligibility, group approval expiry, guarantee flags). Gated to PM & Admin.
-export default function EditObligorGroup({ obligor, countries }: { obligor: ObligorGroupData; countries: { code: string; name: string }[] }) {
+export default function EditObligorGroup({ obligor, countries, rev }: { obligor: ObligorGroupData; countries: { code: string; name: string }[]; rev?: number }) {
   const router = useRouter();
   const [f, setF] = useState({
     name: obligor.name,
@@ -41,9 +41,13 @@ export default function EditObligorGroup({ obligor, countries }: { obligor: Obli
     const res = await fetch(`/api/obligors/${obligor.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(f),
+      body: JSON.stringify({ ...f, rev }),
     });
     setBusy(false);
+    if (res.status === 409) {
+      setMsg({ ok: false, text: "Another user changed this obligor since you opened it. Refresh and re-apply." });
+      return;
+    }
     if (!res.ok) {
       setMsg({ ok: false, text: (await res.json().catch(() => ({}))).error ?? "Failed to save." });
       return;

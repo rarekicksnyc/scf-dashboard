@@ -13,6 +13,8 @@ export interface AsrRowData {
   maxTenorDays: number;
   selected: boolean;
   canEdit: boolean;
+  subRev?: number;
+  groupRev?: number;
 }
 
 const th = { fontSize: 11, textTransform: "uppercase" as const, letterSpacing: "0.03em" };
@@ -68,6 +70,8 @@ export default function ObligorGroupsTable({ rows }: { rows: AsrRowData[] }) {
                   maxTenorDays={r.maxTenorDays}
                   selected={r.selected}
                   canEdit={r.canEdit}
+                  subRev={r.subRev}
+                  groupRev={r.groupRev}
                 />
               ))
             )}
