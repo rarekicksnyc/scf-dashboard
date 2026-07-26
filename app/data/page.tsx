@@ -22,13 +22,14 @@ import SellerFacilityPicker from "./SellerFacilityPicker";
 import SwinglineAdjustment from "./SwinglineAdjustment";
 import EditSellerEntityRow from "./EditSellerEntityRow";
 import EditObligorEntityRow from "./EditObligorEntityRow";
-import EditAsrSublimitRow from "./EditAsrSublimitRow";
+import ObligorGroupsTable from "./ObligorGroupsTable";
 import DeleteSellerButton from "./DeleteSellerButton";
 import EditSellerFacility from "./EditSellerFacility";
 import SignatoryManager from "./SignatoryManager";
 import AddObligorToFacility from "./AddObligorToFacility";
 import PcgRegister from "./PcgRegister";
 import ResetExposure from "./ResetExposure";
+import Collapsible from "../Collapsible";
 
 export const dynamic = "force-dynamic";
 
@@ -75,21 +76,25 @@ export default async function DataManagementPage({
       </p>
 
       {canEdit && (
-        <AddToRegistry
-          sellers={sellers.map((s) => ({ id: s.id, name: s.name, cdl: s.cdl }))}
-          obligors={allObligors().map((o) => ({ id: o.id, name: o.name, cdl: o.cdl }))}
-          investors={activeInvestors().map((i) => ({ id: i.id, name: i.name }))}
-          policies={activePolicies().map((p) => ({ id: p.id, name: `${p.insurerName} · ${p.policyNumber}` }))}
-        />
+        <Collapsible summary="Add to register — new seller/obligor group, entity, limit, ASR sublimit, or bulk upload">
+          <AddToRegistry
+            sellers={sellers.map((s) => ({ id: s.id, name: s.name, cdl: s.cdl }))}
+            obligors={allObligors().map((o) => ({ id: o.id, name: o.name, cdl: o.cdl }))}
+            investors={activeInvestors().map((i) => ({ id: i.id, name: i.name }))}
+            policies={activePolicies().map((p) => ({ id: p.id, name: `${p.insurerName} · ${p.policyNumber}` }))}
+          />
+        </Collapsible>
       )}
 
       {canBook && (
-        <SwinglineAdjustment
-          sellers={sellers.map((s) => ({ id: s.id, name: s.name }))}
-          obligors={allObligors().map((o) => ({ id: o.id, name: o.name }))}
-          rrlSwlSellers={rrlSwlSellers}
-          canBook={canBook}
-        />
+        <Collapsible summary="Swingline adjustment (seller, obligor, or RRL)">
+          <SwinglineAdjustment
+            sellers={sellers.map((s) => ({ id: s.id, name: s.name }))}
+            obligors={allObligors().map((o) => ({ id: o.id, name: o.name }))}
+            rrlSwlSellers={rrlSwlSellers}
+            canBook={canBook}
+          />
+        </Collapsible>
       )}
 
       <SellerFacilityPicker
@@ -146,13 +151,15 @@ export default async function DataManagementPage({
       </div>
 
       {seller && (
-        <SignatoryManager
-          sellerId={seller.id}
-          sellerName={seller.name}
-          entities={sellerEntitiesOf(seller.id).map((e) => ({ id: e.id, name: e.name }))}
-          signatories={listSignatories(seller.id).map((s) => ({ id: s.id, entityId: s.entityId, name: s.name, title: s.title, signingLimit: s.signingLimit }))}
-          canEdit={canEdit}
-        />
+        <Collapsible summary={`Authorized signatories — ${seller.name} (${listSignatories(seller.id).length})`}>
+          <SignatoryManager
+            sellerId={seller.id}
+            sellerName={seller.name}
+            entities={sellerEntitiesOf(seller.id).map((e) => ({ id: e.id, name: e.name }))}
+            signatories={listSignatories(seller.id).map((s) => ({ id: s.id, entityId: s.entityId, name: s.name, title: s.title, signingLimit: s.signingLimit }))}
+            canEdit={canEdit}
+          />
+        </Collapsible>
       )}
 
       {/* Box 2: obligor groups under this seller's ASR */}
@@ -168,42 +175,24 @@ export default async function DataManagementPage({
             everyObligor={allObligors().map((o) => ({ id: o.id, name: o.name }))}
           />
         )}
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th style={th}>Obligor group</th>
-                <th style={th} className="num">Global limit</th>
-                <th style={th} className="num">ASR sublimit</th>
-                <th style={th} className="num">Max tenor</th>
-                <th style={th}>Group expiry</th>
-                <th style={th} className="num">Obligor swingline limit</th>
-                <th style={th}>&nbsp;</th>
-              </tr>
-            </thead>
-            <tbody>
-              {asrObligors.map((x) => {
-                const o = getObligor(x.obligorId);
-                const gl = findLimit("OBLIGOR", x.obligorId);
-                const gs = findLimit("SWINGLINE", x.obligorId);
-                return (
-                  <EditAsrSublimitRow
-                    key={x.obligorId}
-                    sellerId={sellerId!}
-                    group={{ id: x.obligorId, name: o?.name ?? x.obligorId }}
-                    globalLimit={gl ? mm(gl.approvedLimit) : "—"}
-                    groupExpiry={o?.expiryDate ?? ""}
-                    groupSwingline={gs ? `${mm(gs.approvedLimit)} exp ${dateShort(gs.expiryDate)}` : "none"}
-                    approvedLimit={x.approvedLimit}
-                    maxTenorDays={x.maxTenorDays}
-                    selected={x.obligorId === groupId}
-                    canEdit={canEdit}
-                  />
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <ObligorGroupsTable
+          rows={asrObligors.map((x) => {
+            const o = getObligor(x.obligorId);
+            const gl = findLimit("OBLIGOR", x.obligorId);
+            const gs = findLimit("SWINGLINE", x.obligorId);
+            return {
+              sellerId: sellerId!,
+              group: { id: x.obligorId, name: o?.name ?? x.obligorId },
+              globalLimit: gl ? mm(gl.approvedLimit) : "—",
+              groupExpiry: o?.expiryDate ?? "",
+              groupSwingline: gs ? `${mm(gs.approvedLimit)} exp ${dateShort(gs.expiryDate)}` : "none",
+              approvedLimit: x.approvedLimit,
+              maxTenorDays: x.maxTenorDays,
+              selected: x.obligorId === groupId,
+              canEdit,
+            };
+          })}
+        />
       </div>
 
       {/* Box 3: obligor entities under the selected group */}
@@ -244,35 +233,31 @@ export default async function DataManagementPage({
         </div>
       </div>
 
-      {/* Full editable limit register (moved here from its own tab) */}
-      <h2 className="page-title" style={{ fontSize: 20, marginTop: 8 }}>Limit register</h2>
-      <p className="page-sub">
-        Every limit the engine checks against — seller line, ASR, RRL, obligor,
-        swingline, investor, and insurance. Inline-editable (amount, max tenor,
-        expiry, status) with CHANGE_LIMIT; edits feed the eligibility engine and
-        every exposure view. Available capacity is always derived, never stored.
-      </p>
-      <LimitRegister />
+      {/* Full editable limit register (collapsed to keep the page light) */}
+      <div style={{ marginTop: 8 }}>
+        <Collapsible summary="Limit register — every limit the engine checks (seller, ASR, RRL, obligor, swingline, investor, insurance), inline-editable">
+          <LimitRegister />
+        </Collapsible>
+      </div>
 
-      {/* Parent Company Guarantees — track/edit across all sellers and obligors */}
-      <h2 className="page-title" style={{ fontSize: 20, marginTop: 8 }}>Parent Company Guarantees</h2>
-      <p className="page-sub">
-        Record a parent company guarantee against any seller and/or obligor — parent name, the
-        seller and obligor it supports, the obligor covered, guarantee limit, and an expiry date or a
-        continuing unconditional (indefinite) guarantee. Dated guarantees flow into the Expirations tab.
-      </p>
-      <PcgRegister
-        pcgs={listParentGuarantees()}
-        sellers={sellers.map((s) => ({ id: s.id, name: s.name }))}
-        obligors={allObligors().map((o) => ({ id: o.id, name: o.name }))}
-        canEdit={canEdit}
-      />
+      {/* Parent Company Guarantees */}
+      <div style={{ marginTop: 8 }}>
+        <Collapsible summary={`Parent Company Guarantees (${listParentGuarantees().length}) — parent, seller/obligor supported, limit, expiry or continuing`}>
+          <PcgRegister
+            pcgs={listParentGuarantees()}
+            sellers={sellers.map((s) => ({ id: s.id, name: s.name }))}
+            obligors={allObligors().map((o) => ({ id: o.id, name: o.name }))}
+            canEdit={canEdit}
+          />
+        </Collapsible>
+      </div>
 
       {canEdit && (
-        <>
-          <h2 className="page-title" style={{ fontSize: 20, marginTop: 8, color: "var(--red)" }}>Danger zone</h2>
-          <ResetExposure />
-        </>
+        <div style={{ marginTop: 8 }}>
+          <Collapsible summary="Danger zone — reset all exposure to full availability">
+            <ResetExposure />
+          </Collapsible>
+        </div>
       )}
     </>
   );

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { usd, daysBetween } from "@/lib/format";
 import { inputBase as input, fieldLabel as field } from "@/lib/ui";
-import { buildDocSet, fillTemplate, pricingTokens, wordDocument, type DocTokens, type GeneratedDoc } from "@/lib/docgen";
+import { buildDocSet, fillTemplate, pricingTokens, investorTokens, wordDocument, type DocTokens, type GeneratedDoc } from "@/lib/docgen";
 import type { DocTemplate } from "@/lib/types";
 import type { ResvOpt } from "./MultiTransactionCheck";
 
@@ -30,11 +30,15 @@ export default function DocsSection({
   selected,
   templates,
   canBook,
+  sofr1,
+  sofr30,
 }: {
   sellers: Opt[];
   selected: ResvOpt | null;
   templates: DocTemplate[];
   canBook: boolean;
+  sofr1?: number;
+  sofr30?: number;
 }) {
   const router = useRouter();
   const today = new Date().toISOString().slice(0, 10);
@@ -57,6 +61,10 @@ export default function DocsSection({
     finalDemandDate: "2027-08-01",
     pricingBps: "125",
     baseRate: "4.50", // input & confirmed by the PM before sending to the client
+    investorOn: false,
+    investorName: "",
+    investorAmount: "0",
+    skimBps: "25",
   });
   const [docs, setDocs] = useState<GeneratedDoc[] | null>(null);
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((s) => ({ ...s, [k]: v }));
@@ -85,6 +93,9 @@ export default function DocsSection({
   const amount = Number(f.amount) || 0;
   const coverage = isUtrc ? amount : Math.round(amount * (Number(f.advanceRate) || 0) / 100);
   const tenorDays = daysBetween(f.valueDate, isUtrc ? f.finalDemandDate : f.maturityDate);
+  // Interpolated SOFR for the investor portion (linear between 1-day and 30-day).
+  const haveSofr = sofr1 != null && sofr30 != null;
+  const interpSofr = !haveSofr ? 0 : tenorDays > 30 ? sofr30! : sofr1! + ((Math.max(1, tenorDays) - 1) / 29) * (sofr30! - sofr1!);
 
   const tokens: DocTokens = useMemo(() => ({
     seller: sellerName,
@@ -114,11 +125,19 @@ export default function DocsSection({
     return (override ?? def)?.body ?? "";
   }
 
+  const investorEnabled = f.investorOn && !isUtrc && (Number(f.investorAmount) || 0) > 0;
+
   function generate() {
     const reqType = isUtrc ? "COMMITMENT_REQUEST" : "PURCHASE_REQUEST";
     const requestBody = fillTemplate(resolveTemplate(reqType), tokens);
     const scheduleSpec = resolveTemplate(isUtrc ? "SCHEDULE_A_UTRC" : "SCHEDULE_A_DTR");
-    setDocs(buildDocSet({ isUtrc, tokens, requestBody, scheduleSpec }));
+    const investor = investorEnabled
+      ? {
+          spec: resolveTemplate("SCHEDULE_A_INVESTOR"),
+          tokens: { ...tokens, ...investorTokens({ investorName: f.investorName, investorAmount: Number(f.investorAmount) || 0, skimBps: Number(f.skimBps) || 0, marginBps: Number(f.pricingBps) || 0, interpSofrPct: interpSofr, tenorDays }) },
+        }
+      : undefined;
+    setDocs(buildDocSet({ isUtrc, tokens, requestBody, scheduleSpec, investor }));
   }
 
   async function proceed(override = false) {
@@ -141,6 +160,9 @@ export default function DocsSection({
         finalDemandDate: isUtrc ? f.finalDemandDate : undefined,
         pricingBps: Number(f.pricingBps),
         baseRate: isUtrc ? undefined : Number(f.baseRate) || 0,
+        investorName: investorEnabled ? f.investorName : undefined,
+        investorAmount: investorEnabled ? Number(f.investorAmount) || 0 : undefined,
+        skimBps: investorEnabled ? Number(f.skimBps) || 0 : undefined,
         override,
         comment: proceedComment,
       }),
@@ -255,6 +277,35 @@ export default function DocsSection({
         {!isUtrc && (
           <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
             Discount rate {tokens.discount_rate} · Discount {tokens.discount} · Purchase price {tokens.purchase_price} · MUFG revenue (margin only) {tokens.revenue}
+          </div>
+        )}
+
+        {!isUtrc && (
+          <div style={{ marginTop: 12, padding: 12, border: "1px solid var(--border)", borderRadius: 8, background: "#fafbfd" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600 }}>
+              <input type="checkbox" checked={f.investorOn} onChange={(e) => { set("investorOn", e.target.checked); setDocs(null); }} />
+              Investor participation (client funded at COF + margin; investor takes SOFR + margin − skim)
+            </label>
+            {f.investorOn && (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10, marginTop: 10 }}>
+                  <label style={field}>Investor name
+                    <input style={input} value={f.investorName} onChange={(e) => set("investorName", e.target.value)} />
+                  </label>
+                  <label style={field}>Investor amount (USD)
+                    <input style={input} type="number" value={f.investorAmount} onChange={(e) => set("investorAmount", e.target.value)} />
+                  </label>
+                  <label style={field}>Skim fee (bps)
+                    <input style={input} type="number" value={f.skimBps} onChange={(e) => set("skimBps", e.target.value)} />
+                  </label>
+                </div>
+                <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+                  {haveSofr
+                    ? <>Interpolated SOFR {interpSofr.toFixed(3)}% · investor rate {(interpSofr + (Number(f.pricingBps) - Number(f.skimBps)) / 100).toFixed(3)}% (SOFR + {(Number(f.pricingBps) - Number(f.skimBps))} bps) · a separate investor Schedule A is generated.</>
+                    : <>Add a 1-day and 30-day SOFR on the rate sheet to interpolate the investor rate.</>}
+                </div>
+              </>
+            )}
           </div>
         )}
 

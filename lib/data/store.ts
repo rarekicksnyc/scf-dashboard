@@ -617,6 +617,32 @@ export function resolveBaseRate(rateType: BaseRateType, tenorDays: number): numb
   return best.offer;
 }
 
+// The 1-day and 30-day SOFR offers used to interpolate short-tenor SOFR.
+export function sofrEndpoints(): { one?: number; thirty?: number } {
+  const rows = store.rates.filter((r) => r.rateType === "SOFR" && !r.error);
+  return { one: rows.find((r) => r.tenorDays === 1)?.offer, thirty: rows.find((r) => r.tenorDays === 30)?.offer };
+}
+
+// Linear-interpolate SOFR for a tenor between the 1-day and 30-day points. Used
+// for investor deals (funded at COF + margin; investor takes SOFR + margin −
+// skim). Tenor is clamped to [1, 30]; beyond 30 days it falls back to the
+// closest curve point.
+export function interpolateSofr(tenorDays: number): number | undefined {
+  const { one, thirty } = sofrEndpoints();
+  if (one == null || thirty == null) return resolveBaseRate("SOFR", tenorDays);
+  if (tenorDays > 30) return resolveBaseRate("SOFR", tenorDays);
+  const t = Math.max(1, tenorDays);
+  return one + ((t - 1) / (30 - 1)) * (thirty - one);
+}
+
+// COF is priced on a separate MUFG platform. This is the SINGLE integration
+// point for COF: today it reads the uploaded COF rate sheet (closest tenor);
+// when the external COF feed is wired up, fetch it here (see COF_FEED_URL in
+// lib/config) — nothing else needs to change.
+export function cofRate(tenorDays: number): number | undefined {
+  return resolveBaseRate("COF", tenorDays);
+}
+
 // Every entity whose domicile is not on the eligible-country register — the
 // enforceability monitoring exceptions.
 export function domicileExceptions(): Array<{

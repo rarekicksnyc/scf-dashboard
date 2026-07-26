@@ -1,6 +1,6 @@
 import * as XLSX from "xlsx";
-import { getDocTemplate } from "@/lib/data/store";
-import { fillTemplate, buildDocSet, pricingTokens, wordDocument, type DocTokens } from "@/lib/docgen";
+import { getDocTemplate, interpolateSofr } from "@/lib/data/store";
+import { fillTemplate, buildDocSet, pricingTokens, investorTokens, wordDocument, type DocTokens } from "@/lib/docgen";
 import { usd, daysBetween } from "@/lib/format";
 import type { TransactionWorkflow, DocTemplateType } from "@/lib/types";
 import type { EmlAttachment } from "@/lib/email";
@@ -44,20 +44,39 @@ function xlsxBase64(sheetName: string, columns: string[], row: string[]): string
 }
 
 // The generated request doc (Word) + Schedule A (Excel) as email attachments.
-export function workflowAttachments(wf: TransactionWorkflow): EmlAttachment[] {
+// The investor Schedule A is the investor's own document — it is EXCLUDED from
+// the client execution email (the client must not see the investor's terms) and
+// only included where opts.includeInvestor is set (the booking-team email).
+export function workflowAttachments(wf: TransactionWorkflow, opts: { includeInvestor?: boolean } = {}): EmlAttachment[] {
   const isUtrc = wf.productType === "UTRC";
   const tokens = workflowTokens(wf);
   const reqType: DocTemplateType = isUtrc ? "COMMITMENT_REQUEST" : "PURCHASE_REQUEST";
   const requestBody = fillTemplate(getDocTemplate(reqType, wf.sellerId)?.body ?? "", tokens);
   const scheduleSpec = getDocTemplate(isUtrc ? "SCHEDULE_A_UTRC" : "SCHEDULE_A_DTR", wf.sellerId)?.body ?? "";
-  const docs = buildDocSet({ isUtrc, tokens, requestBody, scheduleSpec });
+
+  // Investor deals get a separate investor Schedule A at the interpolated SOFR.
+  let investor: { spec: string; tokens: DocTokens } | undefined;
+  if (opts.includeInvestor && !isUtrc && wf.investorAmount && wf.investorAmount > 0) {
+    const tenor = daysBetween(wf.valueDate, wf.maturityDate);
+    const interpSofrPct = interpolateSofr(tenor) ?? 0;
+    investor = {
+      spec: getDocTemplate("SCHEDULE_A_INVESTOR", wf.sellerId)?.body ?? "",
+      tokens: { ...tokens, ...investorTokens({ investorName: wf.investorName ?? "", investorAmount: wf.investorAmount, skimBps: wf.skimBps ?? 0, marginBps: wf.pricingBps, interpSofrPct, tenorDays: tenor }) },
+    };
+  }
+
+  const docs = buildDocSet({ isUtrc, tokens, requestBody, scheduleSpec, investor });
   const req = docs.find((d) => d.kind === "REQUEST")!;
-  const sch = docs.find((d) => d.kind === "SCHEDULE_A")!;
+  const schedules = docs.filter((d) => d.kind === "SCHEDULE_A");
   const base = slug(wf.reference);
-  return [
+  const out = [
     { filename: `${slug(req.title)}-${base}.doc`, mime: "application/msword", base64: Buffer.from(wordDocument(req.html), "utf-8").toString("base64") },
-    { filename: `Schedule-A-${base}.xlsx`, mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", base64: xlsxBase64("Schedule A", sch.table!.columns, sch.table!.row) },
   ];
+  schedules.forEach((sch, i) => {
+    out.push({ filename: `${slug(sch.title)}-${base}.xlsx`, mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", base64: xlsxBase64(sch.title, sch.table!.columns, sch.table!.row) });
+    void i;
+  });
+  return out;
 }
 
 // Fill an email template (subject + body) for a workflow.

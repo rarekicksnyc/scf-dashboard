@@ -217,6 +217,7 @@ export type DocTemplateType =
   | "COMMITMENT_REQUEST"
   | "SCHEDULE_A_DTR"
   | "SCHEDULE_A_UTRC"
+  | "SCHEDULE_A_INVESTOR"
   | "CLIENT_EMAIL"
   | "BOOKING_EMAIL";
 
@@ -410,6 +411,11 @@ export interface TransactionWorkflow {
   finalDemandDate?: string;
   pricingBps: number;
   baseRate?: number; // DTR: PM-confirmed base rate (%) for the discount
+  // Investor participation (DTR): the investor takes the interpolated SOFR +
+  // (margin − skim) on its portion; a separate investor Schedule A is produced.
+  investorName?: string;
+  investorAmount?: number;
+  skimBps?: number;
   scope?: ReservationScope;
   status: WorkflowStatus;
   createdAt: string;

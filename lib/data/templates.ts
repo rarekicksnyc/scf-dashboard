@@ -105,6 +105,23 @@ Purchase price|purchase_price
 Value date|value_date
 Maturity date|maturity_date`;
 
+// Investor Schedule A — the investor portion only, priced at the interpolated
+// SOFR + (margin − skim). Sent separately to the investor.
+const SCHEDULE_A_INVESTOR = `Investor|investor_name
+Seller|seller
+Obligor|obligor
+Reference|reference
+Currency|currency
+Investor amount|investor_amount
+Interpolated SOFR|investor_base
+Skim (bps)|skim_bps
+Investor margin|investor_margin
+Investor rate|investor_rate
+Discount|investor_discount
+Purchase price|investor_purchase_price
+Value date|value_date
+Maturity date|maturity_date`;
+
 const SCHEDULE_A_UTRC = `Seller|seller
 Obligor|obligor
 Reference|reference
@@ -121,6 +138,7 @@ export const DEFAULT_TEMPLATES: DocTemplate[] = [
   { id: "TMPL-COMMITMENT_REQUEST", type: "COMMITMENT_REQUEST", body: COMMITMENT_REQUEST },
   { id: "TMPL-SCHEDULE_A_DTR", type: "SCHEDULE_A_DTR", body: SCHEDULE_A_DTR },
   { id: "TMPL-SCHEDULE_A_UTRC", type: "SCHEDULE_A_UTRC", body: SCHEDULE_A_UTRC },
+  { id: "TMPL-SCHEDULE_A_INVESTOR", type: "SCHEDULE_A_INVESTOR", body: SCHEDULE_A_INVESTOR },
   { id: "TMPL-CLIENT_EMAIL", type: "CLIENT_EMAIL", subject: "Execution required — {{document_name}} for {{obligor}}", body: CLIENT_EMAIL },
   { id: "TMPL-BOOKING_EMAIL", type: "BOOKING_EMAIL", subject: "Book transaction — {{seller}} / {{obligor}} {{primary_amount}}", body: BOOKING_EMAIL },
 ];

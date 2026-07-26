@@ -12,9 +12,9 @@ interface EntityOpt { groupId: string; id: string; name: string }
 // One reservation selection drives the whole flow: it autofills the Check
 // transactions table AND the Purchase/Commitment docs, so you pick it once.
 export default function TransactionFlowClient({
-  sellers, obligors, obligorEntities, reservations, templates, canBook,
+  sellers, obligors, obligorEntities, reservations, templates, canBook, sofr1, sofr30,
 }: {
-  sellers: Opt[]; obligors: Opt[]; obligorEntities: EntityOpt[]; reservations: ResvOpt[]; templates: DocTemplate[]; canBook: boolean;
+  sellers: Opt[]; obligors: Opt[]; obligorEntities: EntityOpt[]; reservations: ResvOpt[]; templates: DocTemplate[]; canBook: boolean; sofr1?: number; sofr30?: number;
 }) {
   const [selectedId, setSelectedId] = useState("");
   const selected = reservations.find((r) => r.id === selectedId) ?? null;
@@ -35,7 +35,7 @@ export default function TransactionFlowClient({
       </div>
 
       <MultiTransactionCheck sellers={sellers} obligors={obligors} obligorEntities={obligorEntities} selected={selected} />
-      <DocsSection sellers={sellers} selected={selected} templates={templates} canBook={canBook} />
+      <DocsSection sellers={sellers} selected={selected} templates={templates} canBook={canBook} sofr1={sofr1} sofr30={sofr30} />
     </>
   );
 }

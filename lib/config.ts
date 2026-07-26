@@ -15,6 +15,11 @@ import type { InvoiceType } from "@/lib/types";
 // Day-count basis for discount/fee accrual (actual/360 money-market convention).
 export const DAY_COUNT_BASIS = 360;
 
+// COF is priced on a separate MUFG platform. When that feed is available, set
+// this to its endpoint and implement the fetch inside cofRate() in the store —
+// the single COF integration point. Empty = use the uploaded COF rate sheet.
+export const COF_FEED_URL = process.env.COF_FEED_URL ?? "";
+
 // Fallback margin (bps) when an uploaded schedule omits pricing.
 export const DEFAULT_MARGIN_BPS = 200;
 

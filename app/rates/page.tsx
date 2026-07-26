@@ -1,25 +1,30 @@
-import { getRates } from "@/lib/data/store";
+import { getRates, sofrEndpoints } from "@/lib/data/store";
 import { currentUserCan } from "@/lib/auth";
 import { dateShort } from "@/lib/format";
 import RateUpload from "./RateUpload";
 import SofrRefresh from "./SofrRefresh";
+import SofrInterpolator from "./SofrInterpolator";
 
 export const dynamic = "force-dynamic";
 
 export default async function RatesPage() {
   const rates = getRates();
   const canEdit = await currentUserCan("CHANGE_LIMIT");
+  const sofr = sofrEndpoints();
 
   return (
     <>
       <h1 className="page-title">Rate Sheet</h1>
       <p className="page-sub">
-        SOFR is pulled live from the official New York Fed public feed; other
-        curves (COF) are uploaded as a rate sheet. The offer is the used rate;
-        transactions resolve their base rate by rate type and closest tenor.
+        SOFR is pulled live from the official New York Fed public feed and can be
+        interpolated for short tenors; COF is priced on a separate MUFG platform
+        and, until that feed is linked, is uploaded here as a rate sheet. The offer
+        is the used rate; transactions resolve their base rate by type and closest
+        tenor.
       </p>
 
       {canEdit && <SofrRefresh />}
+      <SofrInterpolator one={sofr.one} thirty={sofr.thirty} />
       {canEdit && <RateUpload />}
 
       <div className="panel">

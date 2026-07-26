@@ -64,6 +64,9 @@ export async function POST(request: Request) {
     finalDemandDate: b.finalDemandDate || undefined,
     pricingBps: Number(b.pricingBps) || 0,
     baseRate: b.baseRate != null ? Number(b.baseRate) || 0 : undefined,
+    investorName: b.investorName || undefined,
+    investorAmount: b.investorAmount != null ? Number(b.investorAmount) || 0 : undefined,
+    skimBps: b.skimBps != null ? Number(b.skimBps) || 0 : undefined,
     scope: (b.scope as ReservationScope) || undefined,
     createdBy: user.name,
   });

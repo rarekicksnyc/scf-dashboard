@@ -20,15 +20,16 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   }
 
   const { subject, body } = workflowEmail("BOOKING_EMAIL", wf);
-  // Attach the executed document if uploaded, plus the generated Schedule A.
-  const generated = workflowAttachments(wf); // [request, schedule]
+  // Attach the executed document if uploaded, plus the generated Schedule A(s) —
+  // including the investor Schedule A, which the booking team needs.
+  const generated = workflowAttachments(wf, { includeInvestor: true });
   const attachments: EmlAttachment[] = [];
   if (wf.executedDocId) {
     const doc = await getDocument(wf.executedDocId);
     if (doc) attachments.push({ filename: `EXECUTED-${doc.meta.fileName}`, mime: doc.meta.contentType || "application/octet-stream", base64: doc.data.toString("base64") });
   }
   if (attachments.length === 0) attachments.push(generated[0]); // fall back to the generated request
-  attachments.push(generated[1]); // Schedule A
+  attachments.push(...generated.slice(1)); // all Schedule A(s), incl. investor
 
   if (wf.status === "SIGNATURE_VERIFIED") {
     advanceWorkflow(id, { status: "BOOKING_EMAILED", by: user.name, event: "Booking / funding-team email drafted with executed docs." });

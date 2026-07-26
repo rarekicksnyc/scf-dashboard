@@ -37,6 +37,27 @@ export function pricingTokens(o: { coverage: number; pricingBps: number; baseRat
   };
 }
 
+// Investor-portion pricing. The client is funded at COF + margin; the investor
+// participates at the interpolated SOFR + (margin − skim). Since COF > SOFR, the
+// bank keeps the differential plus the skim. These tokens drive the separate
+// investor Schedule A.
+export function investorTokens(o: { investorName: string; investorAmount: number; skimBps: number; marginBps: number; interpSofrPct: number; tenorDays: number }): DocTokens {
+  const investorMarginBps = o.marginBps - o.skimBps;
+  const investorRatePct = o.interpSofrPct + investorMarginBps / 100;
+  const t = Math.max(o.tenorDays, 0) / DAY_COUNT_BASIS;
+  const discount = o.investorAmount * (investorRatePct / 100) * t;
+  return {
+    investor_name: o.investorName,
+    investor_amount: usd(o.investorAmount),
+    skim_bps: String(o.skimBps),
+    investor_base: `${o.interpSofrPct.toFixed(3)}%`,
+    investor_margin: `${investorMarginBps} bps`,
+    investor_rate: `${investorRatePct.toFixed(3)}%`,
+    investor_discount: usd(discount),
+    investor_purchase_price: usd(o.investorAmount - discount),
+  };
+}
+
 // Schedule A is a per-seller, per-product column-spec template: one column per
 // non-blank line, each "Header|token" (token from the deal tokens). This makes
 // Schedule A editable and different per seller. Returns header + one row.
@@ -89,11 +110,12 @@ export function buildDocSet(opts: {
   tokens: DocTokens;
   requestBody: string; // filled Purchase/Commitment request template text
   scheduleSpec: string; // Schedule A column spec (per seller/product)
+  investor?: { spec: string; tokens: DocTokens }; // optional investor Schedule A
 }): GeneratedDoc[] {
-  const { isUtrc, tokens, requestBody, scheduleSpec } = opts;
+  const { isUtrc, tokens, requestBody, scheduleSpec, investor } = opts;
   const requestTitle = isUtrc ? "Commitment Request" : "Purchase Request";
   const table = scheduleAFromSpec(scheduleSpec, tokens);
-  return [
+  const docs: GeneratedDoc[] = [
     {
       key: "REQUEST",
       title: requestTitle,
@@ -109,4 +131,10 @@ export function buildDocSet(opts: {
       table,
     },
   ];
+  // Investor deals get a separate Schedule A for the investor portion only.
+  if (investor) {
+    const invTable = scheduleAFromSpec(investor.spec, investor.tokens);
+    docs.push({ key: "SCHEDULE_A_INVESTOR", title: "Schedule A (Investor)", kind: "SCHEDULE_A", html: scheduleAHtml("Schedule A — Investor", invTable), table: invTable });
+  }
+  return docs;
 }

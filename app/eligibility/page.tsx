@@ -9,6 +9,7 @@ import {
   listDocTemplates,
   listTransactionWorkflows,
   allSellerEntities,
+  sofrEndpoints,
 } from "@/lib/data/store";
 import { currentUserCan } from "@/lib/auth";
 import EligibilityCheck from "./EligibilityCheck";
@@ -60,6 +61,8 @@ export default async function EligibilityPage() {
         reservations={reservations}
         templates={listDocTemplates()}
         canBook={canBook}
+        sofr1={sofrEndpoints().one}
+        sofr30={sofrEndpoints().thirty}
       />
       <Collapsible summary="Single detailed check (full breakdown, distribution & insurance)">
         <EligibilityCheck

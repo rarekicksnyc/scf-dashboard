@@ -23,6 +23,7 @@ import type {
 
 // Seeded rate sheet (as if uploaded from the pricing platform). offer = used rate.
 export const rates: RateRow[] = [
+  { rateType: "SOFR", startDate: "2026-08-01", maturityDate: "2026-08-02", tenorDays: 1, bid: 4.88, offer: 4.90, calcRate: 4.90 },
   { rateType: "SOFR", startDate: "2026-08-01", maturityDate: "2026-08-31", tenorDays: 30, bid: 4.95, offer: 5.0, calcRate: 5.0 },
   { rateType: "SOFR", startDate: "2026-08-01", maturityDate: "2026-09-30", tenorDays: 60, bid: 4.97, offer: 5.02, calcRate: 5.02 },
   { rateType: "SOFR", startDate: "2026-08-01", maturityDate: "2026-10-30", tenorDays: 90, bid: 5.0, offer: 5.05, calcRate: 5.05 },
