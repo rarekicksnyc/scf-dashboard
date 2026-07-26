@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     );
   }
   const b = await request.json().catch(() => null);
-  const rateType: BaseRateType = ["COF", "SOFR", "OTHER"].includes(b?.rateType) ? b.rateType : "SOFR";
+  const rateType: BaseRateType = ["COF", "SOFR", "OTHER"].includes(b?.rateType) ? b.rateType : "COF";
   if (!b || (typeof b.csv !== "string" && typeof b.fileBase64 !== "string")) {
     return NextResponse.json({ error: "Expected { csv } or { fileBase64 } and rateType." }, { status: 400 });
   }

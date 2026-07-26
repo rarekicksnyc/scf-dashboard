@@ -62,7 +62,7 @@ export default function MultiTransactionCheck({ sellers, obligors, obligorEntiti
     maturityDate: "2026-11-01",
     pricingBps: "125",
     productType: "DTR",
-    baseRateType: "SOFR",
+    baseRateType: "COF",
     baseRate: "0",
   });
   const [rows, setRows] = useState<Row[]>([blank()]);
@@ -165,7 +165,7 @@ export default function MultiTransactionCheck({ sellers, obligors, obligorEntiti
                   <td><input style={mw(160)} type="date" value={r.maturityDate} onChange={(e) => update(i, { maturityDate: e.target.value })} /></td>
                   <td><input style={mw(100, true)} type="number" value={r.pricingBps} onChange={(e) => update(i, { pricingBps: e.target.value })} /></td>
                   <td><select style={mw(110)} value={r.productType} onChange={(e) => update(i, { productType: e.target.value })}><option value="DTR">DTR</option><option value="UTRC">UTRC</option></select></td>
-                  <td><select style={mw(110)} value={r.baseRateType} onChange={(e) => update(i, { baseRateType: e.target.value })}><option value="SOFR">SOFR</option><option value="COF">COF</option><option value="OTHER">Other</option></select></td>
+                  <td><select style={mw(110)} value={r.baseRateType} onChange={(e) => update(i, { baseRateType: e.target.value })}><option value="COF">COF</option><option value="SOFR">SOFR</option><option value="OTHER">Other</option></select></td>
                   <td><input style={mw(110, true)} type="number" step="0.01" value={r.baseRate} onChange={(e) => update(i, { baseRate: e.target.value })} /></td>
                   <td style={{ minWidth: 180 }}>
                     {r.decision ? (

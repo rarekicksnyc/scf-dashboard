@@ -15,7 +15,7 @@ export function priceDeal(opts: {
   tenorDays: number;
 }): PricingResult {
   const productType = opts.productType ?? "DTR";
-  const baseRateType = opts.baseRateType ?? "SOFR";
+  const baseRateType = opts.baseRateType ?? "COF";
   const marginBps = opts.marginBps;
   const baseRatePct =
     opts.baseRate && opts.baseRate > 0

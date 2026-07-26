@@ -131,7 +131,7 @@ export async function POST(request: Request) {
     maturityDate: b.maturityDate,
     pricingBps: Number(b.pricingBps) || 0,
     productType: b.productType === "UTRC" ? "UTRC" : "DTR",
-    baseRateType: b.baseRateType ?? "SOFR",
+    baseRateType: b.baseRateType ?? "COF",
     baseRate: Number(b.baseRate) || 0,
     distributed: Boolean(b.distributed),
     investorAllocations: Array.isArray(b.investorAllocations)

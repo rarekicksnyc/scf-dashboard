@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 export default function RateUpload() {
   const router = useRouter();
-  const [rateType, setRateType] = useState("SOFR");
+  const [rateType, setRateType] = useState("COF");
   const [csv, setCsv] = useState("");
   const [xlsx, setXlsx] = useState<string | null>(null);
   const [fileName, setFileName] = useState("");
@@ -59,8 +59,8 @@ export default function RateUpload() {
           <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
             Rate type
             <select style={input} value={rateType} onChange={(e) => setRateType(e.target.value)}>
-              <option value="SOFR">SOFR</option>
               <option value="COF">COF</option>
+              <option value="SOFR">SOFR</option>
               <option value="OTHER">Other</option>
             </select>
           </label>

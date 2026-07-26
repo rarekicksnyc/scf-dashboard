@@ -75,7 +75,7 @@ export default function EligibilityCheck({
     maturityDate: "2026-11-01",
     pricingBps: "125",
     productType: "DTR",
-    baseRateType: "SOFR",
+    baseRateType: "COF",
     baseRate: "0",
     bookRrl: false,
     rrlAmount: "0",
@@ -243,8 +243,8 @@ export default function EligibilityCheck({
                 </label>
                 <label style={field}>Base rate
                   <select style={input} value={f.baseRateType} onChange={(e) => set("baseRateType", e.target.value)}>
-                    <option value="SOFR">SOFR</option>
                     <option value="COF">COF</option>
+                    <option value="SOFR">SOFR</option>
                     <option value="OTHER">Other</option>
                   </select>
                 </label>

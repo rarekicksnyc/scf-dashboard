@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     committedAmount: isUtrc ? Number(b.committedAmount) || 0 : undefined,
     commitmentDueDate: isUtrc ? b.commitmentDueDate || undefined : undefined,
     finalDemandDate: isUtrc ? b.finalDemandDate || undefined : undefined,
-    baseRateType: b.baseRateType ?? "SOFR",
+    baseRateType: b.baseRateType ?? "COF",
     baseRate: Number(b.baseRate) || 0,
     distributed: Boolean(b.distributed),
     investorAllocations: Array.isArray(b.investorAllocations)
