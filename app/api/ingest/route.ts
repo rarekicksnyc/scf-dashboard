@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { parseInvoiceCsv } from "@/lib/csv";
 import { runBatch } from "@/lib/engine";
-import { getBatches, saveBatch, syncExceptionsForBatch, addAudit } from "@/lib/data/store";
+import { getBatches, saveBatch, syncExceptionsForBatch, materializeBatchBookings, addAudit } from "@/lib/data/store";
 
 // ---------------------------------------------------------------------------
 // Host-to-host / API ingestion endpoint (Phase 4, stub). Real deployments
@@ -39,6 +39,7 @@ export async function POST(request: Request) {
   });
   saveBatch(result);
   syncExceptionsForBatch(result, SERVICE_MAKER);
+  materializeBatchBookings(result, SERVICE_MAKER);
   addAudit({
     actorUserId: SERVICE_MAKER,
     actorName: "Host-to-host ingestion",

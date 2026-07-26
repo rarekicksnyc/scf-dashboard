@@ -13,7 +13,7 @@ import {
   cofCurve,
   listSignatories,
 } from "@/lib/data/store";
-import { currentUserCan } from "@/lib/auth";
+import { currentUserCan, getCurrentUser } from "@/lib/auth";
 import EligibilityCheck from "./EligibilityCheck";
 import TransactionFlowClient from "./TransactionFlowClient";
 import WorkflowPanel from "./WorkflowPanel";
@@ -24,6 +24,8 @@ export const dynamic = "force-dynamic";
 export default async function EligibilityPage({ searchParams }: { searchParams: Promise<{ highlight?: string }> }) {
   const { highlight } = await searchParams;
   const canBook = await currentUserCan("UPLOAD_BATCH");
+  const currentUser = await getCurrentUser();
+  const canApproveException = await currentUserCan("APPROVE_EXCEPTION");
   const sellers = allSellers().map((s) => ({ id: s.id, name: s.name }));
   const obligors = allObligors().map((o) => ({ id: o.id, name: o.name }));
   const obligorEntities = allObligorEntities().map((e) => ({ groupId: e.groupId, id: e.id, name: e.name }));
@@ -84,6 +86,8 @@ export default async function EligibilityPage({ searchParams }: { searchParams: 
         sellerEntities={allSellerEntities().map((e) => ({ sellerId: e.facilityId, id: e.id, name: e.name }))}
         signatories={listSignatories().map((s) => ({ sellerId: s.sellerId, entityId: s.entityId, name: s.name, title: s.title }))}
         canBook={canBook}
+        currentUserId={currentUser.id}
+        canApproveException={canApproveException}
         highlightId={highlight}
       />
     </>

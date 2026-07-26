@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
-import { getTransactionWorkflow, bookTransactionFromWorkflow, advanceWorkflow, addAudit } from "@/lib/data/store";
+import { getTransactionWorkflow, bookTransactionFromWorkflow, advanceWorkflow, requestWorkflowException, addAudit } from "@/lib/data/store";
 import { getCurrentUser, roleHas } from "@/lib/auth";
 import { evaluateWorkflow } from "@/lib/workflowEligibility";
 
 // Final step: book the transaction in the system. Re-verifies eligibility on the
 // live parameters first (a limit/date/rating could have changed since the
-// reservation) — it must clear, or be booked with a documented exception. Then
-// creates the time-phased booked transaction (real outstanding across every
-// limit), removes the reservation it realises, and marks the workflow BOOKED.
+// reservation). A clean deal books in one click. A breach cannot be self-booked:
+// the maker records a reason (an exception request) and a SECOND authorized user
+// (the checker) must approve it before booking — governance parity with the
+// batch maker-checker. Booking then creates the time-phased booked transaction,
+// removes the reservation it realises, and marks the workflow BOOKED.
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await getCurrentUser();
@@ -21,26 +23,27 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const b = await request.json().catch(() => ({}));
-  const override = Boolean(b.override);
   const comment = typeof b.comment === "string" ? b.comment.trim() : "";
 
-  // Governance: re-run eligibility at booking. Block unless it clears or is
-  // overridden with a reason.
+  // Governance: re-run eligibility at booking.
   const evalr = evaluateWorkflow(wf);
-  if (!evalr.clears) {
-    if (!override) {
-      return NextResponse.json({ error: "This transaction no longer clears the eligibility test — booking blocked.", canOverride: true, breachReasons: evalr.reasons }, { status: 422 });
-    }
+  const approved = Boolean(wf.exceptionApprovedBy);
+  if (!evalr.clears && !approved) {
+    // A breach needs a checker's approval. Record (or update) the exception
+    // request with the maker's reason and wait for a second user to approve.
     if (!comment) {
-      return NextResponse.json({ error: "A reason is required to book despite the breach.", canOverride: true, breachReasons: evalr.reasons }, { status: 422 });
+      return NextResponse.json({ error: "This transaction no longer clears the eligibility test — a reason and a second approver are required.", canOverride: true, breachReasons: evalr.reasons }, { status: 422 });
     }
+    requestWorkflowException(id, comment, user.id, user.name);
+    addAudit({ actorUserId: user.id, actorName: user.name, action: "TXN_FLOW_EXCEPTION_REQUEST", entityType: "TRANSACTION_WORKFLOW", entityId: id, detail: `Requested booking exception on ${wf.reference}: ${comment}. Breach: ${evalr.reasons.join("; ")}` });
+    return NextResponse.json({ needsApproval: true, breachReasons: evalr.reasons }, { status: 202 });
   }
 
   const result = bookTransactionFromWorkflow(id, user.name);
   if (!result) return NextResponse.json({ error: "Could not book." }, { status: 422 });
-  if (!evalr.clears && override) {
-    advanceWorkflow(id, { by: user.name, event: `Booked with exception (${evalr.decision}): ${comment}. Breach: ${evalr.reasons.join("; ")}` });
+  if (!evalr.clears && approved) {
+    advanceWorkflow(id, { by: user.name, event: `Booked with checker-approved exception (${evalr.decision}), approved by ${wf.exceptionApprovedByName}. Breach: ${evalr.reasons.join("; ")}` });
   }
-  addAudit({ actorUserId: user.id, actorName: user.name, action: "TXN_FLOW_BOOK", entityType: "BOOKED_TRANSACTION", entityId: result.booked.id, detail: `Booked ${wf.reference} (${result.booked.id})${!evalr.clears ? " WITH EXCEPTION" : ""}; reservation ${wf.reservationId ?? "—"} removed.` });
+  addAudit({ actorUserId: user.id, actorName: user.name, action: "TXN_FLOW_BOOK", entityType: "BOOKED_TRANSACTION", entityId: result.booked.id, detail: `Booked ${wf.reference} (${result.booked.id})${!evalr.clears ? ` WITH EXCEPTION (approved by ${wf.exceptionApprovedByName})` : ""}; reservation ${wf.reservationId ?? "—"} removed.` });
   return NextResponse.json({ ok: true, workflow: result.workflow, booked: result.booked });
 }

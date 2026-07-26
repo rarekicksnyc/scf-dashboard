@@ -220,7 +220,9 @@ export type DocTemplateType =
   | "SCHEDULE_A_INVESTOR"
   | "CLIENT_EMAIL"
   | "BOOKING_EMAIL"
-  | "INVESTOR_EMAIL";
+  | "INVESTOR_EMAIL"
+  | "INVOICE_ADDITIONAL_INTEREST" // past-due additional-interest statement
+  | "INVOICE_NOTE"; // default payment-instructions / notes on an ad-hoc invoice
 
 export interface DocTemplate {
   id: string;
@@ -428,24 +430,78 @@ export interface TransactionWorkflow {
   signerTitle?: string;
   signatureValid?: boolean; // undefined = not yet checked
   signatureReviewedBy?: string;
+  // Booking exception (four-eyes): a breach at booking must be approved by a
+  // second authorized user (the checker) before the deal can be booked. The
+  // maker who requests it cannot approve their own request.
+  exceptionRequestedBy?: string; // maker user id
+  exceptionRequestedByName?: string;
+  exceptionReason?: string;
+  exceptionApprovedBy?: string; // checker user id (must differ from the maker)
+  exceptionApprovedByName?: string;
+  exceptionApprovedAt?: string;
   // Booking
   bookedAt?: string;
   bookedTransactionId?: string;
 }
 
-// A booked transaction — real drawn exposure, time-phased over its
-// [valueDate, maturityDate] window exactly like a reservation, but counted as
-// OUTSTANDING rather than reserved.
+// A single collection (repayment) against a booked receivable. Amount is the
+// principal (funded coverage) recovered — the discount/margin is revenue and is
+// accrued separately over the tenor, not part of principal settlement.
+export interface Collection {
+  id: string;
+  date: string; // ISO value date the payment was received
+  amount: number; // principal (coverage) recovered
+  faceReceived?: number; // optional: invoice/face amount received from the obligor
+  by: string;
+  note?: string;
+}
+
+// How a defaulted (unpaid at maturity) receivable is worked out.
+export type WorkoutRoute = "RECOURSE_TO_SELLER" | "INSURANCE_CLAIM" | "WRITE_OFF";
+
+// An insurance claim filed against a policy when an insured obligor defaults.
+export interface InsuranceClaim {
+  policyId: string;
+  policyName: string;
+  filedAt: string;
+  amount: number; // claimed (insured) amount
+  status: "FILED" | "PAID" | "DENIED";
+  decidedAt?: string;
+  reference?: string;
+}
+
+// Derived settlement state of a live receivable (never stored — computed from
+// the collection facts + the as-of date, so the status can never disagree with
+// the underlying record).
+export type ReceivableStatus =
+  | "OUTSTANDING" // funded, nothing collected yet, not past due
+  | "PARTIALLY_COLLECTED" // some principal recovered, balance remaining
+  | "OVERDUE" // past maturity, still open (not settled, not defaulted)
+  | "SETTLED" // principal fully recovered
+  | "DEFAULTED"; // declared bad; in workout (recourse / claim / write-off)
+
+// A booked transaction — real drawn exposure and the SINGLE ledger of every live
+// receivable. It time-phases over its [valueDate, effective end] window exactly
+// like a reservation but counts as OUTSTANDING rather than reserved. It
+// originates either from the Transaction Flow (source BOOKED) or from a funded
+// batch invoice (source BATCH) — both land here, so exposure, revenue,
+// settlement, and aging all derive from one place.
 export interface BookedTransaction {
   id: string;
+  source?: "BOOKED" | "BATCH"; // undefined = BOOKED (backward compatible)
   workflowId?: string;
   fromReservationId?: string;
+  batchId?: string; // set when source = BATCH (provenance back to the upload)
+  invoiceNumber?: string; // batch invoice number / client invoice reference
   sellerId: string;
   obligorId: string;
+  obligorEntityId?: string;
   productType: ProductType;
   reference: string;
   currency: Currency;
-  amount: number; // coverage / funded amount
+  amount: number; // coverage / funded amount — the principal exposure
+  faceAmount?: number; // invoice face amount (DTR); amount is the funded coverage
+  advanceRate?: number;
   rrlAmount?: number;
   scope?: ReservationScope;
   valueDate: string;
@@ -461,6 +517,14 @@ export interface BookedTransaction {
   insurerAllocations?: InsurerAllocation[];
   bookedAt: string;
   bookedBy: string;
+  // --- Post-booking lifecycle (the single source for settlement) -------------
+  collections?: Collection[]; // principal recoveries; sum reduces outstanding exposure
+  settledAt?: string; // set when principal is fully recovered (receivable closed)
+  defaultedAt?: string; // declared bad debt
+  defaultReason?: string;
+  workout?: WorkoutRoute; // route taken once defaulted
+  insuranceClaim?: InsuranceClaim; // filed when an insured obligor defaults
+  investorSettledAt?: string; // investor participation repaid + reconciled
 }
 
 // Authorized signatory for a seller (group-wide) or a specific seller entity.

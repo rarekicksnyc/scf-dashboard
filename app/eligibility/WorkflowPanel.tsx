@@ -32,7 +32,7 @@ async function downloadEml(url: string) {
   return true;
 }
 
-export default function WorkflowPanel({ workflows, sellerEntities, signatories, canBook, highlightId }: { workflows: TransactionWorkflow[]; sellerEntities: SellerEntityOpt[]; signatories: SignatoryOpt[]; canBook: boolean; highlightId?: string }) {
+export default function WorkflowPanel({ workflows, sellerEntities, signatories, canBook, currentUserId, canApproveException, highlightId }: { workflows: TransactionWorkflow[]; sellerEntities: SellerEntityOpt[]; signatories: SignatoryOpt[]; canBook: boolean; currentUserId: string; canApproveException: boolean; highlightId?: string }) {
   const active = workflows.filter((w) => w.status !== "BOOKED" && w.status !== "CANCELLED");
   const done = workflows.filter((w) => w.status === "BOOKED" || w.status === "CANCELLED");
   return (
@@ -40,7 +40,7 @@ export default function WorkflowPanel({ workflows, sellerEntities, signatories, 
       <h2>In-progress transactions ({active.length})</h2>
       <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
         {active.length === 0 && <div className="muted" style={{ fontSize: 13 }}>None yet. Load a reservation above and click Proceed with Transaction.</div>}
-        {active.map((w) => <Row key={w.id} w={w} sellerEntities={sellerEntities.filter((e) => e.sellerId === w.sellerId)} signatories={signatories.filter((s) => s.sellerId === w.sellerId)} canBook={canBook} highlight={w.id === highlightId} />)}
+        {active.map((w) => <Row key={w.id} w={w} sellerEntities={sellerEntities.filter((e) => e.sellerId === w.sellerId)} signatories={signatories.filter((s) => s.sellerId === w.sellerId)} canBook={canBook} currentUserId={currentUserId} canApproveException={canApproveException} highlight={w.id === highlightId} />)}
         {done.length > 0 && (
           <details>
             <summary className="muted" style={{ cursor: "pointer", fontSize: 13 }}>Booked / cancelled ({done.length})</summary>
@@ -60,7 +60,7 @@ export default function WorkflowPanel({ workflows, sellerEntities, signatories, 
   );
 }
 
-function Row({ w, sellerEntities, signatories, canBook, highlight }: { w: TransactionWorkflow; sellerEntities: SellerEntityOpt[]; signatories: SignatoryOpt[]; canBook: boolean; highlight?: boolean }) {
+function Row({ w, sellerEntities, signatories, canBook, currentUserId, canApproveException, highlight }: { w: TransactionWorkflow; sellerEntities: SellerEntityOpt[]; signatories: SignatoryOpt[]; canBook: boolean; currentUserId: string; canApproveException: boolean; highlight?: boolean }) {
   const router = useRouter();
   const rowRef = useRef<HTMLDivElement>(null);
   const [flash, setFlash] = useState(false);
@@ -82,11 +82,15 @@ function Row({ w, sellerEntities, signatories, canBook, highlight }: { w: Transa
   const [bookComment, setBookComment] = useState("");
   const st = STATUS[w.status];
 
-  async function book(override = false) {
+  async function book() {
     setBusy(true); setErr(null);
-    const res = await fetch(`/api/transaction-flow/${w.id}/book`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ override, comment: bookComment }) });
+    const res = await fetch(`/api/transaction-flow/${w.id}/book`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ comment: bookComment }) });
     const data = await res.json().catch(() => ({}));
     setBusy(false);
+    if (data.needsApproval) {
+      // Breach recorded; a second user must approve before booking.
+      setBookBlock(null); setBookComment(""); router.refresh(); return;
+    }
     if (!res.ok) {
       if (data.canOverride) { setBookBlock(data.breachReasons ?? []); setErr(data.error ?? "Does not clear."); }
       else setErr(data.error ?? "Failed to book.");
@@ -95,6 +99,18 @@ function Row({ w, sellerEntities, signatories, canBook, highlight }: { w: Transa
     setBookBlock(null); setBookComment("");
     router.refresh();
   }
+
+  async function approveException() {
+    setBusy(true); setErr(null);
+    const res = await fetch(`/api/transaction-flow/${w.id}/approve-exception`, { method: "POST" });
+    setBusy(false);
+    if (!res.ok) { setErr((await res.json().catch(() => ({}))).error ?? "Could not approve."); return; }
+    router.refresh();
+  }
+
+  const pendingException = Boolean(w.exceptionRequestedBy && !w.exceptionApprovedBy);
+  const exceptionApproved = Boolean(w.exceptionApprovedBy);
+  const isMaker = w.exceptionRequestedBy === currentUserId;
 
   async function post(path: string, body?: unknown) {
     setBusy(true); setErr(null);
@@ -181,22 +197,42 @@ function Row({ w, sellerEntities, signatories, canBook, highlight }: { w: Transa
           <>
             <span className="badge green">Signer {w.signerName} verified</span>
             <button className="btn" style={{ padding: "6px 12px", fontSize: 12 }} type="button" disabled={busy} onClick={() => emailDraft("booking-email")}>Generate booking-team email</button>
-            <button className="btn" style={{ padding: "6px 12px", fontSize: 12, background: "var(--green)" }} type="button" disabled={busy} onClick={() => book(false)}>Book transaction in system</button>
+            {!pendingException && <button className="btn" style={{ padding: "6px 12px", fontSize: 12, background: "var(--green)" }} type="button" disabled={busy} onClick={book}>{exceptionApproved ? "Book with approved exception" : "Book transaction in system"}</button>}
           </>
         )}
-        {w.status === "BOOKING_EMAILED" && (
-          <button className="btn" style={{ padding: "6px 12px", fontSize: 12, background: "var(--green)" }} type="button" disabled={busy} onClick={() => book(false)}>Book transaction in system</button>
+        {w.status === "BOOKING_EMAILED" && !pendingException && (
+          <button className="btn" style={{ padding: "6px 12px", fontSize: 12, background: "var(--green)" }} type="button" disabled={busy} onClick={book}>{exceptionApproved ? "Book with approved exception" : "Book transaction in system"}</button>
         )}
       </div>
       )}
 
-      {canBook && bookBlock && (
+      {/* Four-eyes: a breach at booking waits for a second user to approve. */}
+      {canBook && pendingException && (
         <div style={{ marginTop: 8, border: "1px solid var(--orange)", borderRadius: 8, padding: 12, background: "var(--orange-bg)" }}>
-          <div style={{ fontWeight: 700, color: "var(--orange)", marginBottom: 6, fontSize: 13 }}>No longer clears eligibility — book with exception?</div>
+          <div style={{ fontWeight: 700, color: "var(--orange)", marginBottom: 6, fontSize: 13 }}>Exception awaiting checker approval</div>
+          <div style={{ fontSize: 12, marginBottom: 8 }}>
+            Requested by <strong>{w.exceptionRequestedByName}</strong>: {w.exceptionReason}
+          </div>
+          {canApproveException && !isMaker ? (
+            <button className="btn" style={{ padding: "6px 12px", fontSize: 12, background: "var(--green)" }} type="button" disabled={busy} onClick={approveException}>Approve exception (checker)</button>
+          ) : (
+            <div className="muted" style={{ fontSize: 12 }}>{isMaker ? "You requested this exception — a different authorized user must approve it (four-eyes)." : "A user with exception-approval rights must approve before booking."}</div>
+          )}
+        </div>
+      )}
+      {canBook && exceptionApproved && (w.status === "SIGNATURE_VERIFIED" || w.status === "BOOKING_EMAILED") && (
+        <div style={{ marginTop: 8, fontSize: 12 }}>
+          <span className="badge green">Exception approved by {w.exceptionApprovedByName}</span> — you can now book.
+        </div>
+      )}
+
+      {canBook && bookBlock && !pendingException && (
+        <div style={{ marginTop: 8, border: "1px solid var(--orange)", borderRadius: 8, padding: 12, background: "var(--orange-bg)" }}>
+          <div style={{ fontWeight: 700, color: "var(--orange)", marginBottom: 6, fontSize: 13 }}>No longer clears eligibility — submit an exception for approval?</div>
           <ul style={{ margin: "0 0 8px 18px", color: "var(--orange)", fontSize: 12 }}>{bookBlock.map((r, i) => <li key={i}>{r}</li>)}</ul>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <input style={{ ...input, flex: 1, minWidth: 220, fontSize: 12 }} value={bookComment} onChange={(e) => setBookComment(e.target.value)} placeholder="Reason for exception (required)" />
-            <button className="btn" style={{ padding: "6px 12px", fontSize: 12, background: "var(--green)" }} type="button" disabled={busy || !bookComment.trim()} onClick={() => book(true)}>Book with exception</button>
+            <button className="btn" style={{ padding: "6px 12px", fontSize: 12 }} type="button" disabled={busy || !bookComment.trim()} onClick={book}>Submit for checker approval</button>
             <button className="btn secondary" style={{ padding: "6px 12px", fontSize: 12 }} type="button" onClick={() => { setBookBlock(null); setErr(null); }}>Cancel</button>
           </div>
         </div>

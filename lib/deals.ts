@@ -1,7 +1,10 @@
-import { getBatches, getReservations } from "@/lib/data/store";
+import { listBookedTransactions, getReservations } from "@/lib/data/store";
+import { daysBetween } from "@/lib/format";
+import { DAY_COUNT_BASIS } from "@/lib/config";
 import type { Reservation } from "@/lib/types";
 
-// A booked ("current") deal — a funded invoice from a batch.
+// A booked ("current") deal — a live receivable from the single ledger, whether
+// it originated in the Transaction Flow or a funded batch invoice.
 export interface Deal {
   invoiceNumber: string;
   sellerId: string;
@@ -9,39 +12,39 @@ export interface Deal {
   amount: number; // invoice face amount
   advanceRate: number; // 0..1
   coverage: number; // funded amount = invoice amount x advance rate
-  revenue: number; // discount fee earned on the deal
+  revenue: number; // customer discount fee on the deal (margin + base)
   marginBps?: number; // margin (for margin-only revenue), when on the invoice
-  bookedDate: string; // when the batch was booked (uploaded)
+  bookedDate: string; // when the transaction was booked
   valueDate: string; // requested discount / value date
   maturityDate: string; // due date
-  batchId: string;
+  batchId: string; // provenance: originating batch id, or the booking id
 }
 
-// Funded deals for a seller and/or obligor, drawn from every batch.
+// Funded deals for a seller and/or obligor, drawn from the single ledger.
 export function fundedDeals(filter: { sellerId?: string; obligorId?: string }): Deal[] {
   const deals: Deal[] = [];
-  for (const batch of getBatches()) {
-    if (filter.sellerId && batch.sellerId !== filter.sellerId) continue;
-    for (const r of batch.results) {
-      if (!r.funding) continue; // only funded / current deals
-      if (filter.sellerId && r.invoice.sellerId !== filter.sellerId) continue;
-      if (filter.obligorId && r.invoice.obligorId !== filter.obligorId) continue;
-      const advanceRate = r.invoice.advanceRate ?? 1;
-      deals.push({
-        invoiceNumber: r.invoice.invoiceNumber,
-        sellerId: r.invoice.sellerId,
-        obligorId: r.invoice.obligorId,
-        amount: r.invoice.amount,
-        advanceRate,
-        coverage: r.invoice.coverageAmount ?? r.invoice.amount * advanceRate,
-        revenue: r.discountFee,
-        marginBps: r.invoice.marginBps,
-        bookedDate: batch.uploadedAt,
-        valueDate: r.invoice.requestedDiscountDate,
-        maturityDate: r.invoice.dueDate,
-        batchId: batch.batchId,
-      });
-    }
+  for (const t of listBookedTransactions()) {
+    if (filter.sellerId && t.sellerId !== filter.sellerId) continue;
+    if (filter.obligorId && t.obligorId !== filter.obligorId) continue;
+    const advanceRate = t.advanceRate ?? 1;
+    const tenor = daysBetween(t.valueDate, t.maturityDate);
+    const tt = Math.max(tenor, 0) / DAY_COUNT_BASIS;
+    // Customer discount fee = coverage × (margin + base) × tenor/360.
+    const discount = t.amount * ((t.pricingBps / 10000) + (t.baseRatePct ?? 0) / 100) * tt;
+    deals.push({
+      invoiceNumber: t.invoiceNumber ?? t.reference ?? t.id,
+      sellerId: t.sellerId,
+      obligorId: t.obligorId,
+      amount: t.faceAmount ?? t.amount,
+      advanceRate,
+      coverage: t.amount,
+      revenue: discount,
+      marginBps: t.pricingBps,
+      bookedDate: t.bookedAt,
+      valueDate: t.valueDate,
+      maturityDate: t.maturityDate,
+      batchId: t.batchId ?? t.id,
+    });
   }
   return deals;
 }

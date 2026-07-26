@@ -150,6 +150,15 @@ Please review and confirm your participation.
 Best regards,
 Supply Chain Finance Team`;
 
+// Additional-interest statement wording. The line-item description and the
+// notes are filled per past-due transaction. Tokens: seller, obligor, reference,
+// overdue_days, all_in_rate, principal, additional_interest, maturity_date,
+// today, invoice_no.
+const INVOICE_ADDITIONAL_INTEREST = `Additional interest on past-due receivable {{reference}} (obligor {{obligor}}): {{overdue_days}} days past the {{maturity_date}} maturity on outstanding principal {{principal}} at the contractual all-in rate of {{all_in_rate}} (actual/360).`;
+
+// Default payment instructions printed on every invoice (editable per seller).
+const INVOICE_NOTE = `Please remit {{total}} to MUFG Bank, Ltd. quoting invoice {{invoice_no}} by {{due_date}}. Contact the Supply Chain Finance team with any questions regarding this statement.`;
+
 export const DEFAULT_TEMPLATES: DocTemplate[] = [
   { id: "TMPL-PURCHASE_REQUEST", type: "PURCHASE_REQUEST", body: PURCHASE_REQUEST },
   { id: "TMPL-COMMITMENT_REQUEST", type: "COMMITMENT_REQUEST", body: COMMITMENT_REQUEST },
@@ -159,4 +168,6 @@ export const DEFAULT_TEMPLATES: DocTemplate[] = [
   { id: "TMPL-CLIENT_EMAIL", type: "CLIENT_EMAIL", subject: "Execution required — {{document_name}} for {{obligor}}", body: CLIENT_EMAIL },
   { id: "TMPL-BOOKING_EMAIL", type: "BOOKING_EMAIL", subject: "Book transaction — {{seller}} / {{obligor}} {{primary_amount}}", body: BOOKING_EMAIL },
   { id: "TMPL-INVESTOR_EMAIL", type: "INVESTOR_EMAIL", subject: "Investor participation — {{obligor}} {{investor_amount}}", body: INVESTOR_EMAIL },
+  { id: "TMPL-INVOICE_ADDITIONAL_INTEREST", type: "INVOICE_ADDITIONAL_INTEREST", body: INVOICE_ADDITIONAL_INTEREST },
+  { id: "TMPL-INVOICE_NOTE", type: "INVOICE_NOTE", body: INVOICE_NOTE },
 ];

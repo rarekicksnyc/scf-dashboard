@@ -1,5 +1,4 @@
 import { getBatches, listBookedTransactions, getReservations } from "@/lib/data/store";
-import { fundedDeals } from "@/lib/deals";
 import { priceDeal } from "@/lib/pricing";
 import { daysBetween } from "@/lib/format";
 import type { ProductType } from "@/lib/types";
@@ -22,7 +21,8 @@ export interface RevDeal {
   marginPct: number; // margin only, as a percent (the revenue yield)
 }
 
-// Every realized revenue deal: booked transactions + funded batch invoices.
+// Every realized revenue deal, read from the SINGLE bookedTransactions ledger
+// (Transaction-Flow bookings and materialised batch invoices both live there).
 // Revenue is MARGIN-ONLY (the base rate is MUFG's funding cost, not income);
 // commitmentFee from priceDeal is exactly coverage × margin × tenor/360.
 export function allRevenueDeals(): RevDeal[] {
@@ -40,15 +40,7 @@ export function allRevenueDeals(): RevDeal[] {
       ? inv * (((t.baseRatePct - t.investorSofrPct) / 100) + (t.skimBps ?? 0) / 10000) * tt
       : 0;
     const p = priceDeal({ productType: t.productType, marginBps: t.pricingBps, coverage: t.amount, tenorDays: tenor });
-    deals.push({ source: "BOOKED", id: t.id, sellerId: t.sellerId, obligorId: t.obligorId, productType: t.productType, coverage: t.amount, revenue: marginRev, skimRevenue: skimRev, customerDiscount: t.productType === "UTRC" ? p.commitmentFee : p.discount, valueDate: t.valueDate, maturityDate: t.maturityDate, tenorDays: tenor, marginPct: t.pricingBps / 100 });
-  }
-
-  for (const d of fundedDeals({})) {
-    const tenor = daysBetween(d.valueDate, d.maturityDate);
-    // Margin-only revenue when the invoice carried a margin; else fall back to the booked discount fee.
-    const t = tenor / 360;
-    const revenue = d.marginBps != null && t > 0 ? d.coverage * (d.marginBps / 10000) * t : d.revenue;
-    deals.push({ source: "BATCH", id: d.invoiceNumber, sellerId: d.sellerId, obligorId: d.obligorId, productType: "DTR", coverage: d.coverage, revenue, skimRevenue: 0, customerDiscount: d.revenue, valueDate: d.valueDate, maturityDate: d.maturityDate, tenorDays: tenor, marginPct: d.marginBps != null ? d.marginBps / 100 : (d.coverage > 0 && t > 0 ? (d.revenue / (d.coverage * t)) * 100 : 0) });
+    deals.push({ source: t.source === "BATCH" ? "BATCH" : "BOOKED", id: t.id, sellerId: t.sellerId, obligorId: t.obligorId, productType: t.productType, coverage: t.amount, revenue: marginRev, skimRevenue: skimRev, customerDiscount: t.productType === "UTRC" ? p.commitmentFee : p.discount, valueDate: t.valueDate, maturityDate: t.maturityDate, tenorDays: tenor, marginPct: t.pricingBps / 100 });
   }
 
   return deals;

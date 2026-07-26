@@ -35,9 +35,16 @@ import type {
   BookedTransaction,
   AuthorizedSignatory,
 } from "@/lib/types";
+import type { WorkoutRoute, InvoiceResult } from "@/lib/types";
 import { DEFAULT_TEMPLATES } from "@/lib/data/templates";
 import { toLimitView, computeConsumed } from "@/lib/engine/availability";
 import { daysBetween } from "@/lib/format";
+import { DEFAULT_MARGIN_BPS } from "@/lib/config";
+import {
+  bookedInWindow,
+  outstandingPrincipal,
+  outstandingFraction,
+} from "@/lib/receivables";
 import * as seed from "./seed";
 
 // ---------------------------------------------------------------------------
@@ -166,6 +173,13 @@ export function runMigrations(): void {
       if (t.type !== "SCHEDULE_A_INVESTOR") continue;
       t.body = t.body.split("\n").filter((line) => !/\|\s*skim_bps\s*$/i.test(line.trim())).join("\n");
     }
+  });
+
+  // Single ledger: backfill every already-funded batch invoice into the one
+  // bookedTransactions ledger so exposure, revenue, settlement, and aging all
+  // derive from one place. Idempotent per batch (clears prior bookings first).
+  once("batch-ledger-merge-2026-07", () => {
+    for (const b of store.batches) materializeBatchBookings(b, "system:migration");
   });
 }
 
@@ -371,6 +385,34 @@ export function advanceWorkflow(
   return wf;
 }
 
+// Four-eyes on a single-deal booking exception. The maker records the breach
+// reason; a fresh request always clears any prior approval (so a changed deal
+// is re-approved). The checker (a different user) approves before booking.
+export function requestWorkflowException(id: string, reason: string, makerId: string, makerName: string): TransactionWorkflow | undefined {
+  const wf = getTransactionWorkflow(id);
+  if (!wf) return undefined;
+  wf.exceptionRequestedBy = makerId;
+  wf.exceptionRequestedByName = makerName;
+  wf.exceptionReason = reason;
+  wf.exceptionApprovedBy = undefined;
+  wf.exceptionApprovedByName = undefined;
+  wf.exceptionApprovedAt = undefined;
+  wf.timeline.push({ at: new Date().toISOString(), by: makerName, event: `Exception approval requested: ${reason}` });
+  return wf;
+}
+
+export function approveWorkflowException(id: string, checkerId: string, checkerName: string): { ok: boolean; error?: string } {
+  const wf = getTransactionWorkflow(id);
+  if (!wf) return { ok: false, error: "Workflow not found." };
+  if (!wf.exceptionRequestedBy) return { ok: false, error: "There is no exception request to approve." };
+  if (wf.exceptionRequestedBy === checkerId) return { ok: false, error: "You cannot approve your own exception — a second user must approve (four-eyes)." };
+  wf.exceptionApprovedBy = checkerId;
+  wf.exceptionApprovedByName = checkerName;
+  wf.exceptionApprovedAt = new Date().toISOString();
+  wf.timeline.push({ at: wf.exceptionApprovedAt, by: checkerName, event: `Booking exception approved by checker.` });
+  return { ok: true };
+}
+
 export function cancelTransactionWorkflow(id: string, by: string): boolean {
   const wf = getTransactionWorkflow(id);
   if (!wf || wf.status === "BOOKED") return false;
@@ -444,6 +486,161 @@ export function bookTransactionFromWorkflow(id: string, by: string): { workflow:
   wf.bookedTransactionId = booked.id;
   wf.timeline.push({ at: now, by, event: `Booked in system (${booked.id})${wf.reservationId ? ` — reservation ${wf.reservationId} removed` : ""}.` });
   return { workflow: wf, booked };
+}
+
+export function getBookedTransaction(id: string): BookedTransaction | undefined {
+  return store.bookedTransactions.find((t) => t.id === id);
+}
+
+// ---------------------------------------------------------------------------
+// Post-booking lifecycle mutations. Collections drive outstanding exposure
+// (single source): recording one reduces the drawn amount everywhere at once.
+// ---------------------------------------------------------------------------
+
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// Record a principal collection (repayment) against a booked receivable. The
+// amount is clamped to the outstanding principal so a receivable can never be
+// over-collected; when the balance reaches zero the receivable closes (settled).
+export function recordCollection(
+  id: string,
+  input: { amount: number; date: string; faceReceived?: number; note?: string },
+  by: string,
+): BookedTransaction | undefined {
+  const t = getBookedTransaction(id);
+  if (!t) return undefined;
+  if (!t.collections) t.collections = [];
+  const amount = Math.max(0, Math.min(input.amount, outstandingPrincipal(t)));
+  t.collections.push({ id: nextId("COL"), date: input.date, amount, faceReceived: input.faceReceived, by, note: input.note });
+  if (outstandingPrincipal(t) < 1) t.settledAt = input.date;
+  return t;
+}
+
+// Declare a receivable in default and choose the workout route (recourse to the
+// seller, an insurance claim, or a write-off). Exposure remains outstanding
+// until the loss is recovered (a claim paid or recourse collected is booked as a
+// collection, which is what actually drops the exposure).
+export function markReceivableDefault(
+  id: string,
+  input: { reason: string; workout: WorkoutRoute },
+  by: string,
+): BookedTransaction | undefined {
+  const t = getBookedTransaction(id);
+  if (!t) return undefined;
+  t.defaultedAt = today();
+  t.defaultReason = input.reason;
+  t.workout = input.workout;
+  return t;
+}
+
+// Clear a default (e.g. the obligor cured) so the receivable returns to its
+// normal open state.
+export function clearReceivableDefault(id: string): BookedTransaction | undefined {
+  const t = getBookedTransaction(id);
+  if (!t) return undefined;
+  t.defaultedAt = undefined;
+  t.defaultReason = undefined;
+  t.workout = undefined;
+  return t;
+}
+
+// File an insurance claim for the insured portion of a defaulted receivable.
+// The claim amount is the outstanding insured allocation.
+export function fileInsuranceClaim(id: string): BookedTransaction | undefined {
+  const t = getBookedTransaction(id);
+  if (!t) return undefined;
+  const first = t.insurerAllocations?.[0];
+  if (!first) return undefined;
+  const frac = outstandingFraction(t);
+  const insured = (t.insurerAllocations ?? []).reduce((a, x) => a + x.amount, 0) * frac;
+  const policy = getInsurancePolicy(first.policyId);
+  t.insuranceClaim = {
+    policyId: first.policyId,
+    policyName: policy?.insurerName ?? first.policyId,
+    filedAt: today(),
+    amount: insured,
+    status: "FILED",
+  };
+  return t;
+}
+
+// Decide a filed insurance claim. A PAID claim recovers the insured principal —
+// booked as a collection so exposure drops (collections are the single source).
+export function decideInsuranceClaim(
+  id: string,
+  status: "PAID" | "DENIED",
+  by: string,
+  reference?: string,
+): BookedTransaction | undefined {
+  const t = getBookedTransaction(id);
+  if (!t?.insuranceClaim) return undefined;
+  t.insuranceClaim.status = status;
+  t.insuranceClaim.decidedAt = today();
+  if (reference) t.insuranceClaim.reference = reference;
+  if (status === "PAID") {
+    recordCollection(id, { amount: t.insuranceClaim.amount, date: today(), note: `Insurance claim paid — ${t.insuranceClaim.policyName}` }, by);
+  }
+  return t;
+}
+
+// Mark the investor participation on a booked transaction as settled and
+// reconciled (the investor has been repaid their principal + their rate).
+export function settleInvestorParticipation(id: string, by: string): BookedTransaction | undefined {
+  const t = getBookedTransaction(id);
+  if (!t || !(t.investorAmount && t.investorAmount > 0)) return undefined;
+  void by; // audited at the route level
+  t.investorSettledAt = today();
+  return t;
+}
+
+// ---------------------------------------------------------------------------
+// Batch → single ledger. A funded batch invoice IS a live receivable, so it
+// materialises into the one bookedTransactions ledger (provenance kept via
+// source/batchId/invoiceNumber). Idempotent — re-running a batch clears its
+// prior bookings first so exposure never double-counts.
+// ---------------------------------------------------------------------------
+
+export function removeBatchBookings(batchId: string): void {
+  store.bookedTransactions = store.bookedTransactions.filter((t) => t.batchId !== batchId);
+}
+
+export function materializeBatchBookings(batch: BatchResult, by: string): void {
+  removeBatchBookings(batch.batchId);
+  const funded = batch.results.filter((r: InvoiceResult) => r.funding);
+  for (const r of funded) {
+    const inv = r.invoice;
+    const advanceRate = inv.advanceRate ?? 1;
+    const coverage = inv.coverageAmount ?? inv.amount * advanceRate;
+    const investorLegs = (r.funding?.legs ?? []).filter((l) => l.source === "INVESTOR" && l.sourceId);
+    store.bookedTransactions.unshift({
+      id: nextId("BKD"),
+      source: "BATCH",
+      batchId: batch.batchId,
+      invoiceNumber: inv.invoiceNumber,
+      sellerId: inv.sellerId,
+      obligorId: inv.obligorId,
+      obligorEntityId: inv.obligorEntityId,
+      productType: inv.productType ?? "DTR",
+      reference: inv.invoiceNumber,
+      currency: inv.currency,
+      amount: coverage,
+      faceAmount: inv.amount,
+      advanceRate,
+      valueDate: inv.requestedDiscountDate,
+      maturityDate: inv.dueDate,
+      pricingBps: inv.marginBps ?? DEFAULT_MARGIN_BPS,
+      baseRatePct: inv.baseRate,
+      // Investor takeout legs consume the investor line; the batch revenue model
+      // keeps margin on the full coverage, so investorAmount (the skim model) is
+      // intentionally left unset here.
+      investorAllocations: investorLegs.length ? investorLegs.map((l) => ({ investorId: l.sourceId!, amount: l.amount })) : undefined,
+      insurerAllocations: r.funding?.policyId && r.funding.insuredAmount > 0 ? [{ policyId: r.funding.policyId, amount: r.funding.insuredAmount }] : undefined,
+      bookedAt: batch.uploadedAt,
+      bookedBy: by,
+    });
+  }
 }
 
 // -- Authorized signatories (per seller, or a specific seller entity) --------
@@ -766,8 +963,8 @@ export function sellerObligorUsage(sellerId: string, obligorId: string, asOf?: A
     )
     .reduce((a, r) => a + r.amount, 0);
   const booked = store.bookedTransactions
-    .filter((t) => t.sellerId === sellerId && t.obligorId === obligorId && t.scope !== "SELLER_ONLY" && reservationInWindow(t, w))
-    .reduce((a, t) => a + t.amount, 0);
+    .filter((t) => t.sellerId === sellerId && t.obligorId === obligorId && t.scope !== "SELLER_ONLY" && bookedInWindow(t, w))
+    .reduce((a, t) => a + outstandingPrincipal(t), 0);
   return reserved + booked;
 }
 
@@ -923,16 +1120,22 @@ export function reservedInsurance(
 ): number {
   const w = toWindow(asOf);
   let total = 0;
-  const scan = (items: { obligorId: string; insurerAllocations?: { policyId: string; amount: number }[]; valueDate: string; maturityDate: string }[]) => {
-    for (const r of items) {
-      if (!reservationInWindow(r, w)) continue;
-      if (filter.obligorId && r.obligorId !== filter.obligorId) continue;
-      if (filter.country && getObligor(r.obligorId)?.country !== filter.country) continue;
-      for (const a of r.insurerAllocations ?? []) if (a.policyId === policyId) total += a.amount;
-    }
+  const matches = (r: { obligorId: string }) => {
+    if (filter.obligorId && r.obligorId !== filter.obligorId) return false;
+    if (filter.country && getObligor(r.obligorId)?.country !== filter.country) return false;
+    return true;
   };
-  scan(store.reservations.filter((r) => r.status === "RESERVED"));
-  scan(store.bookedTransactions);
+  // Reserved forward book holds the full allocation.
+  for (const r of store.reservations) {
+    if (r.status !== "RESERVED" || !reservationInWindow(r, w) || !matches(r)) continue;
+    for (const a of r.insurerAllocations ?? []) if (a.policyId === policyId) total += a.amount;
+  }
+  // Booked receivables hold the OUTSTANDING share (scaled by principal collected).
+  for (const t of store.bookedTransactions) {
+    if (!bookedInWindow(t, w) || !matches(t)) continue;
+    const frac = outstandingFraction(t);
+    for (const a of t.insurerAllocations ?? []) if (a.policyId === policyId) total += a.amount * frac;
+  }
   return total;
 }
 
@@ -943,36 +1146,45 @@ function sum(rs: Reservation[]): number {
 // How much a set of discount-style draws (reservations or booked transactions)
 // consumes a given limit. Scope gates which side each draw blocks. This is the
 // shared draw logic so booked transactions consume EXACTLY like reservations.
+// Exposure is the OUTSTANDING principal — a partial collection scales every draw
+// (line amount, RRL split, investor and insurer allocations) down by the same
+// fraction, and a fully settled receivable draws zero.
 function drawForLimit(limit: Limit, items: BookedTransaction[]): number {
+  const out = (t: BookedTransaction) => outstandingPrincipal(t);
+  const frac = (t: BookedTransaction) => outstandingFraction(t);
+  const rrl = (t: BookedTransaction) => (t.rrlAmount ?? 0) * frac(t);
   switch (limit.type) {
     case "SELLER":
-      return items.filter((r) => r.sellerId === limit.entityId && r.scope !== "OBLIGOR_ONLY").reduce((a, r) => a + r.amount - (r.rrlAmount ?? 0), 0);
+      return items.filter((r) => r.sellerId === limit.entityId && r.scope !== "OBLIGOR_ONLY").reduce((a, r) => a + out(r) - rrl(r), 0);
     case "RRL":
-      return items.filter((r) => r.sellerId === limit.entityId && r.scope !== "OBLIGOR_ONLY").reduce((a, r) => a + (r.rrlAmount ?? 0), 0);
+      return items.filter((r) => r.sellerId === limit.entityId && r.scope !== "OBLIGOR_ONLY").reduce((a, r) => a + rrl(r), 0);
     case "OBLIGOR":
-      return items.filter((r) => r.obligorId === limit.entityId && r.scope !== "SELLER_ONLY").reduce((a, r) => a + r.amount, 0);
+      return items.filter((r) => r.obligorId === limit.entityId && r.scope !== "SELLER_ONLY").reduce((a, r) => a + out(r), 0);
     case "SWINGLINE": {
       const onSeller = limit.entityType === "SELLER";
       let total = 0;
       for (const r of items) {
-        if (onSeller) { if (r.sellerId !== limit.entityId || r.scope === "OBLIGOR_ONLY") continue; total += r.amount - (r.rrlAmount ?? 0); }
-        else if (limit.entityType === "OBLIGOR") { if (r.obligorId !== limit.entityId || r.scope === "SELLER_ONLY") continue; total += r.amount; }
+        if (onSeller) { if (r.sellerId !== limit.entityId || r.scope === "OBLIGOR_ONLY") continue; total += out(r) - rrl(r); }
+        else if (limit.entityType === "OBLIGOR") { if (r.obligorId !== limit.entityId || r.scope === "SELLER_ONLY") continue; total += out(r); }
       }
       return total;
     }
     case "INVESTOR":
-      return items.reduce((a, r) => a + (r.investorAllocations?.filter((x) => x.investorId === limit.entityId).reduce((s, x) => s + x.amount, 0) ?? 0), 0);
+      return items.reduce((a, r) => a + (r.investorAllocations?.filter((x) => x.investorId === limit.entityId).reduce((s, x) => s + x.amount * frac(r), 0) ?? 0), 0);
     case "INSURANCE":
-      return items.reduce((a, r) => a + (r.insurerAllocations?.filter((x) => x.policyId === limit.entityId).reduce((s, x) => s + x.amount, 0) ?? 0), 0);
+      return items.reduce((a, r) => a + (r.insurerAllocations?.filter((x) => x.policyId === limit.entityId).reduce((s, x) => s + x.amount * frac(r), 0) ?? 0), 0);
     default:
       return 0;
   }
 }
 
 // Booked transactions consuming a limit, time-phased (real OUTSTANDING exposure).
+// A booked receivable stays live until it is settled — an overdue, uncollected
+// one keeps consuming (bookedInWindow), unlike a reservation that rolls off at
+// maturity.
 export function bookedConsumedForLimit(limit: Limit, asOf?: AsOf): number {
   const w = toWindow(asOf);
-  const active = store.bookedTransactions.filter((t) => reservationInWindow(t, w));
+  const active = store.bookedTransactions.filter((t) => bookedInWindow(t, w));
   return drawForLimit(limit, active);
 }
 

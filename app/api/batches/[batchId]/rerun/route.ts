@@ -3,6 +3,8 @@ import {
   getBatch,
   updateBatch,
   getApprovedOverrides,
+  removeBatchBookings,
+  materializeBatchBookings,
   addAudit,
 } from "@/lib/data/store";
 import { runBatch } from "@/lib/engine";
@@ -22,6 +24,9 @@ export async function POST(
 
   const user = await getCurrentUser();
   const invoices = batch.results.map((r) => r.invoice);
+  // Clear this batch's prior bookings first so the re-run sees a clean slate
+  // (it must not count its own previous exposure), then re-materialise.
+  removeBatchBookings(batchId);
   const rerun = runBatch(
     invoices,
     {
@@ -33,6 +38,7 @@ export async function POST(
     { approvedOverrides: getApprovedOverrides(batchId) },
   );
   updateBatch(rerun);
+  materializeBatchBookings(rerun, user.id);
 
   addAudit({
     actorUserId: user.id,

@@ -8,7 +8,6 @@ import {
   getSeller,
   getObligor,
   findLimit,
-  listBookedTransactions,
 } from "@/lib/data/store";
 import { currentUserCan } from "@/lib/auth";
 import { mm } from "@/lib/format";
@@ -17,7 +16,6 @@ import { reservationStillBreaches } from "@/lib/reservationStatus";
 import ReservationForm from "./ReservationForm";
 import MultiReservationForm from "./MultiReservationForm";
 import ForwardBook, { type BookRow, type TxnCandidate } from "./ForwardBook";
-import BookedBook, { type BookedRow } from "./BookedBook";
 import Collapsible from "../Collapsible";
 
 export const dynamic = "force-dynamic";
@@ -64,20 +62,6 @@ export default async function ReservationsPage() {
     };
   });
 
-  const bookedRows: BookedRow[] = listBookedTransactions().map((t) => ({
-    id: t.id,
-    reference: t.reference,
-    sellerName: getSeller(t.sellerId)?.name ?? t.sellerId,
-    obligorName: getObligor(t.obligorId)?.name ?? t.obligorId,
-    productType: t.productType,
-    amount: t.amount,
-    scope: t.scope,
-    valueDate: t.valueDate,
-    maturityDate: t.maturityDate,
-    pricingBps: t.pricingBps,
-    bookedAt: t.bookedAt,
-  }));
-
   const candidates: TxnCandidate[] = fundedDeals({}).map((d) => ({
     invoiceNumber: d.invoiceNumber,
     sellerId: d.sellerId,
@@ -90,9 +74,10 @@ export default async function ReservationsPage() {
     <>
       <h1 className="page-title">Reservations</h1>
       <p className="page-sub">
-        Forward-booked future discounts and swingline movements. Each is checked
-        against live limits before it is accepted. Active reservations:{" "}
-        {mm(activeTotal)}.
+        The forward book — future discounts and swingline movements, each checked
+        against live limits before it is accepted. Once a reservation is booked it
+        becomes a live receivable on the <a href="/receivables">Receivables</a>{" "}
+        page. Active reservations: {mm(activeTotal)}.
       </p>
 
       <MultiReservationForm sellers={sellers} obligors={obligors} rrlSellers={rrlSellers} canBook={canBook} />
@@ -123,8 +108,6 @@ export default async function ReservationsPage() {
           </>
         )}
       </div>
-
-      <BookedBook rows={bookedRows} canBook={canBook} />
     </>
   );
 }

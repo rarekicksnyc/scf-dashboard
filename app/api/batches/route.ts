@@ -5,6 +5,7 @@ import {
   getBatches,
   saveBatch,
   syncExceptionsForBatch,
+  materializeBatchBookings,
   addAudit,
 } from "@/lib/data/store";
 import { getCurrentUser, roleHas } from "@/lib/auth";
@@ -64,6 +65,9 @@ export async function POST(request: Request) {
   (result as unknown as { parseWarnings?: string[] }).parseWarnings = errors;
   saveBatch(result);
   syncExceptionsForBatch(result, user.id);
+  // A funded batch invoice is a live receivable — materialise it into the one
+  // ledger so it consumes limits and flows through settlement / aging / revenue.
+  materializeBatchBookings(result, user.id);
 
   addAudit({
     actorUserId: user.id,

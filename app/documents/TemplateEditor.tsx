@@ -16,8 +16,10 @@ const TYPE_LABEL: Record<DocTemplateType, string> = {
   CLIENT_EMAIL: "Client email (execution request)",
   BOOKING_EMAIL: "Booking / funding team email",
   INVESTOR_EMAIL: "Investor email",
+  INVOICE_ADDITIONAL_INTEREST: "Invoice — additional interest (past due)",
+  INVOICE_NOTE: "Invoice — payment notes",
 };
-const TYPES: DocTemplateType[] = ["PURCHASE_REQUEST", "COMMITMENT_REQUEST", "SCHEDULE_A_DTR", "SCHEDULE_A_UTRC", "SCHEDULE_A_INVESTOR", "CLIENT_EMAIL", "BOOKING_EMAIL", "INVESTOR_EMAIL"];
+const TYPES: DocTemplateType[] = ["PURCHASE_REQUEST", "COMMITMENT_REQUEST", "SCHEDULE_A_DTR", "SCHEDULE_A_UTRC", "SCHEDULE_A_INVESTOR", "CLIENT_EMAIL", "BOOKING_EMAIL", "INVESTOR_EMAIL", "INVOICE_ADDITIONAL_INTEREST", "INVOICE_NOTE"];
 
 const TOKENS = "seller · obligor · reference · currency · invoice_amount · advance_rate · coverage · committed_amount · value_date · maturity_date · commitment_due_date · final_demand_date · pricing_bps · product_type · primary_amount · document_name · today";
 

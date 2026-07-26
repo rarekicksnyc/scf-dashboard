@@ -125,6 +125,13 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
       seller.eligible && seller.status === "ACTIVE" ? "GREEN" : "RED",
       seller.eligible && seller.status === "ACTIVE" ? "Seller eligible and active." : "Seller not eligible/active.");
 
+    // Currency match. Limits are single-currency; cross-currency deals must be
+    // converted before they draw a limit, so a mismatch is blocked here (real
+    // FX conversion against the limit currency is not yet wired).
+    add("SELLER", "Currency", seller.currency, txn.currency,
+      txn.currency === seller.currency ? "GREEN" : "RED",
+      txn.currency === seller.currency ? "Transaction currency matches the facility." : `Transaction currency ${txn.currency} does not match the ${seller.currency} facility — convert before drawing the limit.`);
+
     const sl = findLimit("SELLER", seller.id);
     if (sl) {
       const v = viewLimit(sl, window);
