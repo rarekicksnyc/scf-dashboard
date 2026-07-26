@@ -25,26 +25,27 @@ export default function RevenuePage() {
   const sellers: RevRow[] = revenueByEntity(deals, "seller").map((r) => ({ ...r, name: getSeller(r.id)?.name ?? r.id }));
   const obligors: RevRow[] = revenueByEntity(deals, "obligor").map((r) => ({ ...r, name: getObligor(r.id)?.name ?? r.id }));
 
-  const share = (v: number) => (sum.revenue > 0 ? (v / sum.revenue) * 100 : 0);
+  const share = (v: number) => (sum.total > 0 ? (v / sum.total) * 100 : 0);
   const dtrPct = share(sum.dtrRevenue);
   const utrcPct = share(sum.utrcRevenue);
 
   const cards = [
-    { label: "Realized revenue", value: usd(sum.revenue), sub: `${sum.deals} deal${sum.deals === 1 ? "" : "s"} · ${usd(sum.volume)} funded` },
+    { label: "Realized revenue", value: usd(sum.total), sub: `${usd(sum.revenue)} margin + ${usd(sum.skimRevenue)} skim` },
+    { label: "Skim revenue", value: usd(sum.skimRevenue), sub: "from investor participations" },
     { label: "Pipeline revenue", value: usd(pipeline.revenue), sub: `${pipeline.deals} open reservation${pipeline.deals === 1 ? "" : "s"} · ${usd(pipeline.volume)}` },
     { label: "Weighted yield", value: `${sum.weightedMarginBps} bps`, sub: "coverage-weighted, annualized" },
-    { label: "Volume funded", value: usd(sum.volume), sub: "realized coverage" },
-    { label: "Deals booked", value: String(sum.deals), sub: `${batchCount()} batch${batchCount() === 1 ? "" : "es"} + bookings` },
+    { label: "Volume funded", value: usd(sum.volume), sub: `${sum.deals} deals · realized coverage` },
   ];
 
   return (
     <>
       <h1 className="page-title">Revenue</h1>
       <p className="page-sub">
-        MUFG revenue is the margin-only income (the base rate is funding cost, not
-        income) across booked transactions and funded batches, earned daily over
-        each deal&rsquo;s tenor. Contracted revenue: {usd(sum.revenue)}; earned to
-        date: {usd(accrual.accrued)}; pipeline: {usd(pipeline.revenue)}.
+        MUFG revenue is margin income (base rate is funding cost, not income) plus
+        skim from investor participations, earned daily over each deal&rsquo;s
+        tenor. Total contracted: {usd(sum.total)} ({usd(sum.revenue)} margin +{" "}
+        {usd(sum.skimRevenue)} skim); earned to date: {usd(accrual.accrued)};
+        pipeline: {usd(pipeline.revenue)}.
       </p>
 
       <div className="cards">
@@ -96,10 +97,10 @@ export default function RevenuePage() {
           )}
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12, marginTop: 16 }}>
+            <MixTile label="Margin income" value={usd(sum.revenue)} sub="retained margin" />
+            <MixTile label="Skim income" value={usd(sum.skimRevenue)} sub="investor rate differential + skim" />
             <MixTile label="From bookings" value={usd(sum.bookedRevenue)} sub="Transaction Flow" />
             <MixTile label="From batches" value={usd(sum.batchRevenue)} sub="bulk uploads" />
-            <MixTile label="DTR income" value={usd(sum.dtrRevenue)} sub="discount on purchase" />
-            <MixTile label="UTRC income" value={usd(sum.utrcRevenue)} sub="commitment fees" />
           </div>
         </div>
       </div>

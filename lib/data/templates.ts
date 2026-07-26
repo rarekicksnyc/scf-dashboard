@@ -107,6 +107,8 @@ Maturity date|maturity_date`;
 
 // Investor Schedule A — the investor portion only, priced at the interpolated
 // SOFR + (margin − skim). Sent separately to the investor.
+// NB: the skim is the bank's margin and must NEVER appear on the investor's
+// document. The investor sees only their own rate (SOFR + investor margin).
 const SCHEDULE_A_INVESTOR = `Investor|investor_name
 Seller|seller
 Obligor|obligor
@@ -114,7 +116,6 @@ Reference|reference
 Currency|currency
 Investor amount|investor_amount
 Interpolated SOFR|investor_base
-Skim (bps)|skim_bps
 Investor margin|investor_margin
 Investor rate|investor_rate
 Discount|investor_discount

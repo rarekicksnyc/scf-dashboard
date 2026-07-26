@@ -37,6 +37,7 @@ import type {
 } from "@/lib/types";
 import { DEFAULT_TEMPLATES } from "@/lib/data/templates";
 import { toLimitView, computeConsumed } from "@/lib/engine/availability";
+import { daysBetween } from "@/lib/format";
 import * as seed from "./seed";
 
 // ---------------------------------------------------------------------------
@@ -155,6 +156,15 @@ export function runMigrations(): void {
     const pm = store.rolePermissions.PRODUCT_MANAGER ?? [];
     if (!pm.includes("MANAGE_ROLES")) {
       store.rolePermissions.PRODUCT_MANAGER = [...pm, "MANAGE_ROLES"];
+    }
+  });
+
+  // Skim must never be shown to the investor — strip any skim column from
+  // investor Schedule A templates (default + per-seller overrides).
+  once("investor-schedule-no-skim-2026-07", () => {
+    for (const t of store.docTemplates) {
+      if (t.type !== "SCHEDULE_A_INVESTOR") continue;
+      t.body = t.body.split("\n").filter((line) => !/\|\s*skim_bps\s*$/i.test(line.trim())).join("\n");
     }
   });
 }
@@ -413,6 +423,11 @@ export function bookTransactionFromWorkflow(id: string, by: string): { workflow:
     valueDate: wf.valueDate,
     maturityDate: wf.productType === "UTRC" ? wf.finalDemandDate || wf.maturityDate : wf.maturityDate,
     pricingBps: wf.pricingBps,
+    baseRatePct: wf.baseRate,
+    // Investor participation → skim revenue inputs (SOFR frozen at booking).
+    investorAmount: wf.investorAmount,
+    skimBps: wf.skimBps,
+    investorSofrPct: wf.investorAmount && wf.investorAmount > 0 ? interpolateSofr(daysBetween(wf.valueDate, wf.maturityDate)) : undefined,
     investorAllocations: rsv?.investorAllocations,
     insurerAllocations: rsv?.insurerAllocations,
     bookedAt: now,

@@ -451,6 +451,12 @@ export interface BookedTransaction {
   valueDate: string;
   maturityDate: string;
   pricingBps: number;
+  baseRatePct?: number; // client base rate (COF %) at booking, for skim revenue
+  // Investor participation captured at booking, to track skim revenue. Skim
+  // revenue = investor portion × ((COF − interpolated SOFR) + skim) × tenor/360.
+  investorAmount?: number;
+  skimBps?: number;
+  investorSofrPct?: number; // interpolated SOFR at booking
   investorAllocations?: InvestorAllocation[];
   insurerAllocations?: InsurerAllocation[];
   bookedAt: string;
