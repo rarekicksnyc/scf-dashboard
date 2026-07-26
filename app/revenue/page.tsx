@@ -6,6 +6,7 @@ import {
   revenueByMonth,
   revenueByEntity,
   pipelineRevenue,
+  accruedRevenue,
   batchCount,
 } from "@/lib/revenue";
 import RevenueTabs, { type RevRow } from "./RevenueTabs";
@@ -14,10 +15,13 @@ import MonthlyRevenueChart from "./MonthlyRevenueChart";
 export const dynamic = "force-dynamic";
 
 export default function RevenuePage() {
+  const today = new Date().toISOString().slice(0, 10);
   const deals = allRevenueDeals();
   const sum = revenueSummary(deals);
   const monthly = revenueByMonth(deals);
   const pipeline = pipelineRevenue();
+  const accrual = accruedRevenue(deals, today);
+  const accruedPct = accrual.contracted > 0 ? (accrual.accrued / accrual.contracted) * 100 : 0;
   const sellers: RevRow[] = revenueByEntity(deals, "seller").map((r) => ({ ...r, name: getSeller(r.id)?.name ?? r.id }));
   const obligors: RevRow[] = revenueByEntity(deals, "obligor").map((r) => ({ ...r, name: getObligor(r.id)?.name ?? r.id }));
 
@@ -37,9 +41,10 @@ export default function RevenuePage() {
     <>
       <h1 className="page-title">Revenue</h1>
       <p className="page-sub">
-        Discount and commitment-fee income across booked transactions and funded
-        batches, plus the projected revenue sitting in the forward reservation book.
-        Realized revenue: {usd(sum.revenue)}; pipeline: {usd(pipeline.revenue)}.
+        MUFG revenue is the margin-only income (the base rate is funding cost, not
+        income) across booked transactions and funded batches, earned daily over
+        each deal&rsquo;s tenor. Contracted revenue: {usd(sum.revenue)}; earned to
+        date: {usd(accrual.accrued)}; pipeline: {usd(pipeline.revenue)}.
       </p>
 
       <div className="cards">
@@ -50,6 +55,24 @@ export default function RevenuePage() {
             <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{c.sub}</div>
           </div>
         ))}
+      </div>
+
+      <div className="panel">
+        <h2>Revenue accrual</h2>
+        <div style={{ padding: 16 }}>
+          <p className="muted" style={{ marginTop: 0, fontSize: 13, maxWidth: "90ch" }}>
+            Revenue accrues daily over the tenor — the margin income is not realized until each deal matures
+            and the coverage is repaid. As of {today}.
+          </p>
+          <div className="bar" style={{ height: 12, minWidth: 0 }}>
+            <span className="ok" style={{ width: `${accruedPct}%` }} />
+          </div>
+          <div style={{ display: "flex", gap: 24, marginTop: 10, flexWrap: "wrap", fontSize: 13 }}>
+            <span>Contracted <strong>{usd(accrual.contracted)}</strong></span>
+            <span style={{ color: "var(--green)" }}>Earned to date <strong>{usd(accrual.accrued)}</strong> ({accruedPct.toFixed(0)}%)</span>
+            <span className="muted">Unearned (remaining) <strong>{usd(accrual.unearned)}</strong></span>
+          </div>
+        </div>
       </div>
 
       <div className="panel">

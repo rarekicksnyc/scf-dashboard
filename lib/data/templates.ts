@@ -84,9 +84,43 @@ The document has been executed by an authorized signatory and the signature veri
 Thank you,
 Supply Chain Finance Team`;
 
+// Schedule A column specs — one column per line, "Header|token". Editable per
+// seller so each seller's Schedule A can differ. Available tokens are the deal
+// tokens (seller, obligor, reference, currency, invoice_amount, advance_rate,
+// coverage, base_rate, pricing_bps, discount_rate, discount, purchase_price,
+// value_date, maturity_date, committed_amount, commitment_due_date,
+// final_demand_date, commitment_fee, revenue).
+const SCHEDULE_A_DTR = `Seller|seller
+Obligor|obligor
+Reference|reference
+Currency|currency
+Invoice amount|invoice_amount
+Advance rate|advance_rate
+Coverage amount|coverage
+Base rate|base_rate
+Margin (bps)|pricing_bps
+Discount rate|discount_rate
+Discount|discount
+Purchase price|purchase_price
+Value date|value_date
+Maturity date|maturity_date`;
+
+const SCHEDULE_A_UTRC = `Seller|seller
+Obligor|obligor
+Reference|reference
+Currency|currency
+Committed amount|committed_amount
+Commitment date|value_date
+Commitment due date|commitment_due_date
+Final permitted demand date|final_demand_date
+Margin (bps)|pricing_bps
+Commitment fee|commitment_fee`;
+
 export const DEFAULT_TEMPLATES: DocTemplate[] = [
   { id: "TMPL-PURCHASE_REQUEST", type: "PURCHASE_REQUEST", body: PURCHASE_REQUEST },
   { id: "TMPL-COMMITMENT_REQUEST", type: "COMMITMENT_REQUEST", body: COMMITMENT_REQUEST },
+  { id: "TMPL-SCHEDULE_A_DTR", type: "SCHEDULE_A_DTR", body: SCHEDULE_A_DTR },
+  { id: "TMPL-SCHEDULE_A_UTRC", type: "SCHEDULE_A_UTRC", body: SCHEDULE_A_UTRC },
   { id: "TMPL-CLIENT_EMAIL", type: "CLIENT_EMAIL", subject: "Execution required — {{document_name}} for {{obligor}}", body: CLIENT_EMAIL },
   { id: "TMPL-BOOKING_EMAIL", type: "BOOKING_EMAIL", subject: "Book transaction — {{seller}} / {{obligor}} {{primary_amount}}", body: BOOKING_EMAIL },
 ];

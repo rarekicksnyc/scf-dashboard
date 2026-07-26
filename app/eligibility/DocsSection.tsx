@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { usd } from "@/lib/format";
+import { usd, daysBetween } from "@/lib/format";
 import { inputBase as input, fieldLabel as field } from "@/lib/ui";
-import { buildDocSet, fillTemplate, wordDocument, type DocTokens, type GeneratedDoc } from "@/lib/docgen";
+import { buildDocSet, fillTemplate, pricingTokens, wordDocument, type DocTokens, type GeneratedDoc } from "@/lib/docgen";
 import type { DocTemplate } from "@/lib/types";
 import type { ResvOpt } from "./MultiTransactionCheck";
 
@@ -56,6 +56,7 @@ export default function DocsSection({
     commitmentDueDate: "2027-02-01",
     finalDemandDate: "2027-08-01",
     pricingBps: "125",
+    baseRate: "4.50", // input & confirmed by the PM before sending to the client
   });
   const [docs, setDocs] = useState<GeneratedDoc[] | null>(null);
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((s) => ({ ...s, [k]: v }));
@@ -83,6 +84,7 @@ export default function DocsSection({
   const sellerName = sellers.find((s) => s.id === f.sellerId)?.name ?? f.sellerId;
   const amount = Number(f.amount) || 0;
   const coverage = isUtrc ? amount : Math.round(amount * (Number(f.advanceRate) || 0) / 100);
+  const tenorDays = daysBetween(f.valueDate, isUtrc ? f.finalDemandDate : f.maturityDate);
 
   const tokens: DocTokens = useMemo(() => ({
     seller: sellerName,
@@ -102,7 +104,9 @@ export default function DocsSection({
     today,
     primary_amount: isUtrc ? usd(amount) : usd(coverage),
     document_name: isUtrc ? "Commitment Request" : "Purchase Request",
-  }), [sellerName, f, amount, coverage, isUtrc, today]);
+    // Derived pricing (discount / purchase price / fee / revenue).
+    ...pricingTokens({ coverage, pricingBps: Number(f.pricingBps) || 0, baseRatePct: Number(f.baseRate) || 0, tenorDays }),
+  }), [sellerName, f, amount, coverage, isUtrc, today, tenorDays]);
 
   function resolveTemplate(type: DocTemplate["type"]): string {
     const override = templates.find((t) => t.type === type && t.sellerId === f.sellerId);
@@ -113,7 +117,8 @@ export default function DocsSection({
   function generate() {
     const reqType = isUtrc ? "COMMITMENT_REQUEST" : "PURCHASE_REQUEST";
     const requestBody = fillTemplate(resolveTemplate(reqType), tokens);
-    setDocs(buildDocSet({ isUtrc, tokens, requestBody }));
+    const scheduleSpec = resolveTemplate(isUtrc ? "SCHEDULE_A_UTRC" : "SCHEDULE_A_DTR");
+    setDocs(buildDocSet({ isUtrc, tokens, requestBody, scheduleSpec }));
   }
 
   async function proceed(override = false) {
@@ -135,6 +140,7 @@ export default function DocsSection({
         commitmentDueDate: isUtrc ? f.commitmentDueDate : undefined,
         finalDemandDate: isUtrc ? f.finalDemandDate : undefined,
         pricingBps: Number(f.pricingBps),
+        baseRate: isUtrc ? undefined : Number(f.baseRate) || 0,
         override,
         comment: proceedComment,
       }),
@@ -239,7 +245,18 @@ export default function DocsSection({
           <label style={field}>Margin (bps)
             <input style={input} type="number" value={f.pricingBps} onChange={(e) => set("pricingBps", e.target.value)} />
           </label>
+          {!isUtrc && (
+            <label style={field}>Base rate (%)
+              <input style={input} type="number" step="0.01" value={f.baseRate} onChange={(e) => set("baseRate", e.target.value)} />
+              <span className="muted" style={{ fontSize: 10 }}>PM-confirmed before the client executes</span>
+            </label>
+          )}
         </div>
+        {!isUtrc && (
+          <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+            Discount rate {tokens.discount_rate} · Discount {tokens.discount} · Purchase price {tokens.purchase_price} · MUFG revenue (margin only) {tokens.revenue}
+          </div>
+        )}
 
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <button className="btn" type="button" onClick={generate}>Generate documents</button>

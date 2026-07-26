@@ -1,4 +1,6 @@
 import type { DocTemplateType } from "@/lib/types";
+import { usd } from "@/lib/format";
+import { DAY_COUNT_BASIS } from "@/lib/config";
 
 // ---------------------------------------------------------------------------
 // Document generation. Pure + isomorphic (no server/DOM APIs) so the same fill
@@ -15,19 +17,40 @@ export function fillTemplate(body: string, tokens: DocTokens): string {
   return body.replace(/\{\{\s*([a-z0-9_]+)\s*\}\}/gi, (_m, key: string) => tokens[key.toLowerCase()] ?? "");
 }
 
-// Schedule A is a structured single-transaction table (columns differ by product
-// type). Returns header + one row; used for the preview and the .xlsx export.
-export function scheduleA(tokens: DocTokens, isUtrc: boolean): { columns: string[]; row: string[] } {
-  if (isUtrc) {
-    return {
-      columns: ["Seller", "Obligor", "Reference", "Currency", "Committed amount", "Commitment date", "Commitment due date", "Final demand date", "Fee margin (bps)"],
-      row: [tokens.seller, tokens.obligor, tokens.reference, tokens.currency, tokens.committed_amount, tokens.value_date, tokens.commitment_due_date, tokens.final_demand_date, tokens.pricing_bps],
-    };
-  }
+// The discount / fee tokens derived from the priced deal. Discount is the full
+// customer price reduction (margin + base rate); revenue is the MARGIN-ONLY slice
+// (base rate is MUFG's funding cost, not income). Purchase price = coverage −
+// discount. Isomorphic so the preview and the export/email agree.
+export function pricingTokens(o: { coverage: number; pricingBps: number; baseRatePct: number; tenorDays: number }): DocTokens {
+  const t = Math.max(o.tenorDays, 0) / DAY_COUNT_BASIS;
+  const marginDec = o.pricingBps / 10000;
+  const baseDec = o.baseRatePct / 100;
+  const discount = o.coverage * (marginDec + baseDec) * t;
+  const revenue = o.coverage * marginDec * t; // margin-only
   return {
-    columns: ["Seller", "Obligor", "Reference", "Currency", "Invoice amount", "Advance rate", "Coverage amount", "Value date", "Maturity date", "Margin (bps)"],
-    row: [tokens.seller, tokens.obligor, tokens.reference, tokens.currency, tokens.invoice_amount, tokens.advance_rate, tokens.coverage, tokens.value_date, tokens.maturity_date, tokens.pricing_bps],
+    base_rate: `${o.baseRatePct.toFixed(2)}%`,
+    discount_rate: `${(o.pricingBps / 100 + o.baseRatePct).toFixed(2)}%`,
+    discount: usd(discount),
+    purchase_price: usd(o.coverage - discount),
+    commitment_fee: usd(revenue),
+    revenue: usd(revenue),
   };
+}
+
+// Schedule A is a per-seller, per-product column-spec template: one column per
+// non-blank line, each "Header|token" (token from the deal tokens). This makes
+// Schedule A editable and different per seller. Returns header + one row.
+export function scheduleAFromSpec(spec: string, tokens: DocTokens): { columns: string[]; row: string[] } {
+  const columns: string[] = [];
+  const row: string[] = [];
+  for (const raw of spec.split(/\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    const [header, token] = line.split("|").map((s) => s.trim());
+    columns.push(header || token || "");
+    row.push(token ? tokens[token.toLowerCase()] ?? "" : "");
+  }
+  return { columns, row };
 }
 
 const esc = (s: string) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -65,10 +88,11 @@ export function buildDocSet(opts: {
   isUtrc: boolean;
   tokens: DocTokens;
   requestBody: string; // filled Purchase/Commitment request template text
+  scheduleSpec: string; // Schedule A column spec (per seller/product)
 }): GeneratedDoc[] {
-  const { isUtrc, tokens, requestBody } = opts;
+  const { isUtrc, tokens, requestBody, scheduleSpec } = opts;
   const requestTitle = isUtrc ? "Commitment Request" : "Purchase Request";
-  const table = scheduleA(tokens, isUtrc);
+  const table = scheduleAFromSpec(scheduleSpec, tokens);
   return [
     {
       key: "REQUEST",

@@ -10,10 +10,12 @@ interface Opt { id: string; name: string }
 const TYPE_LABEL: Record<DocTemplateType, string> = {
   PURCHASE_REQUEST: "Purchase Request (DTR, signed)",
   COMMITMENT_REQUEST: "Commitment Request (UTRC, signed)",
+  SCHEDULE_A_DTR: "Schedule A — DTR (columns)",
+  SCHEDULE_A_UTRC: "Schedule A — UTRC (columns)",
   CLIENT_EMAIL: "Client email (execution request)",
   BOOKING_EMAIL: "Booking / funding team email",
 };
-const TYPES: DocTemplateType[] = ["PURCHASE_REQUEST", "COMMITMENT_REQUEST", "CLIENT_EMAIL", "BOOKING_EMAIL"];
+const TYPES: DocTemplateType[] = ["PURCHASE_REQUEST", "COMMITMENT_REQUEST", "SCHEDULE_A_DTR", "SCHEDULE_A_UTRC", "CLIENT_EMAIL", "BOOKING_EMAIL"];
 
 const TOKENS = "seller · obligor · reference · currency · invoice_amount · advance_rate · coverage · committed_amount · value_date · maturity_date · commitment_due_date · final_demand_date · pricing_bps · product_type · primary_amount · document_name · today";
 
@@ -24,6 +26,7 @@ export default function TemplateEditor({ templates, sellers, canEdit }: { templa
   const [type, setType] = useState<DocTemplateType>("PURCHASE_REQUEST");
   const [sellerId, setSellerId] = useState(""); // "" = default
   const isEmail = type === "CLIENT_EMAIL" || type === "BOOKING_EMAIL";
+  const isSchedule = type === "SCHEDULE_A_DTR" || type === "SCHEDULE_A_UTRC";
 
   // The effective template for the current (type, seller) selection.
   const effective = useMemo(() => {
@@ -108,7 +111,9 @@ export default function TemplateEditor({ templates, sellers, canEdit }: { templa
           disabled={!canEdit}
           style={{ width: "100%", minHeight: 320, boxSizing: "border-box", border: "1px solid var(--border)", borderRadius: 8, padding: 12, fontFamily: "ui-monospace, Menlo, monospace", fontSize: 12.5, lineHeight: 1.55 }}
         />
-        <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>Tokens: {TOKENS}</div>
+        <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>
+          {isSchedule ? <>One column per line as <code>Header|token</code> (order = column order). </> : null}Tokens: {TOKENS}
+        </div>
 
         {canEdit && (
           <div style={{ display: "flex", gap: 8, marginTop: 12 }}>

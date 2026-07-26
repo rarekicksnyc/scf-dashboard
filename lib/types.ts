@@ -215,6 +215,8 @@ export interface ParentCompanyGuarantee {
 export type DocTemplateType =
   | "PURCHASE_REQUEST"
   | "COMMITMENT_REQUEST"
+  | "SCHEDULE_A_DTR"
+  | "SCHEDULE_A_UTRC"
   | "CLIENT_EMAIL"
   | "BOOKING_EMAIL";
 
@@ -407,6 +409,7 @@ export interface TransactionWorkflow {
   commitmentDueDate?: string;
   finalDemandDate?: string;
   pricingBps: number;
+  baseRate?: number; // DTR: PM-confirmed base rate (%) for the discount
   scope?: ReservationScope;
   status: WorkflowStatus;
   createdAt: string;

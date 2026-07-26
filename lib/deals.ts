@@ -10,6 +10,7 @@ export interface Deal {
   advanceRate: number; // 0..1
   coverage: number; // funded amount = invoice amount x advance rate
   revenue: number; // discount fee earned on the deal
+  marginBps?: number; // margin (for margin-only revenue), when on the invoice
   bookedDate: string; // when the batch was booked (uploaded)
   valueDate: string; // requested discount / value date
   maturityDate: string; // due date
@@ -34,6 +35,7 @@ export function fundedDeals(filter: { sellerId?: string; obligorId?: string }): 
         advanceRate,
         coverage: r.invoice.coverageAmount ?? r.invoice.amount * advanceRate,
         revenue: r.discountFee,
+        marginBps: r.invoice.marginBps,
         bookedDate: batch.uploadedAt,
         valueDate: r.invoice.requestedDiscountDate,
         maturityDate: r.invoice.dueDate,

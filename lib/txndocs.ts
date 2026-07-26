@@ -1,7 +1,7 @@
 import * as XLSX from "xlsx";
 import { getDocTemplate } from "@/lib/data/store";
-import { fillTemplate, buildDocSet, wordDocument, type DocTokens } from "@/lib/docgen";
-import { usd } from "@/lib/format";
+import { fillTemplate, buildDocSet, pricingTokens, wordDocument, type DocTokens } from "@/lib/docgen";
+import { usd, daysBetween } from "@/lib/format";
 import type { TransactionWorkflow, DocTemplateType } from "@/lib/types";
 import type { EmlAttachment } from "@/lib/email";
 
@@ -12,6 +12,7 @@ const slug = (s: string) => String(s ?? "").replace(/[^\w]+/g, "-").replace(/^-|
 
 export function workflowTokens(wf: TransactionWorkflow): DocTokens {
   const isUtrc = wf.productType === "UTRC";
+  const tenorDays = daysBetween(wf.valueDate, isUtrc ? (wf.finalDemandDate || wf.maturityDate) : wf.maturityDate);
   return {
     seller: wf.sellerName,
     obligor: wf.obligorName,
@@ -30,6 +31,7 @@ export function workflowTokens(wf: TransactionWorkflow): DocTokens {
     today: wf.createdAt.slice(0, 10),
     primary_amount: isUtrc ? usd(wf.amount) : usd(wf.coverage),
     document_name: isUtrc ? "Commitment Request" : "Purchase Request",
+    ...pricingTokens({ coverage: wf.coverage, pricingBps: wf.pricingBps, baseRatePct: wf.baseRate ?? 0, tenorDays }),
   };
 }
 
@@ -47,7 +49,8 @@ export function workflowAttachments(wf: TransactionWorkflow): EmlAttachment[] {
   const tokens = workflowTokens(wf);
   const reqType: DocTemplateType = isUtrc ? "COMMITMENT_REQUEST" : "PURCHASE_REQUEST";
   const requestBody = fillTemplate(getDocTemplate(reqType, wf.sellerId)?.body ?? "", tokens);
-  const docs = buildDocSet({ isUtrc, tokens, requestBody });
+  const scheduleSpec = getDocTemplate(isUtrc ? "SCHEDULE_A_UTRC" : "SCHEDULE_A_DTR", wf.sellerId)?.body ?? "";
+  const docs = buildDocSet({ isUtrc, tokens, requestBody, scheduleSpec });
   const req = docs.find((d) => d.kind === "REQUEST")!;
   const sch = docs.find((d) => d.kind === "SCHEDULE_A")!;
   const base = slug(wf.reference);

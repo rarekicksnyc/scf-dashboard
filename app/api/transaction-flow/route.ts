@@ -63,6 +63,7 @@ export async function POST(request: Request) {
     commitmentDueDate: b.commitmentDueDate || undefined,
     finalDemandDate: b.finalDemandDate || undefined,
     pricingBps: Number(b.pricingBps) || 0,
+    baseRate: b.baseRate != null ? Number(b.baseRate) || 0 : undefined,
     scope: (b.scope as ReservationScope) || undefined,
     createdBy: user.name,
   });
