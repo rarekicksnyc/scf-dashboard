@@ -10,6 +10,8 @@ import {
   listTransactionWorkflows,
   allSellerEntities,
   sofrEndpoints,
+  cofCurve,
+  listSignatories,
 } from "@/lib/data/store";
 import { currentUserCan } from "@/lib/auth";
 import EligibilityCheck from "./EligibilityCheck";
@@ -63,6 +65,7 @@ export default async function EligibilityPage() {
         canBook={canBook}
         sofr1={sofrEndpoints().one}
         sofr30={sofrEndpoints().thirty}
+        cofCurve={cofCurve()}
       />
       <Collapsible summary="Single detailed check (full breakdown, distribution & insurance)">
         <EligibilityCheck
@@ -78,6 +81,7 @@ export default async function EligibilityPage() {
       <WorkflowPanel
         workflows={listTransactionWorkflows()}
         sellerEntities={allSellerEntities().map((e) => ({ sellerId: e.facilityId, id: e.id, name: e.name }))}
+        signatories={listSignatories().map((s) => ({ sellerId: s.sellerId, entityId: s.entityId, name: s.name, title: s.title }))}
         canBook={canBook}
       />
     </>

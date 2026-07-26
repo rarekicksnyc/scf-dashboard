@@ -32,6 +32,7 @@ export default function DocsSection({
   canBook,
   sofr1,
   sofr30,
+  cofCurve,
 }: {
   sellers: Opt[];
   selected: ResvOpt | null;
@@ -39,6 +40,7 @@ export default function DocsSection({
   canBook: boolean;
   sofr1?: number;
   sofr30?: number;
+  cofCurve: { tenorDays: number; offer: number }[];
 }) {
   const router = useRouter();
   const today = new Date().toISOString().slice(0, 10);
@@ -70,20 +72,31 @@ export default function DocsSection({
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((s) => ({ ...s, [k]: v }));
   const isUtrc = f.productType === "UTRC";
 
-  // Autofill from the shared reservation selection.
+  // Closest COF offer to a tenor, to preload the base rate the PM confirms.
+  function closestCof(days: number): number | undefined {
+    if (cofCurve.length === 0) return undefined;
+    return cofCurve.reduce((best, r) => (Math.abs(r.tenorDays - days) < Math.abs(best.tenorDays - days) ? r : best)).offer;
+  }
+
+  // Autofill from the shared reservation selection — and preload the reference
+  // and the base rate (closest COF) so the PM confirms rather than re-enters.
   useEffect(() => {
     if (!selected) return;
+    const tenor = daysBetween(selected.valueDate, selected.maturityDate);
+    const cof = closestCof(tenor);
     setF((s) => ({
       ...s,
       reservationId: selected.id,
       obligorId: selected.obligorId,
       sellerId: selected.sellerId,
       obligor: selected.obligorName,
+      reference: selected.id,
       amount: String(selected.amount),
       advanceRate: "100",
       valueDate: selected.valueDate,
       maturityDate: selected.maturityDate,
       pricingBps: String(selected.pricingBps),
+      baseRate: cof != null ? cof.toFixed(2) : s.baseRate,
     }));
     setDocs(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps

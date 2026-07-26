@@ -7,6 +7,7 @@ import { inputBase as input, fieldLabel as field } from "@/lib/ui";
 import type { TransactionWorkflow, WorkflowStatus } from "@/lib/types";
 
 interface SellerEntityOpt { sellerId: string; id: string; name: string }
+interface SignatoryOpt { sellerId: string; entityId?: string; name: string; title: string }
 
 const STATUS: Record<WorkflowStatus, { cls: string; label: string }> = {
   IN_PROGRESS: { cls: "grey", label: "In progress" },
@@ -31,7 +32,7 @@ async function downloadEml(url: string) {
   return true;
 }
 
-export default function WorkflowPanel({ workflows, sellerEntities, canBook }: { workflows: TransactionWorkflow[]; sellerEntities: SellerEntityOpt[]; canBook: boolean }) {
+export default function WorkflowPanel({ workflows, sellerEntities, signatories, canBook }: { workflows: TransactionWorkflow[]; sellerEntities: SellerEntityOpt[]; signatories: SignatoryOpt[]; canBook: boolean }) {
   const active = workflows.filter((w) => w.status !== "BOOKED" && w.status !== "CANCELLED");
   const done = workflows.filter((w) => w.status === "BOOKED" || w.status === "CANCELLED");
   return (
@@ -39,7 +40,7 @@ export default function WorkflowPanel({ workflows, sellerEntities, canBook }: { 
       <h2>In-progress transactions ({active.length})</h2>
       <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
         {active.length === 0 && <div className="muted" style={{ fontSize: 13 }}>None yet. Load a reservation above and click Proceed with Transaction.</div>}
-        {active.map((w) => <Row key={w.id} w={w} sellerEntities={sellerEntities.filter((e) => e.sellerId === w.sellerId)} canBook={canBook} />)}
+        {active.map((w) => <Row key={w.id} w={w} sellerEntities={sellerEntities.filter((e) => e.sellerId === w.sellerId)} signatories={signatories.filter((s) => s.sellerId === w.sellerId)} canBook={canBook} />)}
         {done.length > 0 && (
           <details>
             <summary className="muted" style={{ cursor: "pointer", fontSize: 13 }}>Booked / cancelled ({done.length})</summary>
@@ -59,12 +60,13 @@ export default function WorkflowPanel({ workflows, sellerEntities, canBook }: { 
   );
 }
 
-function Row({ w, sellerEntities, canBook }: { w: TransactionWorkflow; sellerEntities: SellerEntityOpt[]; canBook: boolean }) {
+function Row({ w, sellerEntities, signatories, canBook }: { w: TransactionWorkflow; sellerEntities: SellerEntityOpt[]; signatories: SignatoryOpt[]; canBook: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [showTimeline, setShowTimeline] = useState(false);
   const [exec, setExec] = useState({ signerName: "", signerTitle: "", sellerEntityId: "", fileName: "", fileBase64: "", contentType: "" });
+  const [signerOther, setSignerOther] = useState(false);
   const [bookBlock, setBookBlock] = useState<string[] | null>(null);
   const [bookComment, setBookComment] = useState("");
   const st = STATUS[w.status];
@@ -189,12 +191,33 @@ function Row({ w, sellerEntities, canBook }: { w: TransactionWorkflow; sellerEnt
         <div style={{ marginTop: 10, padding: 10, border: "1px solid var(--border)", borderRadius: 8, background: "#fafbfd" }}>
           <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Upload executed document &amp; check signer</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 8, alignItems: "end" }}>
-            <label style={field}>Signer name
-              <input style={input} value={exec.signerName} onChange={(e) => setExec((s) => ({ ...s, signerName: e.target.value }))} placeholder="who signed" />
-            </label>
-            <label style={field}>Signer title
-              <input style={input} value={exec.signerTitle} onChange={(e) => setExec((s) => ({ ...s, signerTitle: e.target.value }))} />
-            </label>
+            {signatories.length > 0 && !signerOther ? (
+              <label style={field}>Signatory
+                <select
+                  style={input}
+                  value={exec.signerName ? `${exec.signerName}|${exec.signerTitle}` : ""}
+                  onChange={(e) => {
+                    if (e.target.value === "__other__") { setSignerOther(true); setExec((s) => ({ ...s, signerName: "", signerTitle: "" })); return; }
+                    const [name, title] = e.target.value.split("|");
+                    setExec((s) => ({ ...s, signerName: name ?? "", signerTitle: title ?? "" }));
+                  }}
+                >
+                  <option value="">Select who signed…</option>
+                  {signatories.map((s, i) => <option key={i} value={`${s.name}|${s.title}`}>{s.name} — {s.title}</option>)}
+                  <option value="__other__">Other (not on the authorized list)</option>
+                </select>
+              </label>
+            ) : (
+              <>
+                <label style={field}>Signer name
+                  <input style={input} value={exec.signerName} onChange={(e) => setExec((s) => ({ ...s, signerName: e.target.value }))} placeholder="who signed" />
+                </label>
+                <label style={field}>Signer title
+                  <input style={input} value={exec.signerTitle} onChange={(e) => setExec((s) => ({ ...s, signerTitle: e.target.value }))} />
+                </label>
+                {signatories.length > 0 && <button type="button" className="btn secondary" style={{ padding: "4px 8px", fontSize: 11, alignSelf: "center" }} onClick={() => setSignerOther(false)}>← pick from list</button>}
+              </>
+            )}
             {sellerEntities.length > 0 && (
               <label style={field}>Signed for entity
                 <select style={input} value={exec.sellerEntityId} onChange={(e) => setExec((s) => ({ ...s, sellerEntityId: e.target.value }))}>

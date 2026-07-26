@@ -617,6 +617,11 @@ export function resolveBaseRate(rateType: BaseRateType, tenorDays: number): numb
   return best.offer;
 }
 
+// COF curve points (tenor → offer) for preloading the base rate on a deal.
+export function cofCurve(): { tenorDays: number; offer: number }[] {
+  return store.rates.filter((r) => r.rateType === "COF" && !r.error).map((r) => ({ tenorDays: r.tenorDays, offer: r.offer }));
+}
+
 // The 1-day and 30-day SOFR offers used to interpolate short-tenor SOFR.
 export function sofrEndpoints(): { one?: number; thirty?: number } {
   const rows = store.rates.filter((r) => r.rateType === "SOFR" && !r.error);
