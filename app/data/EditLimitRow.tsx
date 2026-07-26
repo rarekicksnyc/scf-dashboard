@@ -11,10 +11,12 @@ export default function EditLimitRow({
   view,
   entityName,
   canEdit,
+  rev,
 }: {
   view: LimitView;
   entityName: string;
   canEdit: boolean;
+  rev?: number;
 }) {
   const router = useRouter();
   const [cdl, setCdl] = useState(view.limit.cdl);
@@ -25,11 +27,13 @@ export default function EditLimitRow({
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [conflict, setConflict] = useState(false);
 
   async function save() {
     setBusy(true);
     setSaved(false);
     setErr(null);
+    setConflict(false);
     const res = await fetch(`/api/limits/${view.limit.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
@@ -39,9 +43,15 @@ export default function EditLimitRow({
         maxTenorDays: Number(tenor),
         expiryDate: expiry,
         status,
+        rev, // edit-conflict guard: the version this row was loaded at
       }),
     });
     setBusy(false);
+    // 409 = someone else changed this limit since it was opened. Don't overwrite.
+    if (res.status === 409) {
+      setConflict(true);
+      return;
+    }
     if (!res.ok) {
       setErr((await res.json()).error ?? "Failed");
       return;
@@ -114,6 +124,12 @@ export default function EditLimitRow({
           </button>
         </div>
         {err && <div className="check-pill red" style={{ marginTop: 3 }}>{err}</div>}
+        {conflict && (
+          <div className="check-pill red" style={{ marginTop: 3, lineHeight: 1.4 }}>
+            Someone changed this limit since you opened it. Your edit was not saved.{" "}
+            <button type="button" onClick={() => { setConflict(false); router.refresh(); }} style={{ background: "none", border: "none", color: "var(--brand)", textDecoration: "underline", cursor: "pointer", padding: 0, fontSize: "inherit" }}>Reload the latest</button>, then re-apply.
+          </div>
+        )}
       </td>
     </tr>
   );

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { updateLimit, removeLimit, addAudit } from "@/lib/data/store";
+import { updateLimit, removeLimit, recordUnchanged, recordRev, bumpRecordRev, addAudit } from "@/lib/data/store";
 import { getCurrentUser, roleHas } from "@/lib/auth";
 import type { EntityStatus } from "@/lib/types";
 
@@ -18,6 +18,14 @@ export async function PATCH(
   }
 
   const b = await request.json().catch(() => ({}));
+
+  // Edit-conflict guard: if the editor sent the version it loaded and someone
+  // else has changed this limit since, reject instead of silently overwriting.
+  const key = `limit:${id}`;
+  if (b.rev != null && !recordUnchanged(key, Number(b.rev))) {
+    return NextResponse.json({ error: "This limit was changed by another user since you opened it.", current: recordRev(key) }, { status: 409 });
+  }
+
   const patch: {
     approvedLimit?: number;
     maxTenorDays?: number;
@@ -40,6 +48,7 @@ export async function PATCH(
   if (!updated) {
     return NextResponse.json({ error: "Limit not found." }, { status: 404 });
   }
+  const newRev = bumpRecordRev(key); // record the new version for the next editor
 
   addAudit({
     actorUserId: user.id,
@@ -50,7 +59,7 @@ export async function PATCH(
     detail: `Updated ${Object.entries(patch).map(([k, v]) => `${k}=${v}`).join(", ")}.`,
   });
 
-  return NextResponse.json({ ok: true, limit: updated });
+  return NextResponse.json({ ok: true, limit: updated, rev: newRev });
 }
 
 // Remove a limit line entirely (e.g. drop a swingline or RRL from a seller).

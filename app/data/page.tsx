@@ -14,6 +14,7 @@ import {
   listParentGuarantees,
   listSignatories,
   getSettings,
+  recordRev,
 } from "@/lib/data/store";
 import { currentUserCan } from "@/lib/auth";
 import { mm, dateShort } from "@/lib/format";
@@ -137,6 +138,7 @@ export default async function DataManagementPage({
               rrlSwingline: rrlSwl ? `${mm(rrlSwl.approvedLimit)} (exp ${dateShort(rrlSwl.expiryDate)})` : "N/A",
             }}
             canEdit={canEdit}
+            rev={recordRev(`seller:${seller.id}`)}
           />
         )}
         <div className="table-scroll">

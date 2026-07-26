@@ -26,6 +26,13 @@ const FLOW: { step: string; detail: string }[] = [
 
 const BATCH_FLOW = "Batches upload many invoices at once. Each is run through the same eligibility controls; funded invoices materialise into the one Receivables ledger, and any exception routes to the Exceptions screen for a checker to approve.";
 
+const CONCURRENCY: [string, string][] = [
+  ["One shared live book", "Everyone works on the same book on one server. The moment anyone books a deal, edits a limit, or records a collection, the change is saved for every user at once — there are no separate copies to reconcile."],
+  ["Screens update on their own", "Each screen quietly checks for changes and refreshes itself within about fifteen seconds of anyone making one, so you are never looking at stale numbers. It pauses while a tab is in the background and never interrupts you mid-typing. You do not need to reload manually."],
+  ["Edit-conflict protection", "If you and a colleague edit the same limit or seller facility at the same time, the second save is blocked with a “changed since you opened it” notice instead of silently overwriting the other person. Reload the latest and re-apply your change."],
+  ["Every change is traceable", "The Audit log records who did what and when, so simultaneous activity across the desk is always accountable. Breaches additionally need a second approver (four eyes)."],
+];
+
 const SCREENS: [string, string][] = [
   ["Portfolio", "The book at a glance — limits, utilisation, and exposure as of any date."],
   ["Schedule", "Calendar of fundings and repayments across the forward book and live receivables."],
@@ -96,6 +103,17 @@ export default function GuidePage() {
           <div className="muted" style={{ fontSize: 13, marginTop: 6, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
             <strong style={{ color: "var(--ink)" }}>Batches.</strong> {BATCH_FLOW}
           </div>
+        </div>
+      </div>
+
+      <div className="panel">
+        <h2>Working at the same time as others</h2>
+        <div style={{ padding: 16, display: "grid", gap: 12 }}>
+          {CONCURRENCY.map(([t, d]) => (
+            <div key={t}>
+              <strong>{t}.</strong> <span className="muted">{d}</span>
+            </div>
+          ))}
         </div>
       </div>
 

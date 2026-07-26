@@ -32,10 +32,12 @@ export default function EditSellerFacility({
   seller,
   limits,
   canEdit,
+  rev,
 }: {
   seller: SellerFacilityData;
   limits: FacilityLimits;
   canEdit: boolean;
+  rev?: number;
 }) {
   const router = useRouter();
   const [f, setF] = useState({
@@ -73,9 +75,14 @@ export default function EditSellerFacility({
         rrlEnabled: f.rrlEnabled,
         status: f.status,
         contactEmail: f.contactEmail,
+        rev, // edit-conflict guard: the version this facility was loaded at
       }),
     });
     setBusy(false);
+    if (res.status === 409) {
+      setMsg({ ok: false, text: "Another user changed this facility since you opened it. Refresh to load the latest, then re-apply your change." });
+      return;
+    }
     if (!res.ok) {
       setMsg({ ok: false, text: (await res.json().catch(() => ({}))).error ?? "Failed to save." });
       return;

@@ -2,7 +2,9 @@ import "./globals.css";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getSessionUser, ROLE_LABEL, permissionsFor } from "@/lib/auth";
+import { getRevision } from "@/lib/data/store";
 import SessionBar from "./SessionBar";
+import LiveSync from "./LiveSync";
 
 export const metadata: Metadata = {
   title: "SCF Discounting Control Tower",
@@ -62,6 +64,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </aside>
           <main className="main">{children}</main>
         </div>
+        <LiveSync initialRev={getRevision()} />
       </body>
     </html>
   );

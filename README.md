@@ -85,6 +85,30 @@ everywhere. Start reading in this order:
   RRL) built from the store's reservation-aware limit views; feeds the Portfolio
   and Reports screens.
 
+**Post-booking lifecycle, portfolio & invoicing** (the life of a deal after it is
+booked — one receivables ledger)
+- `lib/receivables.ts` — the one pure source for everything derived from a booked
+  receivable: outstanding principal (net of collections), settlement status,
+  overdue days, aging bucket, and additional (default) interest at the original
+  all-in rate. The store's exposure views call this so a collection reduces
+  exposure everywhere at once.
+- `lib/portfolio.ts` — the live book, aging buckets, average weighted tenor, and
+  obligor/seller concentration — all over the single `bookedTransactions` ledger.
+- `lib/pdf.ts` + `lib/invoicegen.ts` — client invoices as real PDFs (`pdf-lib`):
+  the past-due additional-interest statement and the ad-hoc client invoice, from
+  editable templates.
+- `lib/revenue.ts` — margin-only revenue (+ investor skim) read only from the one
+  ledger; batch-funded invoices materialise into that ledger (see
+  `materializeBatchBookings` in the store).
+
+**Concurrency (multi-user)**
+- `store.rev` + `app/api/revision` + `app/LiveSync.tsx` — live sync: clients poll
+  the global change counter and refresh only when it moves (no push to idle
+  screens; never interrupts typing).
+- `store.recordRevs` + `recordUnchanged`/`bumpRecordRev` — the edit-conflict
+  guard: a limit or facility save is rejected with a 409 if another user changed
+  it since it was opened, instead of silently overwriting.
+
 **Shared helpers (defined once, imported everywhere)**
 - `lib/format.ts` — display + small pure helpers: `mm`/`usd`/`pct`/`dateShort`,
   `daysBetween`, `expired`, `mm2` (the engine's 2-decimal millions), and
@@ -97,13 +121,20 @@ everywhere. Start reading in this order:
 **App (screens + API)**
 - `app/layout.tsx` — the nav and the login gate; `middleware.ts` enforces the
   session on every request (see [`SECURITY.md`](SECURITY.md)).
-- Screens: Portfolio (`app/page.tsx`), Eligibility check, Batches, **Data
+- Screens: Portfolio (`app/page.tsx`), **Transaction Flow** (a single deal from
+  eligibility check → documents → execution → signature check → booking, with
+  four-eyes on a booking exception), **Receivables** (the live book after funding
+  — collections, overdue, default, insurance claims, investor settlement, aging,
+  concentration, and client invoicing), Eligibility check, Batches, **Data
   management** (the control center — add/edit sellers, obligors, limits, entities,
-  the full limit register, and swingline adjustments; the old Setup / Limit
-  Register tabs redirect here), Documents, Rate sheet, Reservations, Schedule,
-  Exceptions, Monitoring, Reports, Audit log, Roles & access.
+  the full limit register, swingline adjustments, and the booking-team recipient
+  list; the old Setup / Limit Register tabs redirect here), Documents, Rate sheet,
+  Reservations, Schedule, Exceptions, Monitoring, Reports, Audit log, Roles &
+  access, and **Guide** (the in-app operations manual — public for onboarding).
 - `app/api/**/route.ts` — the HTTP endpoints each screen calls; all
-  permission-gated through `lib/auth.ts` and audited into the store.
+  permission-gated through `lib/auth.ts` and audited into the store. Lifecycle
+  actions are one dispatching route (`booked-transactions/[id]/lifecycle`);
+  invoices are one route by kind (`api/invoices`).
 
 **Security & parameters:** see [`SECURITY.md`](SECURITY.md) for the access model,
 audit/segregation controls, data handling, the one-controlled-outbound-call /
@@ -257,6 +288,43 @@ single `checkDiscount(txn)` entry point.
   Gmail/Outlook), and **Download Excel**.
 - **Formatted Excel exports** via `lib/xlsxexport.ts` (native numeric cells,
   sized columns, frozen header, totals row).
+
+**Phase 9 — post-booking lifecycle, invoicing & multi-user** ✓
+- **One receivables ledger**: a deal booked from the Transaction Flow and a funded
+  batch invoice both land in the single `bookedTransactions` ledger (batches
+  materialise in), so exposure, revenue, settlement, and aging all derive from one
+  place. Exposure uses **outstanding principal**, so a partial collection reduces
+  it everywhere and an unsettled receivable stays live past maturity.
+- **Receivables screen** (`/receivables`): record collections (partial or full,
+  auto-closing), track overdue and default with a workout route (recourse /
+  insurance claim / write-off), file and decide insurance claims, settle investor
+  participations, and see aging, average weighted tenor, and obligor/seller
+  concentration.
+- **Additional interest & PDF invoices**: a past-due balance accrues additional
+  interest at the original all-in rate (margin + base, actual/360); one click
+  produces a MUFG additional-interest statement, and there is an ad-hoc client
+  invoice — both downloadable PDFs from editable templates.
+- **Transaction Flow four-eyes**: a clean deal books in one click; a breach records
+  an exception request and needs a second authorized user to approve before
+  booking (parity with the batch maker-checker).
+- **Multiple email recipients**: client execution emails take one or more seller
+  contacts; a desk-wide, editable booking/funding-team distribution list pre-fills
+  every booking email.
+- **Live multi-user sync + edit-conflict guard**: screens refresh themselves when
+  any user changes something (poll on a global counter, no push to idle screens),
+  and a concurrent edit to the same limit or facility is rejected with a
+  “changed since you opened it” notice instead of silently overwriting.
+- **In-app Operations Guide** (`/guide`, public for onboarding): the flow, a
+  per-screen reference, a glossary, and the live role/permission matrix.
+- **FX guard**: a transaction whose currency differs from the facility is blocked
+  (real cross-currency conversion deferred).
+
+### Regression tests
+
+Pure-logic checks runnable without a server (`npx tsx scripts/<file>`):
+`test-lifecycle.ts` (settlement/overdue/additional-interest math), `test-merge.ts`
+(single-ledger exposure + revenue, idempotent batch re-run), `test-invoice.ts`
+(PDF generation). Plus `npm run typecheck` and `npm run build`.
 
 ## Deferred (need external infrastructure)
 

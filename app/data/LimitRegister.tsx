@@ -5,6 +5,7 @@ import {
   getInvestor,
   getInsurancePolicy,
   allSellers,
+  recordRev,
 } from "@/lib/data/store";
 import { currentUserCan } from "@/lib/auth";
 import { LIMIT_LABEL } from "@/lib/format";
@@ -83,6 +84,7 @@ export default async function LimitRegister() {
                     view={v}
                     entityName={entityName(v.limit.entityType, v.limit.entityId)}
                     canEdit={canEdit}
+                    rev={recordRev(`limit:${v.limit.id}`)}
                   />
                 ))}
               </tbody>

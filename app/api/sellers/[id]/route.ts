@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { removeSeller, updateSeller, addAudit } from "@/lib/data/store";
+import { removeSeller, updateSeller, recordUnchanged, recordRev, bumpRecordRev, addAudit } from "@/lib/data/store";
 import { getCurrentUser, roleHas } from "@/lib/auth";
 import type { AsrRating, EntityStatus, Seller } from "@/lib/types";
 
@@ -13,6 +13,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   const b = await request.json().catch(() => ({}));
+
+  // Edit-conflict guard: reject if another user changed this facility since it
+  // was opened, rather than silently overwriting their change.
+  const key = `seller:${id}`;
+  if (b.rev != null && !recordUnchanged(key, Number(b.rev))) {
+    return NextResponse.json({ error: "This facility was changed by another user since you opened it.", current: recordRev(key) }, { status: 409 });
+  }
+
   const patch: Partial<Seller> = {};
   if (typeof b.name === "string" && b.name.trim()) patch.name = b.name.trim();
   if (typeof b.cdl === "string") {
@@ -35,6 +43,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const updated = updateSeller(id, patch);
   if (!updated) return NextResponse.json({ error: "Seller not found." }, { status: 404 });
+  const newRev = bumpRecordRev(key);
 
   addAudit({
     actorUserId: user.id,
@@ -44,7 +53,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     entityId: id,
     detail: `Updated ${Object.keys(patch).join(", ")}.`,
   });
-  return NextResponse.json({ ok: true, seller: updated });
+  return NextResponse.json({ ok: true, seller: updated, rev: newRev });
 }
 
 // Remove a seller (facility) and everything tied only to it — its limits,

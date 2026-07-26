@@ -82,6 +82,8 @@ interface Store {
   bookedTransactions: BookedTransaction[];
   signatories: AuthorizedSignatory[];
   settings: OrgSettings; // desk-wide, runtime-editable settings
+  rev: number; // global change counter — bumped on every audited action (live sync)
+  recordRevs: Record<string, number>; // per-record change counters (edit-conflict guard)
   seq: number; // monotonic id counter
   migrations?: string[]; // one-time data fixes already applied to this store
 }
@@ -124,6 +126,8 @@ function seedStore(): Store {
     bookedTransactions: [],
     signatories: [],
     settings: {},
+    rev: 0,
+    recordRevs: {},
     // Start the id counter past the seeded reservation ids (RSV-0000N) so
     // generated ids never collide with seed ids.
     seq: seed.reservations.length,
@@ -1328,6 +1332,8 @@ export function addAudit(entry: Omit<AuditEntry, "id" | "timestamp">): void {
     id: nextId("AUD"),
     timestamp: new Date().toISOString(),
   });
+  // Every audited action is a real state change — signal it to live clients.
+  bumpRevision();
 }
 
 export function getAuditLog(): AuditEntry[] {
@@ -1347,6 +1353,43 @@ export function getSettings(): OrgSettings {
 export function updateSettings(patch: Partial<OrgSettings>): OrgSettings {
   store.settings = { ...getSettings(), ...patch };
   return store.settings;
+}
+
+// ---------------------------------------------------------------------------
+// Change signalling. `rev` is a global counter bumped on every audited action —
+// clients poll it and refresh only when it moves (live sync without pushing to
+// idle screens). `recordRevs` tracks a version per editable record so a save can
+// detect that someone else changed it since the editor was opened (edit-conflict
+// guard) instead of silently overwriting.
+// ---------------------------------------------------------------------------
+
+export function getRevision(): number {
+  return (store.rev ??= 0);
+}
+
+export function bumpRevision(): void {
+  store.rev = getRevision() + 1;
+}
+
+// Current version of one record (0 if never edited). Key format is
+// "type:id", e.g. "limit:LMT-SELLER-001".
+export function recordRev(key: string): number {
+  return (store.recordRevs ??= {})[key] ?? 0;
+}
+
+// Bump a record's version (and the global counter). Call after applying an edit.
+export function bumpRecordRev(key: string): number {
+  (store.recordRevs ??= {})[key] = recordRev(key) + 1;
+  bumpRevision();
+  return store.recordRevs[key];
+}
+
+// Edit-conflict check: true when the editor's loaded version still matches the
+// current one. A null/undefined expected version skips the check (backward
+// compatible with callers that do not send one).
+export function recordUnchanged(key: string, expected: number | null | undefined): boolean {
+  if (expected == null) return true;
+  return recordRev(key) === expected;
 }
 
 export function getUsers(): User[] {
