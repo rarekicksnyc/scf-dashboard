@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { usd } from "@/lib/format";
 import { inputBase as input, fieldLabel as field } from "@/lib/ui";
@@ -32,7 +32,7 @@ async function downloadEml(url: string) {
   return true;
 }
 
-export default function WorkflowPanel({ workflows, sellerEntities, signatories, canBook }: { workflows: TransactionWorkflow[]; sellerEntities: SellerEntityOpt[]; signatories: SignatoryOpt[]; canBook: boolean }) {
+export default function WorkflowPanel({ workflows, sellerEntities, signatories, canBook, highlightId }: { workflows: TransactionWorkflow[]; sellerEntities: SellerEntityOpt[]; signatories: SignatoryOpt[]; canBook: boolean; highlightId?: string }) {
   const active = workflows.filter((w) => w.status !== "BOOKED" && w.status !== "CANCELLED");
   const done = workflows.filter((w) => w.status === "BOOKED" || w.status === "CANCELLED");
   return (
@@ -40,7 +40,7 @@ export default function WorkflowPanel({ workflows, sellerEntities, signatories, 
       <h2>In-progress transactions ({active.length})</h2>
       <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
         {active.length === 0 && <div className="muted" style={{ fontSize: 13 }}>None yet. Load a reservation above and click Proceed with Transaction.</div>}
-        {active.map((w) => <Row key={w.id} w={w} sellerEntities={sellerEntities.filter((e) => e.sellerId === w.sellerId)} signatories={signatories.filter((s) => s.sellerId === w.sellerId)} canBook={canBook} />)}
+        {active.map((w) => <Row key={w.id} w={w} sellerEntities={sellerEntities.filter((e) => e.sellerId === w.sellerId)} signatories={signatories.filter((s) => s.sellerId === w.sellerId)} canBook={canBook} highlight={w.id === highlightId} />)}
         {done.length > 0 && (
           <details>
             <summary className="muted" style={{ cursor: "pointer", fontSize: 13 }}>Booked / cancelled ({done.length})</summary>
@@ -60,11 +60,22 @@ export default function WorkflowPanel({ workflows, sellerEntities, signatories, 
   );
 }
 
-function Row({ w, sellerEntities, signatories, canBook }: { w: TransactionWorkflow; sellerEntities: SellerEntityOpt[]; signatories: SignatoryOpt[]; canBook: boolean }) {
+function Row({ w, sellerEntities, signatories, canBook, highlight }: { w: TransactionWorkflow; sellerEntities: SellerEntityOpt[]; signatories: SignatoryOpt[]; canBook: boolean; highlight?: boolean }) {
   const router = useRouter();
+  const rowRef = useRef<HTMLDivElement>(null);
+  const [flash, setFlash] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [showTimeline, setShowTimeline] = useState(false);
+
+  // When this card is the one just created, scroll to it and flash a highlight.
+  useEffect(() => {
+    if (!highlight) return;
+    rowRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setFlash(true);
+    const t = setTimeout(() => setFlash(false), 2500);
+    return () => clearTimeout(t);
+  }, [highlight]);
   const [exec, setExec] = useState({ signerName: "", signerTitle: "", sellerEntityId: "", fileName: "", fileBase64: "", contentType: "" });
   const [signerOther, setSignerOther] = useState(false);
   const [bookBlock, setBookBlock] = useState<string[] | null>(null);
@@ -98,7 +109,7 @@ function Row({ w, sellerEntities, signatories, canBook }: { w: TransactionWorkfl
     return true;
   }
 
-  async function emailDraft(kind: "client-email" | "booking-email") {
+  async function emailDraft(kind: "client-email" | "booking-email" | "investor-email") {
     setBusy(true); setErr(null);
     const ok = await downloadEml(`/api/transaction-flow/${w.id}/${kind}`);
     setBusy(false);
@@ -127,7 +138,7 @@ function Row({ w, sellerEntities, signatories, canBook }: { w: TransactionWorkfl
   const canExecute = w.status === "IN_PROGRESS" || w.status === "CLIENT_EMAILED" || w.status === "SIGNATURE_FLAGGED";
 
   return (
-    <div style={{ border: "1px solid var(--border)", borderRadius: 8, padding: "12px 14px" }}>
+    <div ref={rowRef} style={{ border: `1px solid ${flash ? "var(--brand)" : "var(--border)"}`, borderRadius: 8, padding: "12px 14px", boxShadow: flash ? "0 0 0 3px var(--brand-soft)" : "none", transition: "box-shadow 0.4s, border-color 0.4s" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <span className={`badge ${st.cls}`}>{st.label}</span>
         <strong>{w.reference}</strong>
@@ -152,6 +163,11 @@ function Row({ w, sellerEntities, signatories, canBook }: { w: TransactionWorkfl
         {(w.status === "IN_PROGRESS" || w.status === "CLIENT_EMAILED") && (
           <button className="btn" style={{ padding: "6px 12px", fontSize: 12 }} type="button" disabled={busy} onClick={() => emailDraft("client-email")}>
             {w.status === "CLIENT_EMAILED" ? "Re-draft client email" : "Generate client email draft"}
+          </button>
+        )}
+        {w.investorAmount != null && w.investorAmount > 0 && (
+          <button className="btn secondary" style={{ padding: "6px 12px", fontSize: 12 }} type="button" disabled={busy} onClick={() => emailDraft("investor-email")} title="Draft the investor email with the investor Schedule A">
+            Email investor
           </button>
         )}
         {w.status === "SIGNATURE_FLAGGED" && (

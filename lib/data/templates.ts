@@ -133,6 +133,22 @@ Final permitted demand date|final_demand_date
 Margin (bps)|pricing_bps
 Commitment fee|commitment_fee`;
 
+const INVESTOR_EMAIL = `Dear {{investor_name}} team,
+
+Please find attached the investor Schedule A for your participation in the following transaction:
+
+  Seller: {{seller}}
+  Obligor: {{obligor}}
+  Your participation: {{investor_amount}}
+  Rate: {{investor_rate}} (interpolated SOFR {{investor_base}} + {{investor_margin}})
+  Value Date: {{value_date}}
+  Maturity Date: {{maturity_date}}
+
+Please review and confirm your participation.
+
+Best regards,
+Supply Chain Finance Team`;
+
 export const DEFAULT_TEMPLATES: DocTemplate[] = [
   { id: "TMPL-PURCHASE_REQUEST", type: "PURCHASE_REQUEST", body: PURCHASE_REQUEST },
   { id: "TMPL-COMMITMENT_REQUEST", type: "COMMITMENT_REQUEST", body: COMMITMENT_REQUEST },
@@ -141,4 +157,5 @@ export const DEFAULT_TEMPLATES: DocTemplate[] = [
   { id: "TMPL-SCHEDULE_A_INVESTOR", type: "SCHEDULE_A_INVESTOR", body: SCHEDULE_A_INVESTOR },
   { id: "TMPL-CLIENT_EMAIL", type: "CLIENT_EMAIL", subject: "Execution required — {{document_name}} for {{obligor}}", body: CLIENT_EMAIL },
   { id: "TMPL-BOOKING_EMAIL", type: "BOOKING_EMAIL", subject: "Book transaction — {{seller}} / {{obligor}} {{primary_amount}}", body: BOOKING_EMAIL },
+  { id: "TMPL-INVESTOR_EMAIL", type: "INVESTOR_EMAIL", subject: "Investor participation — {{obligor}} {{investor_amount}}", body: INVESTOR_EMAIL },
 ];

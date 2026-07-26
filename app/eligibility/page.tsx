@@ -21,7 +21,8 @@ import Collapsible from "../Collapsible";
 
 export const dynamic = "force-dynamic";
 
-export default async function EligibilityPage() {
+export default async function EligibilityPage({ searchParams }: { searchParams: Promise<{ highlight?: string }> }) {
+  const { highlight } = await searchParams;
   const canBook = await currentUserCan("UPLOAD_BATCH");
   const sellers = allSellers().map((s) => ({ id: s.id, name: s.name }));
   const obligors = allObligors().map((o) => ({ id: o.id, name: o.name }));
@@ -83,6 +84,7 @@ export default async function EligibilityPage() {
         sellerEntities={allSellerEntities().map((e) => ({ sellerId: e.facilityId, id: e.id, name: e.name }))}
         signatories={listSignatories().map((s) => ({ sellerId: s.sellerId, entityId: s.entityId, name: s.name, title: s.title }))}
         canBook={canBook}
+        highlightId={highlight}
       />
     </>
   );

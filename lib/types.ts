@@ -219,7 +219,8 @@ export type DocTemplateType =
   | "SCHEDULE_A_UTRC"
   | "SCHEDULE_A_INVESTOR"
   | "CLIENT_EMAIL"
-  | "BOOKING_EMAIL";
+  | "BOOKING_EMAIL"
+  | "INVESTOR_EMAIL";
 
 export interface DocTemplate {
   id: string;

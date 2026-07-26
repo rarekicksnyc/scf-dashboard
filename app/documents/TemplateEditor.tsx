@@ -15,8 +15,9 @@ const TYPE_LABEL: Record<DocTemplateType, string> = {
   SCHEDULE_A_INVESTOR: "Schedule A — Investor (columns)",
   CLIENT_EMAIL: "Client email (execution request)",
   BOOKING_EMAIL: "Booking / funding team email",
+  INVESTOR_EMAIL: "Investor email",
 };
-const TYPES: DocTemplateType[] = ["PURCHASE_REQUEST", "COMMITMENT_REQUEST", "SCHEDULE_A_DTR", "SCHEDULE_A_UTRC", "SCHEDULE_A_INVESTOR", "CLIENT_EMAIL", "BOOKING_EMAIL"];
+const TYPES: DocTemplateType[] = ["PURCHASE_REQUEST", "COMMITMENT_REQUEST", "SCHEDULE_A_DTR", "SCHEDULE_A_UTRC", "SCHEDULE_A_INVESTOR", "CLIENT_EMAIL", "BOOKING_EMAIL", "INVESTOR_EMAIL"];
 
 const TOKENS = "seller · obligor · reference · currency · invoice_amount · advance_rate · coverage · committed_amount · value_date · maturity_date · commitment_due_date · final_demand_date · pricing_bps · product_type · primary_amount · document_name · today";
 
@@ -26,7 +27,7 @@ export default function TemplateEditor({ templates, sellers, canEdit }: { templa
   const router = useRouter();
   const [type, setType] = useState<DocTemplateType>("PURCHASE_REQUEST");
   const [sellerId, setSellerId] = useState(""); // "" = default
-  const isEmail = type === "CLIENT_EMAIL" || type === "BOOKING_EMAIL";
+  const isEmail = type === "CLIENT_EMAIL" || type === "BOOKING_EMAIL" || type === "INVESTOR_EMAIL";
   const isSchedule = type === "SCHEDULE_A_DTR" || type === "SCHEDULE_A_UTRC" || type === "SCHEDULE_A_INVESTOR";
 
   // The effective template for the current (type, seller) selection.

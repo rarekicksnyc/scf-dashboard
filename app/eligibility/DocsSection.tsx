@@ -188,7 +188,9 @@ export default function DocsSection({
     }
     setProceedBlock(null);
     setProceedComment("");
-    setProceedMsg({ ok: true, text: `Transaction ${data.workflow.id} is now in progress — see In-progress transactions below.` });
+    setProceedMsg({ ok: true, text: `Transaction ${data.workflow.id} is now in progress — jumping to it below.` });
+    // Navigate with the new id so the panel scrolls to and highlights the card.
+    router.push(`/eligibility?highlight=${encodeURIComponent(data.workflow.id)}`);
     router.refresh();
   }
 

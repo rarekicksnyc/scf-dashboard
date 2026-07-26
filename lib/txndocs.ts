@@ -1,6 +1,6 @@
 import * as XLSX from "xlsx";
 import { getDocTemplate, interpolateSofr } from "@/lib/data/store";
-import { fillTemplate, buildDocSet, pricingTokens, investorTokens, wordDocument, type DocTokens } from "@/lib/docgen";
+import { fillTemplate, buildDocSet, pricingTokens, investorTokens, scheduleAFromSpec, wordDocument, type DocTokens } from "@/lib/docgen";
 import { usd, daysBetween } from "@/lib/format";
 import type { TransactionWorkflow, DocTemplateType } from "@/lib/types";
 import type { EmlAttachment } from "@/lib/email";
@@ -13,7 +13,11 @@ const slug = (s: string) => String(s ?? "").replace(/[^\w]+/g, "-").replace(/^-|
 export function workflowTokens(wf: TransactionWorkflow): DocTokens {
   const isUtrc = wf.productType === "UTRC";
   const tenorDays = daysBetween(wf.valueDate, isUtrc ? (wf.finalDemandDate || wf.maturityDate) : wf.maturityDate);
+  const inv = !isUtrc && wf.investorAmount && wf.investorAmount > 0
+    ? investorTokens({ investorName: wf.investorName ?? "", investorAmount: wf.investorAmount, skimBps: wf.skimBps ?? 0, marginBps: wf.pricingBps, interpSofrPct: interpolateSofr(daysBetween(wf.valueDate, wf.maturityDate)) ?? 0, tenorDays: daysBetween(wf.valueDate, wf.maturityDate) })
+    : {};
   return {
+    ...inv,
     seller: wf.sellerName,
     obligor: wf.obligorName,
     reference: wf.reference,
@@ -77,6 +81,13 @@ export function workflowAttachments(wf: TransactionWorkflow, opts: { includeInve
     void i;
   });
   return out;
+}
+
+// The investor Schedule A (Excel) as a single attachment — for the investor email.
+export function investorAttachment(wf: TransactionWorkflow): EmlAttachment | undefined {
+  if (wf.productType === "UTRC" || !wf.investorAmount || wf.investorAmount <= 0) return undefined;
+  const table = scheduleAFromSpec(getDocTemplate("SCHEDULE_A_INVESTOR", wf.sellerId)?.body ?? "", workflowTokens(wf));
+  return { filename: `Schedule-A-Investor-${slug(wf.reference)}.xlsx`, mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", base64: xlsxBase64("Schedule A Investor", table.columns, table.row) };
 }
 
 // Fill an email template (subject + body) for a workflow.
