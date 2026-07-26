@@ -16,11 +16,10 @@ export default async function RatesPage() {
     <>
       <h1 className="page-title">Rate Sheet</h1>
       <p className="page-sub">
-        SOFR is pulled live from the official New York Fed public feed and can be
-        interpolated for short tenors; COF is priced on a separate MUFG platform
-        and, until that feed is linked, is uploaded here as a rate sheet. The offer
-        is the used rate; transactions resolve their base rate by type and closest
-        tenor.
+        SOFR can be refreshed from the New York Fed public feed (and interpolated
+        for short tenors); COF is priced on a separate MUFG platform and, until that
+        feed is linked, is uploaded here as a rate sheet. The offer is the used rate;
+        transactions resolve their base rate by type and closest tenor.
       </p>
 
       {canEdit && <SofrRefresh />}

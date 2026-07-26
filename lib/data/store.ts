@@ -44,6 +44,7 @@ import {
   bookedInWindow,
   outstandingPrincipal,
   outstandingFraction,
+  additionalInterest,
 } from "@/lib/receivables";
 import * as seed from "./seed";
 
@@ -193,6 +194,16 @@ export function runMigrations(): void {
   // derive from one place. Idempotent per batch (clears prior bookings first).
   once("batch-ledger-merge-2026-07", () => {
     for (const b of store.batches) materializeBatchBookings(b, "system:migration");
+  });
+
+  // Reports are restricted to Administrator and Product Manager. Strip
+  // VIEW_REPORTS from every other role in persisted state (once); future changes
+  // via Roles & Access are respected.
+  once("reports-admin-pm-only-2026-07", () => {
+    for (const role of Object.keys(store.rolePermissions) as Role[]) {
+      if (role === "ADMIN" || role === "PRODUCT_MANAGER") continue;
+      store.rolePermissions[role] = (store.rolePermissions[role] ?? []).filter((p) => p !== "VIEW_REPORTS");
+    }
   });
 }
 
@@ -528,6 +539,21 @@ export function recordCollection(
   const amount = Math.max(0, Math.min(input.amount, outstandingPrincipal(t)));
   t.collections.push({ id: nextId("COL"), date: input.date, amount, faceReceived: input.faceReceived, by, note: input.note });
   if (outstandingPrincipal(t) < 1) t.settledAt = input.date;
+  return t;
+}
+
+// Accrue the additional (default) interest all at once: called when the client
+// confirms it will repay the past-due balance. Freezes the amount at today's
+// date so it stops growing. Only valid while the receivable is past due with a
+// non-zero indicative amount, and only once.
+export function confirmAdditionalInterest(id: string, by: string): BookedTransaction | undefined {
+  const t = getBookedTransaction(id);
+  if (!t || t.additionalInterestConfirmedAt) return undefined;
+  const ai = additionalInterest(t, today());
+  if (ai.amount <= 0) return undefined; // not past due — nothing to accrue
+  void by; // audited at the route level
+  t.additionalInterestConfirmedAt = today();
+  t.additionalInterestAccrued = ai.amount;
   return t;
 }
 

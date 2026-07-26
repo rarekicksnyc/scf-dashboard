@@ -26,7 +26,8 @@ export interface LiveReceivable {
   daysToMaturity: number; // negative once past due
   overdueDays: number;
   bucket: AgeBucket;
-  additionalInterest: number; // default interest owed if past due (else 0)
+  additionalInterest: number; // default interest: frozen if confirmed, else indicative
+  additionalInterestConfirmed: boolean; // accrued (client confirmed) vs indicative
 }
 
 // Every receivable on the book with its derived lifecycle fields. Fully settled
@@ -37,6 +38,7 @@ export function liveReceivables(asOf: string, opts: { includeSettled?: boolean }
   for (const t of listBookedTransactions()) {
     const status = receivableStatus(t, asOf);
     if (status === "SETTLED" && !opts.includeSettled) continue;
+    const ai = additionalInterest(t, asOf);
     rows.push({
       txn: t,
       sellerName: getSeller(t.sellerId)?.name ?? t.sellerId,
@@ -46,7 +48,8 @@ export function liveReceivables(asOf: string, opts: { includeSettled?: boolean }
       daysToMaturity: daysBetween(asOf, t.maturityDate),
       overdueDays: overdueDays(t, asOf),
       bucket: ageBucket(t, asOf),
-      additionalInterest: additionalInterest(t, asOf).amount,
+      additionalInterest: ai.amount,
+      additionalInterestConfirmed: ai.confirmed,
     });
   }
   // Most urgent first: overdue (most days past due) before current (soonest due).
@@ -104,7 +107,8 @@ export interface PortfolioMetrics {
   liveCount: number;
   overdueCount: number;
   weightedAvgTenor: number; // outstanding-weighted average deal tenor, in days
-  additionalInterestOwed: number; // total default interest accrued on past-due
+  additionalInterestAccrued: number; // confirmed (client agreed) — recognised
+  additionalInterestIndicative: number; // past-due but not yet confirmed
   obligorConcentration: ConcentrationRow[];
   sellerConcentration: ConcentrationRow[];
   topObligorPct: number;
@@ -114,13 +118,14 @@ export interface PortfolioMetrics {
 export function portfolioMetrics(asOf: string): PortfolioMetrics {
   const rows = liveReceivables(asOf);
   let totalOutstanding = 0, overdueOutstanding = 0, overdueCount = 0, defaultedOutstanding = 0;
-  let tenorWeighted = 0, addlInterest = 0;
+  let tenorWeighted = 0, aiAccrued = 0, aiIndicative = 0;
   for (const r of rows) {
     totalOutstanding += r.outstanding;
     // Full deal tenor (value → maturity), weighted by outstanding principal.
     const tenor = Math.max(0, daysBetween(r.txn.valueDate, r.txn.maturityDate));
     tenorWeighted += r.outstanding * tenor;
-    addlInterest += r.additionalInterest;
+    if (r.additionalInterestConfirmed) aiAccrued += r.additionalInterest;
+    else aiIndicative += r.additionalInterest;
     if (r.status === "OVERDUE") { overdueOutstanding += r.outstanding; overdueCount += 1; }
     if (r.status === "DEFAULTED") defaultedOutstanding += r.outstanding;
   }
@@ -133,7 +138,8 @@ export function portfolioMetrics(asOf: string): PortfolioMetrics {
     liveCount: rows.length,
     overdueCount,
     weightedAvgTenor: totalOutstanding > 0 ? Math.round(tenorWeighted / totalOutstanding) : 0,
-    additionalInterestOwed: addlInterest,
+    additionalInterestAccrued: aiAccrued,
+    additionalInterestIndicative: aiIndicative,
     obligorConcentration,
     sellerConcentration: concentration(asOf, "seller"),
     topObligorPct: obligorConcentration[0]?.pct ?? 0,

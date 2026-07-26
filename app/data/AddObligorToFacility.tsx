@@ -22,6 +22,7 @@ export default function AddObligorToFacility({
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<"EXISTING" | "NEW">(availableObligors.length ? "EXISTING" : "NEW");
+  const oneYearOut = new Date(Date.now() + 365 * 86_400_000).toISOString().slice(0, 10);
   const [f, setF] = useState({
     obligorId: availableObligors[0]?.id ?? everyObligor[0]?.id ?? "",
     name: "",
@@ -30,7 +31,7 @@ export default function AddObligorToFacility({
     masterLimit: "50000000",
     asrSublimit: "25000000",
     maxTenorDays: "150",
-    groupExpiry: "2026-12-31",
+    groupExpiry: oneYearOut,
   });
   const [busy, setBusy] = useState(false);
   const [allSellers, setAllSellers] = useState(false);

@@ -72,10 +72,16 @@ export default async function DataManagementPage({
     <>
       <h1 className="page-title">Data Management</h1>
       <p className="page-sub">
-        The control center for every feed — add new sellers, obligors, limits
-        (seller, ASR, obligor, swingline, RRL, RRL swingline, investor, insurance),
-        and ASR sublimits, and edit every facility, entity, and limit inline. All
-        changes take effect immediately, feed the eligibility engine, and are audited.
+        {canEdit ? (
+          <>The control center for every feed — add new sellers, obligors, limits
+          (seller, ASR, obligor, swingline, RRL, RRL swingline, investor, insurance),
+          and ASR sublimits, and edit every facility, entity, and limit inline. All
+          changes take effect immediately, feed the eligibility engine, and are audited.</>
+        ) : (
+          <>A read-only view of every feed the eligibility engine uses — sellers,
+          obligors, limits, entities, ASR sublimits, guarantees, and signatories.
+          Editing requires the Change limit permission.</>
+        )}
       </p>
 
       <Collapsible summary="Booking / funding-team email recipients">

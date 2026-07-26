@@ -21,7 +21,7 @@ const FLOW: { step: string; detail: string }[] = [
   { step: "Document & execute", detail: "Generate the purchase/commitment request and Schedule A, email the client, and upload the executed document. The signer is checked against the authorized signatory list." },
   { step: "Book (four eyes if breached)", detail: "Eligibility is re-run at booking. A clean deal books in one click; a breach requires a documented reason and a second user's approval before it can be booked." },
   { step: "Live receivable", detail: "The booked deal appears on Receivables as real outstanding exposure. Record collections (partial or full), track overdue and default, file insurance claims, and settle investor participations." },
-  { step: "Additional interest & invoices", detail: "A past-due receivable accrues additional interest at the original all-in rate (margin + base). Generate a MUFG additional-interest statement, or an ad-hoc client invoice, as a downloadable PDF." },
+  { step: "Additional interest & invoices", detail: "A past-due receivable shows indicative additional interest at the original all-in rate (margin + base). When the client confirms it will repay, accrue it all at once (it freezes at that date), then generate a MUFG additional-interest statement, or an ad-hoc client invoice, as a downloadable PDF." },
 ];
 
 const BATCH_FLOW = "Batches upload many invoices at once. Each is run through the same eligibility controls; funded invoices materialise into the one Receivables ledger, and any exception routes to the Exceptions screen for a checker to approve.";
@@ -65,7 +65,7 @@ const GLOSSARY: [string, string][] = [
   ["PCG", "Parent Company Guarantee — a guarantee that supports a seller or obligor."],
   ["Recourse", "Whether an unpaid receivable can be charged back to the seller (recourse) or is retained by the bank (non-recourse)."],
   ["Time-phasing", "A reservation or receivable only consumes a limit while its value-to-maturity window overlaps the date being checked. An unsettled receivable stays live past maturity."],
-  ["Additional interest", "Default interest on a past-due balance, at the original all-in rate (margin + base) over the overdue days on an actual/360 basis."],
+  ["Additional interest", "Default interest on a past-due balance, at the original all-in rate (margin + base) over the overdue days, actual/360. Shown indicatively while past due; recognised (accrued) all at once when the client confirms it will repay, and frozen at that date."],
   ["Maker-checker", "Four-eyes control: the person who requests an exception cannot approve it — a second authorized user must."],
 ];
 

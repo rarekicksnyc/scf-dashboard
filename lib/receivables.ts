@@ -78,20 +78,35 @@ export function ageBucket(t: BookedTransaction, asOf: string): AgeBucket {
   return "D90_PLUS";
 }
 
-// Additional (default) interest on a past-due balance. Erik's rule: charge it
-// with the SAME discount calculation as the original deal — the original all-in
-// rate (margin + base) applied to the outstanding principal over the overdue
-// days on the actual/360 basis. Returns zero cleanly when the deal is current.
+// Whether the additional interest has been confirmed (accrued all at once when
+// the client agreed to repay).
+export function additionalInterestConfirmed(t: BookedTransaction): boolean {
+  return t.additionalInterestConfirmedAt != null;
+}
+
+// Additional (default) interest on a past-due balance. Same discount calculation
+// as the original deal — the original all-in rate (margin + base) applied to the
+// outstanding principal over the overdue days, actual/360.
+//
+// It is NOT accrued continuously: it is recognised ALL AT ONCE when the client
+// confirms it will repay. Before confirmation this returns the INDICATIVE amount
+// (what would be owed if confirmed today, `confirmed: false`); once confirmed it
+// returns the FROZEN amount recognised at the confirmation date and stops
+// growing. Returns zero cleanly when the deal is current / settled / defaulted.
 export function additionalInterest(
   t: BookedTransaction,
   asOf: string,
-): { days: number; allInRatePct: number; principal: number; amount: number } {
-  const days = overdueDays(t, asOf);
+): { days: number; allInRatePct: number; principal: number; amount: number; confirmed: boolean } {
   const base = t.baseRatePct ?? 0;
   const allInRatePct = t.pricingBps / 100 + base;
   const principal = outstandingPrincipal(t);
+  if (t.additionalInterestConfirmedAt != null) {
+    const days = Math.max(0, daysBetween(t.maturityDate, t.additionalInterestConfirmedAt));
+    return { days, allInRatePct, principal, amount: t.additionalInterestAccrued ?? 0, confirmed: true };
+  }
+  const days = overdueDays(t, asOf);
   const amount = principal * (allInRatePct / 100) * (days / DAY_COUNT_BASIS);
-  return { days, allInRatePct, principal, amount };
+  return { days, allInRatePct, principal, amount, confirmed: false };
 }
 
 // Whether a booked transaction is live exposure within a time-phasing window.

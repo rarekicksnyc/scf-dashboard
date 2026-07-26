@@ -17,6 +17,11 @@ function Table({ rows, kind }: { rows: ExposureRow[]; kind: string }) {
       else n.add(id);
       return n;
     });
+  // Only show the swingline / RRL column groups when at least one name actually
+  // has them — keeps the landing table from being a wall of "—" / "N/A".
+  const hasSwingline = rows.some((r) => r.swingline);
+  const hasRrl = rows.some((r) => r.rrl);
+  const cols = 9 + (hasSwingline ? 3 : 0) + (hasRrl ? 3 : 0);
   return (
     <div className="table-scroll">
       <table>
@@ -27,12 +32,8 @@ function Table({ rows, kind }: { rows: ExposureRow[]; kind: string }) {
             <th className="num">Limit</th>
             <th className="num">Booked</th>
             <th className="num">Available</th>
-            <th className="num">Swingline</th>
-            <th className="num">Swingline booked</th>
-            <th className="num">Swingline avail</th>
-            <th className="num">RRL limit</th>
-            <th className="num">RRL booked</th>
-            <th className="num">RRL avail</th>
+            {hasSwingline && <><th className="num">Swingline</th><th className="num">Swingline booked</th><th className="num">Swingline avail</th></>}
+            {hasRrl && <><th className="num">RRL limit</th><th className="num">RRL booked</th><th className="num">RRL avail</th></>}
             <th className="num">Outstanding</th>
             <th className="num">Future reservation</th>
             <th className="num">Utilization</th>
@@ -42,7 +43,7 @@ function Table({ rows, kind }: { rows: ExposureRow[]; kind: string }) {
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={15} className="muted" style={{ padding: 16 }}>
+              <td colSpan={cols} className="muted" style={{ padding: 16 }}>
                 No matches.
               </td>
             </tr>
@@ -81,12 +82,16 @@ function Table({ rows, kind }: { rows: ExposureRow[]; kind: string }) {
                 <td className="num">{r.main ? mm(r.main.approvedLimit) : "—"}</td>
                 <td className="num">{r.main ? mm(r.main.consumed) : "—"}</td>
                 <td className="num">{r.main ? mm(r.main.available) : "—"}</td>
-                <td className="num">{r.swingline ? mm(r.swingline.approvedLimit) : <span className="muted">none</span>}</td>
-                <td className="num">{r.swingline ? mm(r.swingline.consumed) : <span className="muted">—</span>}</td>
-                <td className="num">{r.swingline ? mm(r.swingline.available) : <span className="muted">—</span>}</td>
-                <td className="num">{r.rrl ? mm(r.rrl.approvedLimit) : <span className="muted">N/A</span>}</td>
-                <td className="num">{r.rrl ? mm(r.rrl.consumed) : <span className="muted">N/A</span>}</td>
-                <td className="num">{r.rrl ? mm(r.rrl.available) : <span className="muted">N/A</span>}</td>
+                {hasSwingline && <>
+                  <td className="num">{r.swingline ? mm(r.swingline.approvedLimit) : <span className="muted">none</span>}</td>
+                  <td className="num">{r.swingline ? mm(r.swingline.consumed) : <span className="muted">—</span>}</td>
+                  <td className="num">{r.swingline ? mm(r.swingline.available) : <span className="muted">—</span>}</td>
+                </>}
+                {hasRrl && <>
+                  <td className="num">{r.rrl ? mm(r.rrl.approvedLimit) : <span className="muted">N/A</span>}</td>
+                  <td className="num">{r.rrl ? mm(r.rrl.consumed) : <span className="muted">N/A</span>}</td>
+                  <td className="num">{r.rrl ? mm(r.rrl.available) : <span className="muted">N/A</span>}</td>
+                </>}
                 <td className="num">{r.main ? mm(r.main.outstanding) : "—"}</td>
                 <td className="num">{r.main ? mm(r.main.reserved) : "—"}</td>
                 <td className="num">{r.main ? pct(r.main.utilizationPct) : "—"}</td>
@@ -94,7 +99,7 @@ function Table({ rows, kind }: { rows: ExposureRow[]; kind: string }) {
               </tr>
               {expanded.has(r.id) && r.entities.length > 0 && (
                 <tr>
-                  <td colSpan={15} style={{ background: "#fafbfd", padding: "8px 14px 8px 34px" }}>
+                  <td colSpan={cols} style={{ background: "#fafbfd", padding: "8px 14px 8px 34px" }}>
                     <div className="muted" style={{ fontSize: 11, marginBottom: 4 }}>
                       Eligible {kind.toLowerCase()} entities (share this aggregate line)
                     </div>

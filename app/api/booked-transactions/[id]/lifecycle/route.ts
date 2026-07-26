@@ -7,6 +7,7 @@ import {
   fileInsuranceClaim,
   decideInsuranceClaim,
   settleInvestorParticipation,
+  confirmAdditionalInterest,
   addAudit,
 } from "@/lib/data/store";
 import { getCurrentUser, roleHas } from "@/lib/auth";
@@ -75,6 +76,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const updated = settleInvestorParticipation(id, user.name);
       if (!updated) return NextResponse.json({ error: "This receivable has no investor participation." }, { status: 400 });
       audit(`Settled investor participation on ${t.reference}.`, "INVESTOR_SETTLE");
+      return NextResponse.json({ ok: true });
+    }
+    case "confirm-additional-interest": {
+      const updated = confirmAdditionalInterest(id, user.name);
+      if (!updated) return NextResponse.json({ error: "Nothing to accrue — the receivable is not past due (or additional interest is already confirmed)." }, { status: 400 });
+      audit(`Accrued additional interest of ${usd(updated.additionalInterestAccrued ?? 0)} on ${t.reference} (client confirmed repayment).`, "ADDITIONAL_INTEREST_CONFIRM");
       return NextResponse.json({ ok: true });
     }
     default:

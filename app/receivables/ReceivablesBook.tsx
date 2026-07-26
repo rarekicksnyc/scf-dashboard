@@ -21,6 +21,8 @@ export interface RecRow {
   valueDate: string;
   maturityDate: string;
   additionalInterest: number;
+  additionalInterestConfirmed: boolean;
+  additionalInterestConfirmedAt?: string;
   hasInvestor: boolean;
   investorSettled: boolean;
   hasInsurer: boolean;
@@ -37,7 +39,8 @@ export interface Metrics {
   liveCount: number;
   overdueCount: number;
   weightedAvgTenor: number;
-  additionalInterestOwed: number;
+  additionalInterestAccrued: number;
+  additionalInterestIndicative: number;
   topObligorPct: number;
   obligorConcentration: { id: string; name: string; outstanding: number; pct: number; count: number }[];
 }
@@ -84,7 +87,7 @@ export default function ReceivablesBook({
   const cards = [
     { label: "Outstanding", value: usd(metrics.totalOutstanding), sub: `${metrics.liveCount} live receivable${metrics.liveCount === 1 ? "" : "s"}` },
     { label: "Overdue", value: usd(metrics.overdueOutstanding), sub: `${metrics.overduePct.toFixed(0)}% of book · ${metrics.overdueCount} past due` },
-    { label: "Additional interest owed", value: usd(metrics.additionalInterestOwed), sub: "default interest on past-due" },
+    { label: "Additional interest accrued", value: usd(metrics.additionalInterestAccrued), sub: `${usd(metrics.additionalInterestIndicative)} indicative (unconfirmed)` },
     { label: "Avg. weighted tenor", value: `${metrics.weightedAvgTenor} days`, sub: "outstanding-weighted" },
     { label: "Top obligor concentration", value: `${metrics.topObligorPct.toFixed(0)}%`, sub: metrics.obligorConcentration[0]?.name ?? "—" },
   ];
@@ -186,17 +189,18 @@ function RowActions({ r, asOf }: { r: RecRow; asOf: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [okFlash, setOkFlash] = useState<string | null>(null);
   const [amount, setAmount] = useState(String(Math.round(r.outstanding)));
   const [date, setDate] = useState(asOf);
   const [note, setNote] = useState("");
   const [reason, setReason] = useState("");
   const [workout, setWorkout] = useState("RECOURSE_TO_SELLER");
 
-  async function act(body: Record<string, unknown>) {
-    setBusy(true); setMsg(null);
+  async function act(body: Record<string, unknown>, okLabel?: string) {
+    setBusy(true); setMsg(null); setOkFlash(null);
     const res = await fetch(`/api/booked-transactions/${r.id}/lifecycle`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     setBusy(false);
-    if (res.ok) { router.refresh(); } else { const e = await res.json().catch(() => ({})); setMsg(e.error || "Action failed."); }
+    if (res.ok) { if (okLabel) setOkFlash(okLabel); router.refresh(); } else { const e = await res.json().catch(() => ({})); setMsg(e.error || "Action failed."); }
   }
   async function invoice(payload: Record<string, unknown>) {
     setBusy(true); setMsg(null);
@@ -218,15 +222,24 @@ function RowActions({ r, asOf }: { r: RecRow; asOf: string }) {
             <input style={{ ...inp, width: 120 }} value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="numeric" aria-label="Amount" />
             <input style={{ ...inp, width: 140 }} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             <input style={{ ...inp, width: 150 }} placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
-            <button className="btn" style={{ fontSize: 12 }} disabled={busy} onClick={() => act({ action: "collect", amount: Number(amount), date, note })}>Record</button>
+            <button className="btn" style={{ fontSize: 12 }} disabled={busy} onClick={() => act({ action: "collect", amount: Number(amount), date, note }, "Collection recorded")}>Record</button>
           </div>
         </div>
       )}
 
-      {r.overdueDays > 0 && (
+      {(r.overdueDays > 0 || r.additionalInterestConfirmed) && (
         <div style={grp}>
-          <span className="muted">Past due · {usd(r.additionalInterest)} additional interest</span>
-          <button className="btn secondary" style={{ fontSize: 12 }} disabled={busy} onClick={() => invoice({ kind: "additional-interest", txnId: r.id, asOf })}>Additional-interest invoice (PDF)</button>
+          {r.additionalInterestConfirmed ? (
+            <span className="muted">Additional interest accrued <strong>{usd(r.additionalInterest)}</strong>{r.additionalInterestConfirmedAt ? ` · confirmed ${r.additionalInterestConfirmedAt}` : ""}</span>
+          ) : (
+            <span className="muted">Past due · {usd(r.additionalInterest)} indicative additional interest (accrued on the client&rsquo;s confirmation)</span>
+          )}
+          <div style={{ display: "flex", gap: 6 }}>
+            {!r.additionalInterestConfirmed && r.overdueDays > 0 && (
+              <button className="btn" style={{ fontSize: 12 }} disabled={busy} onClick={() => act({ action: "confirm-additional-interest" })}>Confirm &amp; accrue (client agreed)</button>
+            )}
+            <button className="btn secondary" style={{ fontSize: 12 }} disabled={busy} onClick={() => invoice({ kind: "additional-interest", txnId: r.id, asOf })}>Additional-interest invoice (PDF)</button>
+          </div>
         </div>
       )}
 
@@ -238,7 +251,7 @@ function RowActions({ r, asOf }: { r: RecRow; asOf: string }) {
             <select style={inp} value={workout} onChange={(e) => setWorkout(e.target.value)}>
               {WORKOUTS.map((w) => <option key={w.v} value={w.v}>{w.label}</option>)}
             </select>
-            <button className="btn secondary" style={{ fontSize: 12, borderColor: "var(--red)", color: "var(--red)" }} disabled={busy || !reason.trim()} onClick={() => act({ action: "default", reason, workout })}>Declare</button>
+            <button className="btn secondary" style={{ fontSize: 12, borderColor: "var(--red)", color: "var(--red)" }} disabled={busy || !reason.trim()} onClick={() => { if (confirm(`Declare ${r.reference} in default? It will be flagged for workout (${WORKOUTS.find((w) => w.v === workout)?.label}).`)) act({ action: "default", reason, workout }, "Marked in default"); }}>Declare</button>
           </div>
         </div>
       )}
@@ -271,6 +284,7 @@ function RowActions({ r, asOf }: { r: RecRow; asOf: string }) {
       {r.hasInvestor && r.investorSettled && <span className="badge green" style={{ alignSelf: "center" }}>Investor settled</span>}
 
       {msg && <div style={{ color: "var(--red)", fontSize: 12, flexBasis: "100%" }}>{msg}</div>}
+      {okFlash && <div style={{ flexBasis: "100%" }}><span className="badge green">{okFlash} ✓</span></div>}
     </div>
   );
 }

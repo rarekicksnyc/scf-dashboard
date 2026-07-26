@@ -525,6 +525,11 @@ export interface BookedTransaction {
   workout?: WorkoutRoute; // route taken once defaulted
   insuranceClaim?: InsuranceClaim; // filed when an insured obligor defaults
   investorSettledAt?: string; // investor participation repaid + reconciled
+  // Additional (default) interest is accrued ALL AT ONCE when the client confirms
+  // it will repay the past-due balance — not continuously. On confirmation the
+  // amount is frozen at that date and no longer grows.
+  additionalInterestConfirmedAt?: string;
+  additionalInterestAccrued?: number; // frozen amount recognised at confirmation
 }
 
 // Authorized signatory for a seller (group-wide) or a specific seller entity.

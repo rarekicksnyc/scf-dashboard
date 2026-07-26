@@ -68,5 +68,15 @@ ok("status DEFAULTED wins", receivableStatus(dd, "2026-07-26") === "DEFAULTED");
 ok("defaulted deal still exposure (unrecovered)", outstandingPrincipal(dd) === 10_000_000);
 ok("no additional interest once defaulted", additionalInterest(dd, "2026-07-26").amount === 0);
 
+// 6. Additional interest is accrued ALL AT ONCE on confirmation, then frozen.
+const oc = deal(); // matures 2026-06-30
+const ind = additionalInterest(oc, "2026-07-26"); // indicative, 26 days
+ok("indicative additional interest is not confirmed", ind.confirmed === false && ind.days === 26);
+oc.additionalInterestConfirmedAt = "2026-07-26"; // client confirms -> freeze
+oc.additionalInterestAccrued = ind.amount;
+const frozen = additionalInterest(oc, "2026-09-01"); // a month later
+ok("confirmed additional interest is frozen (days stay 26)", frozen.confirmed === true && frozen.days === 26);
+ok("frozen amount equals the amount at confirmation", Math.abs(frozen.amount - ind.amount) < 0.01);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

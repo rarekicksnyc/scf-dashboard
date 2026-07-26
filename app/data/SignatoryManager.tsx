@@ -16,11 +16,11 @@ export default function SignatoryManager({ sellerId, sellerName, entities, signa
   const router = useRouter();
   const [f, setF] = useState({ name: "", title: "", entityId: "", signingLimit: "" });
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const entName = (id?: string) => (id ? entities.find((e) => e.id === id)?.name ?? id : "Group-wide");
 
   async function add() {
-    if (!f.name.trim() || !f.title.trim()) { setMsg("Name and title are required."); return; }
+    if (!f.name.trim() || !f.title.trim()) { setMsg({ ok: false, text: "Name and title are required." }); return; }
     setBusy(true); setMsg(null);
     const res = await fetch("/api/signatories", {
       method: "POST",
@@ -28,12 +28,15 @@ export default function SignatoryManager({ sellerId, sellerName, entities, signa
       body: JSON.stringify({ sellerId, name: f.name, title: f.title, entityId: f.entityId || undefined, signingLimit: f.signingLimit || undefined }),
     });
     setBusy(false);
-    if (!res.ok) { setMsg((await res.json().catch(() => ({}))).error ?? "Failed."); return; }
+    if (!res.ok) { setMsg({ ok: false, text: (await res.json().catch(() => ({}))).error ?? "Failed." }); return; }
+    const added = f.name.trim();
     setF({ name: "", title: "", entityId: "", signingLimit: "" });
+    setMsg({ ok: true, text: `Added ${added}.` });
     router.refresh();
   }
 
-  async function remove(id: string) {
+  async function remove(id: string, name: string) {
+    if (!confirm(`Remove authorized signatory "${name}"? They will no longer clear the signature check.`)) return;
     setBusy(true);
     const res = await fetch("/api/signatories", { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ id }) });
     setBusy(false);
@@ -49,7 +52,9 @@ export default function SignatoryManager({ sellerId, sellerName, entities, signa
           Transaction Flow, the named signer is matched against this list — anyone not on it is flagged for
           review. A signatory can be group-wide or scoped to one seller entity.
         </p>
-        {msg && <div className="notice err" style={{ marginBottom: 10 }}>{msg}</div>}
+        {msg && (
+          <div style={{ marginBottom: 10, padding: "8px 12px", borderRadius: 8, fontSize: 13, ...(msg.ok ? { background: "#e8f5ec", color: "var(--green)", border: "1px solid var(--green)" } : { background: "#fdecea", color: "var(--red)", border: "1px solid var(--red)" }) }}>{msg.text}</div>
+        )}
 
         {canEdit && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10, alignItems: "end", marginBottom: 12 }}>
@@ -78,7 +83,7 @@ export default function SignatoryManager({ sellerId, sellerName, entities, signa
                   <td>{s.title}</td>
                   <td>{s.entityId ? entName(s.entityId) : <span className="muted">Group-wide</span>}</td>
                   <td className="num">{s.signingLimit != null ? mm(s.signingLimit) : "—"}</td>
-                  {canEdit && <td><button className="btn secondary" style={{ padding: "3px 10px", fontSize: 12, borderColor: "var(--red)", color: "var(--red)" }} type="button" disabled={busy} onClick={() => remove(s.id)}>Delete</button></td>}
+                  {canEdit && <td><button className="btn secondary" style={{ padding: "3px 10px", fontSize: 12, borderColor: "var(--red)", color: "var(--red)" }} type="button" disabled={busy} onClick={() => remove(s.id, s.name)}>Delete</button></td>}
                 </tr>
               ))}
             </tbody>

@@ -26,8 +26,8 @@ export default function SwinglineAdjustment({
   const [entityId, setEntityId] = useState(sellers[0]?.id ?? "");
   const [direction, setDirection] = useState<"REDUCTION" | "INCREASE">("REDUCTION");
   const [amount, setAmount] = useState("5000000");
-  const [valueDate, setValueDate] = useState("2026-08-15");
-  const [maturityDate, setMaturityDate] = useState("2026-11-13");
+  const [valueDate, setValueDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [maturityDate, setMaturityDate] = useState(() => new Date(Date.now() + 90 * 86_400_000).toISOString().slice(0, 10));
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [blocked, setBlocked] = useState<string[] | null>(null);

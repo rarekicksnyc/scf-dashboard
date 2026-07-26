@@ -37,6 +37,8 @@ export default function AddToRegistry({
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("SELLER");
   const [limitType, setLimitType] = useState<LimitType>("ASR");
+  // Default a new limit's expiry to ~1 year out so it is never seeded already-expired.
+  const oneYearOut = new Date(Date.now() + 365 * 86_400_000).toISOString().slice(0, 10);
   const [f, setF] = useState({
     entityId: "",
     name: "",
@@ -46,7 +48,7 @@ export default function AddToRegistry({
     obligorId: obligors[0]?.id ?? "",
     approvedLimit: "25000000",
     maxTenorDays: "150",
-    expiryDate: "2026-12-31",
+    expiryDate: oneYearOut,
   });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);

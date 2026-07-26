@@ -23,7 +23,8 @@ export default async function ReceivablesPage() {
     liveCount: m.liveCount,
     overdueCount: m.overdueCount,
     weightedAvgTenor: m.weightedAvgTenor,
-    additionalInterestOwed: m.additionalInterestOwed,
+    additionalInterestAccrued: m.additionalInterestAccrued,
+    additionalInterestIndicative: m.additionalInterestIndicative,
     topObligorPct: m.topObligorPct,
     obligorConcentration: m.obligorConcentration.slice(0, 5),
   };
@@ -45,6 +46,8 @@ export default async function ReceivablesPage() {
     valueDate: r.txn.valueDate,
     maturityDate: r.txn.maturityDate,
     additionalInterest: r.additionalInterest,
+    additionalInterestConfirmed: r.additionalInterestConfirmed,
+    additionalInterestConfirmedAt: r.txn.additionalInterestConfirmedAt,
     hasInvestor: !!(r.txn.investorAmount && r.txn.investorAmount > 0),
     investorSettled: !!r.txn.investorSettledAt,
     hasInsurer: !!(r.txn.insurerAllocations && r.txn.insurerAllocations.length),
