@@ -47,6 +47,12 @@ const STATUS_BADGE: Record<ReservationStatus, string> = {
 
 type SortKey = "seller" | "obligor";
 
+interface CheckItem { category?: string; name?: string; checkName?: string; checkedAgainst?: string; txnValue?: string; status: string; severity: string; message: string }
+interface CheckData { error?: string; kind?: string; decision?: string; checks?: CheckItem[]; report?: { decision: string; checks: CheckItem[]; advanceAmount?: number; tenorDays?: number } }
+
+const SEV_BADGE: Record<string, string> = { GREEN: "green", YELLOW: "yellow", ORANGE: "orange", RED: "red", GREY: "grey" };
+const CAT_ORDER = ["SELLER", "OBLIGOR", "ASR", "TRANSACTION", "DISTRIBUTION", "INSURANCE"];
+
 export default function ForwardBook({ rows, candidates, canBook }: { rows: BookRow[]; candidates: TxnCandidate[]; canBook: boolean }) {
   const router = useRouter();
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
@@ -56,6 +62,17 @@ export default function ForwardBook({ rows, candidates, canBook }: { rows: BookR
   const [pickInvoice, setPickInvoice] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [checkingId, setCheckingId] = useState<string | null>(null);
+  const [checkData, setCheckData] = useState<CheckData | null>(null);
+  const [checkBusy, setCheckBusy] = useState(false);
+
+  async function viewChecks(id: string) {
+    if (checkingId === id) { setCheckingId(null); setCheckData(null); return; }
+    setCheckingId(id); setCheckData(null); setCheckBusy(true);
+    const res = await fetch(`/api/reservations/${id}/check`);
+    setCheckBusy(false);
+    setCheckData(res.ok ? await res.json() : { error: (await res.json().catch(() => ({}))).error ?? "Failed to run checks." });
+  }
 
   const matchesFor = (r: BookRow) => candidates.filter((c) => c.sellerId === r.sellerId && c.obligorId === r.obligorId);
 
@@ -223,31 +240,49 @@ export default function ForwardBook({ rows, candidates, canBook }: { rows: BookR
                   )}
                 </td>
                 <td>
-                  {r.status === "RESERVED" && canBook ? (
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <button
-                        className="btn secondary"
-                        style={{ padding: "4px 10px", fontSize: 12 }}
-                        type="button"
-                        onClick={() => setEditingId((cur) => (cur === r.id ? null : r.id))}
-                      >
-                        {editingId === r.id ? "Close" : "Adjust"}
-                      </button>
-                      {r.kind !== "SWINGLINE" && (
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    <button
+                      className="btn secondary"
+                      style={{ padding: "4px 10px", fontSize: 12 }}
+                      type="button"
+                      onClick={() => viewChecks(r.id)}
+                      title="View the full eligibility check for this reservation"
+                    >
+                      {checkingId === r.id ? "Close" : "Checks"}
+                    </button>
+                    {r.status === "RESERVED" && canBook && (
+                      <>
                         <button
                           className="btn secondary"
                           style={{ padding: "4px 10px", fontSize: 12 }}
                           type="button"
-                          onClick={() => { setFulfillingId((cur) => (cur === r.id ? null : r.id)); setPickInvoice(""); setErr(null); }}
+                          onClick={() => setEditingId((cur) => (cur === r.id ? null : r.id))}
                         >
-                          {fulfillingId === r.id ? "Close" : "Fulfill"}
+                          {editingId === r.id ? "Close" : "Adjust"}
                         </button>
-                      )}
-                      <CancelButton id={r.id} />
-                    </div>
-                  ) : null}
+                        {r.kind !== "SWINGLINE" && (
+                          <button
+                            className="btn secondary"
+                            style={{ padding: "4px 10px", fontSize: 12 }}
+                            type="button"
+                            onClick={() => { setFulfillingId((cur) => (cur === r.id ? null : r.id)); setPickInvoice(""); setErr(null); }}
+                          >
+                            {fulfillingId === r.id ? "Close" : "Fulfill"}
+                          </button>
+                        )}
+                        <CancelButton id={r.id} />
+                      </>
+                    )}
+                  </div>
                 </td>
               </tr>
+              {checkingId === r.id && (
+                <tr>
+                  <td colSpan={11} style={{ background: "#fafbfd", padding: 14 }}>
+                    {checkBusy ? <span className="muted">Running full eligibility check…</span> : <CheckBreakdown data={checkData} />}
+                  </td>
+                </tr>
+              )}
               {editingId === r.id && (
                 <tr>
                   <td colSpan={11} style={{ padding: 12 }}>
@@ -299,5 +334,71 @@ export default function ForwardBook({ rows, candidates, canBook }: { rows: BookR
       </table>
     </div>
     </>
+  );
+}
+
+const DEC_BADGE: Record<string, string> = { ELIGIBLE: "green", ELIGIBLE_WITH_WARNING: "yellow", EXCEPTION_REQUIRED: "orange", REJECTED: "red", OK: "green", WARN: "yellow", BLOCK: "red" };
+
+// The full live eligibility breakdown for a reservation — every item, grouped by
+// category, with what it was checked against and the transaction value.
+function CheckBreakdown({ data }: { data: CheckData | null }) {
+  if (!data) return <span className="muted">No data.</span>;
+  if (data.error) return <div className="notice err">{data.error}</div>;
+
+  // Standalone swingline reservation → a flat list of checks.
+  if (data.kind === "SWINGLINE") {
+    const checks = data.checks ?? [];
+    return (
+      <div>
+        <div style={{ marginBottom: 8 }}><span className={`badge ${DEC_BADGE[data.decision ?? ""] ?? "grey"}`}>{data.decision}</span></div>
+        <CheckTable rows={checks} />
+      </div>
+    );
+  }
+
+  const report = data.report;
+  if (!report) return <span className="muted">No check available.</span>;
+  const counts = { pass: report.checks.filter((c) => c.status === "PASS").length, warn: report.checks.filter((c) => c.status === "WARN").length, fail: report.checks.filter((c) => c.status === "FAIL").length, na: report.checks.filter((c) => c.status === "NA").length };
+  const cats = [...new Set(report.checks.map((c) => c.category))].sort((a, b) => CAT_ORDER.indexOf(a ?? "") - CAT_ORDER.indexOf(b ?? ""));
+  const CAT_LABEL: Record<string, string> = { SELLER: "Seller facility", OBLIGOR: "Obligor", ASR: "ASR approved obligor", TRANSACTION: "Transaction terms", DISTRIBUTION: "Distribution", INSURANCE: "Insurance" };
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
+        <span className={`badge ${DEC_BADGE[report.decision] ?? "grey"}`} style={{ fontSize: 13, padding: "4px 12px" }}>{report.decision.replace(/_/g, " ")}</span>
+        <span className="muted" style={{ fontSize: 12 }}>
+          {report.advanceAmount != null ? `Funded ${(report.advanceAmount / 1e6).toFixed(2)}MM · ` : ""}{report.tenorDays != null ? `tenor ${report.tenorDays}d · ` : ""}
+          {counts.pass} pass · {counts.warn} warn · {counts.fail} fail · {counts.na} n/a
+        </span>
+        <span className="muted" style={{ fontSize: 11 }}>(live — reflects the reservation&rsquo;s current details)</span>
+      </div>
+      {cats.map((cat) => (
+        <div key={cat} style={{ marginBottom: 8 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, margin: "6px 0 3px" }}>{CAT_LABEL[cat ?? ""] ?? cat}</div>
+          <CheckTable rows={report.checks.filter((c) => c.category === cat)} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CheckTable({ rows }: { rows: CheckItem[] }) {
+  return (
+    <div className="table-scroll">
+      <table>
+        <thead><tr><th>Check</th><th>Checked against</th><th>Transaction</th><th>Result</th><th>Detail</th></tr></thead>
+        <tbody>
+          {rows.map((c, i) => (
+            <tr key={i}>
+              <td style={{ fontWeight: 600 }}>{c.name ?? c.checkName}</td>
+              <td className="muted" style={{ whiteSpace: "nowrap" }}>{c.checkedAgainst ?? "—"}</td>
+              <td style={{ whiteSpace: "nowrap" }}>{c.txnValue ?? "—"}</td>
+              <td><span className={`badge ${SEV_BADGE[c.severity] ?? "grey"}`}>{c.status}</span></td>
+              <td className="muted" style={{ whiteSpace: "normal", minWidth: 220 }}>{c.message}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
