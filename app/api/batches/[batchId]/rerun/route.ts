@@ -8,7 +8,7 @@ import {
   addAudit,
 } from "@/lib/data/store";
 import { runBatch } from "@/lib/engine";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, roleHas } from "@/lib/auth";
 
 // Re-run eligibility for an existing batch against the current limits, applying
 // any checker-approved exception overrides (so approved exceptions now fund).
@@ -17,12 +17,14 @@ export async function POST(
   { params }: { params: Promise<{ batchId: string }> },
 ) {
   const { batchId } = await params;
+  const user = await getCurrentUser();
+  if (!roleHas(user.role, "UPLOAD_BATCH")) {
+    return NextResponse.json({ error: `Role ${user.role} is not permitted to re-run batches.` }, { status: 403 });
+  }
   const batch = getBatch(batchId);
   if (!batch) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-
-  const user = await getCurrentUser();
   const invoices = batch.results.map((r) => r.invoice);
   // Clear this batch's prior bookings first so the re-run sees a clean slate
   // (it must not count its own previous exposure), then re-materialise.

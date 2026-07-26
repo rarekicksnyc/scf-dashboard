@@ -260,14 +260,20 @@ export default function ForwardBook({ rows, candidates, canBook }: { rows: BookR
                         >
                           {editingId === r.id ? "Close" : "Adjust"}
                         </button>
-                        {r.kind !== "SWINGLINE" && (
+                        {/* Only offer to link a reservation to an already-funded
+                            transaction when a matching one actually exists — the
+                            normal path (Transaction Flow → Book) removes the
+                            reservation automatically, so this is just for a deal
+                            funded via a batch. Hiding it otherwise avoids a dead end. */}
+                        {r.kind !== "SWINGLINE" && matchesFor(r).length > 0 && (
                           <button
                             className="btn secondary"
                             style={{ padding: "4px 10px", fontSize: 12 }}
                             type="button"
                             onClick={() => { setFulfillingId((cur) => (cur === r.id ? null : r.id)); setPickInvoice(""); setErr(null); }}
+                            title="Link this reservation to a transaction that was funded via a batch"
                           >
-                            {fulfillingId === r.id ? "Close" : "Fulfill"}
+                            {fulfillingId === r.id ? "Close" : "Link funded txn"}
                           </button>
                         )}
                         <CancelButton id={r.id} />

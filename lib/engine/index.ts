@@ -247,7 +247,12 @@ export function runBatch(
 
   for (const invoice of invoices) {
     const checks: CheckResult[] = [];
-    const amount = invoice.amount;
+    const amount = invoice.amount; // invoice FACE amount (for data validation / reporting)
+    // The COVERAGE (funded / advance) amount is what actually draws the limits and
+    // is what the ledger books — so every capacity check, funding plan, and
+    // consumption below uses coverage, not face. This keeps the batch engine in
+    // agreement with the interactive engine and the booked ledger.
+    const coverage = invoice.coverageAmount ?? amount * (invoice.advanceRate ?? 1);
 
     if (docCheck) checks.push(docCheck);
 
@@ -374,17 +379,18 @@ export function runBatch(
     }
 
     // --- Limit capacity checks (read-only; consumption is deferred) --------
-    const sellerCheck = capacityCheck("SELLER_LIMIT_CHECK", ws.seller, amount, true);
+    // Checked against COVERAGE (the funded amount that draws the line), not face.
+    const sellerCheck = capacityCheck("SELLER_LIMIT_CHECK", ws.seller, coverage, true);
     if (sellerCheck) checks.push(sellerCheck);
 
-    const asrCheck = capacityCheck("ASR_LIMIT_CHECK", ws.asr, amount, true);
+    const asrCheck = capacityCheck("ASR_LIMIT_CHECK", ws.asr, coverage, true);
     if (asrCheck) checks.push(asrCheck);
 
     const obligorWorking = workingObligor(ws, invoice.obligorId);
     const obligorCheck = capacityCheck(
       "OBLIGOR_LIMIT_CHECK",
       obligorWorking,
-      amount,
+      coverage,
       true,
     );
     if (obligorCheck) checks.push(obligorCheck);
@@ -398,7 +404,7 @@ export function runBatch(
     let funding: InvoiceFunding | undefined;
     if (!hasHardReject) {
       funding = planFunding(
-        amount,
+        coverage,
         invoice.obligorId,
         invoice.currency,
         tenorDays,
@@ -415,7 +421,6 @@ export function runBatch(
     }
 
     // --- Pricing (shared with the eligibility engine) ----------------------
-    const coverage = invoice.coverageAmount ?? amount * (invoice.advanceRate ?? 1);
     const pricing = priceDeal({
       productType: invoice.productType,
       baseRateType: invoice.baseRateType,
@@ -443,9 +448,9 @@ export function runBatch(
     // Only consume capacity for invoices that are eligible or merely warned.
     // Rejected / exception invoices do NOT eat capacity — they await a decision.
     if (funded) {
-      if (ws.seller) consume(ws.seller, amount);
-      if (ws.asr) consume(ws.asr, amount);
-      if (obligorWorking) consume(obligorWorking, amount);
+      if (ws.seller) consume(ws.seller, coverage);
+      if (ws.asr) consume(ws.asr, coverage);
+      if (obligorWorking) consume(obligorWorking, coverage);
       if (funding) {
         if (ws.swingline) consume(ws.swingline, funding.bankHeld);
         for (const leg of funding.legs) {

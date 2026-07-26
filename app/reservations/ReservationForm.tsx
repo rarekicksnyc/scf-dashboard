@@ -143,9 +143,10 @@ export default function ReservationForm({
 
   if (!canBook) {
     return (
-      <div className="notice err">
-        Your current role cannot book reservations. Switch to Operations,
-        Relationship Manager, Product Manager, or Administrator.
+      <div style={{ padding: "12px 14px", background: "#f0f4fa", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: "var(--ink-soft)" }}>
+        Your role has read-only access here. To book reservations, sign out and
+        sign in as a user with the Operations, Relationship Manager, Product
+        Manager, or Administrator role.
       </div>
     );
   }

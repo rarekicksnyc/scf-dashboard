@@ -6,9 +6,11 @@ import { useRouter } from "next/navigation";
 export default function BatchActions({
   batchId,
   canPayment,
+  canUpload,
 }: {
   batchId: string;
   canPayment: boolean;
+  canUpload: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -37,9 +39,11 @@ export default function BatchActions({
       <a className="btn secondary" href={`/api/batches/${batchId}/export`}>
         Export exception report (CSV)
       </a>
-      <button className="btn secondary" onClick={rerun} disabled={busy} type="button">
-        {busy ? "Re-running…" : "Re-run eligibility"}
-      </button>
+      {canUpload && (
+        <button className="btn secondary" onClick={rerun} disabled={busy} type="button">
+          {busy ? "Re-running…" : "Re-run eligibility"}
+        </button>
+      )}
       {canPayment && (
         <a className="btn secondary" href={`/api/batches/${batchId}/payment-file`}>
           Generate payment file

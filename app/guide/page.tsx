@@ -1,5 +1,5 @@
 import { rolePermissionMap } from "@/lib/data/store";
-import { ROLE_LABEL, ALL_ROLES, ALL_PERMISSIONS, PERMISSION_LABEL } from "@/lib/auth";
+import { ROLE_LABEL, ALL_ROLES, ALL_PERMISSIONS, PERMISSION_LABEL, getSessionUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -69,10 +69,18 @@ const GLOSSARY: [string, string][] = [
   ["Maker-checker", "Four-eyes control: the person who requests an exception cannot approve it — a second authorized user must."],
 ];
 
-export default function GuidePage() {
+export default async function GuidePage() {
   const roleMap = rolePermissionMap();
+  // The guide is public for onboarding; when viewed without a session it renders
+  // outside the app shell, so give the reader a way back to sign in.
+  const loggedIn = Boolean(await getSessionUser());
   return (
     <>
+      {!loggedIn && (
+        <div style={{ marginBottom: 6 }}>
+          <a href="/login" className="muted" style={{ fontSize: 13 }}>← Back to sign in</a>
+        </div>
+      )}
       <h1 className="page-title">Operations guide</h1>
       <p className="page-sub">
         How the platform works, the end-to-end flow, a reference for every screen,

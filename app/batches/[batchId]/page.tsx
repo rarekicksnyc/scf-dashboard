@@ -52,6 +52,7 @@ export default async function BatchDetailPage({
   const s = batch.summary;
   const fundedInvoices = batch.results.filter((r) => r.funding);
   const canPayment = await currentUserCan("GENERATE_PAYMENT_FILE");
+  const canUpload = await currentUserCan("UPLOAD_BATCH");
 
   const cards = [
     { label: "Invoices", value: String(s.totalCount) },
@@ -74,7 +75,7 @@ export default async function BatchDetailPage({
         {seller ? ` · ASR ${seller.asrRating}` : ""} · {batch.fileName}
       </p>
 
-      <BatchActions batchId={batch.batchId} canPayment={canPayment} />
+      <BatchActions batchId={batch.batchId} canPayment={canPayment} canUpload={canUpload} />
 
       <div className="cards">
         {cards.map((c) => (

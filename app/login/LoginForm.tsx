@@ -4,7 +4,7 @@ import { useState } from "react";
 
 interface UserOpt { id: string; name: string; role: string }
 
-export default function LoginForm({ users }: { users: UserOpt[] }) {
+export default function LoginForm({ users, demoHint }: { users: UserOpt[]; demoHint?: string }) {
   const [userId, setUserId] = useState(users[0]?.id ?? "");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -43,7 +43,13 @@ export default function LoginForm({ users }: { users: UserOpt[] }) {
         </select>
 
         <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Password</label>
-        <input style={{ ...input, marginBottom: 18 }} type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus />
+        <input style={{ ...input, marginBottom: demoHint ? 10 : 18 }} type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+
+        {demoHint && (
+          <div style={{ marginBottom: 16, padding: "8px 10px", background: "#f0f4fa", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12, color: "var(--ink-soft)" }}>
+            Pilot access — every demo user shares the password <strong style={{ color: "var(--ink)" }}>{demoHint}</strong>. To try another role, sign out and pick a different user.
+          </div>
+        )}
 
         <button className="btn" type="submit" disabled={busy} style={{ width: "100%", padding: "10px 12px" }}>
           {busy ? "Signing in…" : "Sign in"}

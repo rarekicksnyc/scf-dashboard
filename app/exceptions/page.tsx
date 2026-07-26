@@ -35,9 +35,10 @@ export default async function ExceptionsPage() {
           did not submit.
         </div>
       ) : (
-        <div className="notice err">
-          You are acting as {user.name}. This role cannot approve exceptions —
-          switch to a Credit Officer, Risk Manager, or Product Manager.
+        <div style={{ padding: "12px 14px", background: "#f0f4fa", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: "var(--ink-soft)" }}>
+          You are signed in as {user.name}, a role with read-only access here. To
+          approve exceptions, sign out and sign in as a user with the Credit
+          Officer, Risk Manager, or Product Manager role.
         </div>
       )}
 
@@ -45,7 +46,8 @@ export default async function ExceptionsPage() {
         <h2>Open exceptions ({open.length})</h2>
         {exceptions.length === 0 ? (
           <div style={{ padding: 18 }} className="muted">
-            No exceptions yet. Upload the sample batch to generate some.
+            No exceptions yet. Upload a batch on the <a href="/batches">Batches</a> page
+            (use &ldquo;Load sample batch&rdquo;) — any invoice that breaches a control appears here for approval.
           </div>
         ) : (
           <div className="table-scroll">

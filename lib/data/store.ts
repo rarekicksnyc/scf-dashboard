@@ -653,6 +653,22 @@ export function materializeBatchBookings(batch: BatchResult, by: string): void {
       bookedAt: batch.uploadedAt,
       bookedBy: by,
     });
+    // If this funded invoice realises an open reservation (a deal that was
+    // forward-booked and is now funded via a batch), release that reservation so
+    // exposure is not double-counted (reserved + booked). Match conservatively —
+    // same seller, obligor, funded amount, and value date — so an unrelated
+    // reservation is never dropped. The interactive booking path already does
+    // this by removing the reservation it realises.
+    const match = store.reservations.find(
+      (rsv) =>
+        rsv.status === "RESERVED" &&
+        rsv.kind !== "SWINGLINE" &&
+        rsv.sellerId === inv.sellerId &&
+        rsv.obligorId === inv.obligorId &&
+        Math.abs(rsv.amount - coverage) < 1 &&
+        rsv.valueDate === inv.requestedDiscountDate,
+    );
+    if (match) fulfillReservation(match.id, inv.invoiceNumber);
   }
 }
 

@@ -41,7 +41,13 @@ export async function verifySession(value: string | undefined, secret: string): 
 export const SESSION_COOKIE = "scf_session";
 
 export function sessionSecret(): string {
-  // Set SESSION_SECRET in any deployed environment. The dev fallback only
-  // applies locally (and logs nothing sensitive).
-  return process.env.SESSION_SECRET || "dev-only-insecure-secret";
+  const secret = process.env.SESSION_SECRET;
+  if (secret) return secret;
+  // Fail CLOSED in production: never sign sessions with a known, in-repo value —
+  // that would let anyone forge an Administrator cookie. Refuse instead. Locally
+  // (dev) the fixed fallback is fine so the app runs without configuration.
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("SESSION_SECRET must be set in production (refusing to run with an insecure default).");
+  }
+  return "dev-only-insecure-secret";
 }

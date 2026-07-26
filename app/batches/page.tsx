@@ -21,9 +21,11 @@ export default async function BatchesPage() {
       {canUpload ? (
         <UploadPanel />
       ) : (
-        <div className="notice err">
-          Your current role cannot upload batches. Switch to Operations,
-          Relationship Manager, Product Manager, or Administrator.
+        <div style={{ padding: "12px 14px", background: "#f0f4fa", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: "var(--ink-soft)" }}>
+          Your role has read-only access to batches. To upload, sign out and sign
+          in as a user with the Operations, Relationship Manager, Product Manager,
+          or Administrator role (or ask an administrator to grant your role Upload
+          batch on Roles &amp; access).
         </div>
       )}
 
