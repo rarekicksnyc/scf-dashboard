@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { inputBase as input, fieldLabel as field } from "@/lib/ui";
 import type { Country } from "@/lib/types";
 
-export default function CountryRegister({ countries, canEdit }: { countries: Country[]; canEdit: boolean }) {
+export default function CountryRegister({ countries, canEdit, revs }: { countries: Country[]; canEdit: boolean; revs?: Record<string, number> }) {
   const router = useRouter();
   const [hideIneligible, setHideIneligible] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -15,13 +15,16 @@ export default function CountryRegister({ countries, canEdit }: { countries: Cou
   async function toggle(code: string, eligible: boolean) {
     setBusy(code);
     setMsg(null);
-    await fetch("/api/countries", {
+    const res = await fetch("/api/countries", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ code, eligible }),
+      body: JSON.stringify({ code, eligible, rev: revs?.[code] }),
     });
-    router.refresh();
     setBusy(null);
+    if (res.status === 409) {
+      setMsg({ ok: false, text: "Another user changed this country since you opened it — showing the latest." });
+    }
+    router.refresh();
   }
 
   async function remove(code: string, name: string) {

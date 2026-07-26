@@ -1,4 +1,4 @@
-import { allCountries, domicileExceptions } from "@/lib/data/store";
+import { allCountries, domicileExceptions, recordRev } from "@/lib/data/store";
 import { currentUserCan } from "@/lib/auth";
 import CountryRegister from "./CountryRegister";
 
@@ -50,7 +50,7 @@ export default async function MonitoringPage() {
         )}
       </div>
 
-      <CountryRegister countries={countries} canEdit={canEdit} />
+      <CountryRegister countries={countries} canEdit={canEdit} revs={Object.fromEntries(countries.map((c) => [c.code, recordRev(`country:${c.code}`)]))} />
     </>
   );
 }

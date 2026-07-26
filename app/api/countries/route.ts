@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { setCountryEligible, addCountry, removeCountry, addAudit } from "@/lib/data/store";
+import { setCountryEligible, addCountry, removeCountry, recordUnchanged, recordRev, bumpRecordRev, addAudit } from "@/lib/data/store";
 import { getCurrentUser, roleHas } from "@/lib/auth";
 
 // Country enforceability register. POST adds a country (when a name is supplied)
@@ -42,7 +42,12 @@ export async function POST(request: Request) {
   if (typeof b.eligible !== "boolean") {
     return NextResponse.json({ error: "Expected { code, eligible } or { code, name }." }, { status: 400 });
   }
+  const key = `country:${b.code}`;
+  if (b.rev != null && !recordUnchanged(key, Number(b.rev))) {
+    return NextResponse.json({ error: "This country was changed by another user since you opened it.", current: recordRev(key) }, { status: 409 });
+  }
   setCountryEligible(b.code, b.eligible);
+  bumpRecordRev(key);
   addAudit({
     actorUserId: user.id,
     actorName: user.name,
