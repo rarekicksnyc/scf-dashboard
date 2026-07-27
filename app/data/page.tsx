@@ -137,12 +137,20 @@ export default async function DataManagementPage({
               status: seller.status,
               contactEmail: seller.contactEmail ?? "",
             }}
-            limits={{
-              sellerLine: sellerLimit ? `${mm(sellerLimit.approvedLimit)} (exp ${dateShort(sellerLimit.expiryDate)})` : "—",
-              swingline: swl ? `${mm(swl.approvedLimit)} (exp ${dateShort(swl.expiryDate)})` : "none",
-              rrl: rrl ? `${mm(rrl.approvedLimit)} (exp ${dateShort(rrl.expiryDate)})` : "N/A",
-              rrlSwingline: rrlSwl ? `${mm(rrlSwl.approvedLimit)} (exp ${dateShort(rrlSwl.expiryDate)})` : "N/A",
-            }}
+            limits={[
+              sellerLimit
+                ? { key: "Seller line", id: sellerLimit.id, approvedLimit: sellerLimit.approvedLimit, expiryDate: sellerLimit.expiryDate, rev: recordRev(`limit:${sellerLimit.id}`) }
+                : { key: "Seller line", note: "—" },
+              swl
+                ? { key: "Swingline", id: swl.id, approvedLimit: swl.approvedLimit, expiryDate: swl.expiryDate, rev: recordRev(`limit:${swl.id}`) }
+                : { key: "Swingline", note: "none" },
+              rrl
+                ? { key: "RRL", id: rrl.id, approvedLimit: rrl.approvedLimit, expiryDate: rrl.expiryDate, rev: recordRev(`limit:${rrl.id}`) }
+                : { key: "RRL", note: "N/A" },
+              rrlSwl
+                ? { key: "RRL swingline", id: rrlSwl.id, approvedLimit: rrlSwl.approvedLimit, expiryDate: rrlSwl.expiryDate, rev: recordRev(`limit:${rrlSwl.id}`) }
+                : { key: "RRL swingline", note: "N/A" },
+            ]}
             canEdit={canEdit}
             rev={recordRev(`seller:${seller.id}`)}
           />

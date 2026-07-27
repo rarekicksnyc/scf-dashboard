@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { inputBase as input, fieldLabel as field } from "@/lib/ui";
+import { mm, dateShort } from "@/lib/format";
 
 export interface SellerFacilityData {
   id: string;
@@ -19,13 +20,17 @@ export interface SellerFacilityData {
   contactEmail: string;
 }
 
-// Read-only summary strings for the limit-backed lines (amounts + their expiries
-// are edited in the limit register below — single source).
-export interface FacilityLimits {
-  sellerLine: string;
-  swingline: string;
-  rrl: string;
-  rrlSwingline: string;
+// One limit-backed line (seller line / swingline / RRL / RRL swingline). The
+// amount and expiry are editable inline here and PATCH the same limit record the
+// limit register edits (single source), with the same edit-conflict guard. An
+// absent line (id undefined) shows a note instead ("none" / "N/A").
+export interface FacilityLimitLine {
+  key: string; // display label
+  id?: string; // limit id (undefined = not configured)
+  approvedLimit?: number;
+  expiryDate?: string;
+  rev?: number;
+  note?: string; // shown when absent
 }
 
 export default function EditSellerFacility({
@@ -35,7 +40,7 @@ export default function EditSellerFacility({
   rev,
 }: {
   seller: SellerFacilityData;
-  limits: FacilityLimits;
+  limits: FacilityLimitLine[];
   canEdit: boolean;
   rev?: number;
 }) {
@@ -98,14 +103,13 @@ export default function EditSellerFacility({
     </div>
   );
 
+  const lineDisplay = (l: FacilityLimitLine) => (l.id ? `${mm(l.approvedLimit ?? 0)} (exp ${dateShort(l.expiryDate ?? "")})` : (l.note ?? "N/A"));
+
   if (!canEdit) {
     return (
       <div style={{ padding: 14, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10, fontSize: 13 }}>
-        {ro("Seller line", limits.sellerLine)}
+        {limits.map((l) => <div key={l.key}>{ro(l.key, lineDisplay(l))}</div>)}
         {ro("ASR rating", `${seller.asrRating} (exp ${seller.asrExpiry || "—"})`)}
-        {ro("Swingline", limits.swingline)}
-        {ro("RRL", limits.rrl)}
-        {ro("RRL swingline", limits.rrlSwingline)}
         {ro("Borrower rating", `${seller.borrowerRating} (exp ${seller.borrowerRatingExpiry || "—"})`)}
         {ro("GCARS #", seller.gcarsNumber || "—")}
       </div>
@@ -156,19 +160,65 @@ export default function EditSellerFacility({
         </label>
       </div>
 
-      <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10, fontSize: 13, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
-        {ro("Seller line", limits.sellerLine)}
-        {ro("Swingline", limits.swingline)}
-        {ro("RRL", limits.rrl)}
-        {ro("RRL swingline", limits.rrlSwingline)}
-      </div>
-      <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>
-        Line amounts and their expiry dates are edited in the limit register below (single source).
+      <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
+        <div className="muted" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.03em", marginBottom: 8 }}>Credit lines — amount &amp; expiry</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 12 }}>
+          {limits.map((l) => <LimitLineEdit key={l.key} line={l} />)}
+        </div>
+        <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>
+          These edit the same limit records as the limit register below (single source). Add a new line in &ldquo;Add to register.&rdquo;
+        </div>
       </div>
 
       <button className="btn" style={{ marginTop: 14 }} onClick={save} disabled={busy} type="button">
         {busy ? "Saving…" : "Save facility details"}
       </button>
+    </div>
+  );
+}
+
+// Inline edit of one credit line's amount + expiry — PATCHes the same limit
+// record (and edit-conflict guard) as the limit register. An absent line shows a
+// note instead of inputs.
+function LimitLineEdit({ line }: { line: FacilityLimitLine }) {
+  const router = useRouter();
+  const [amount, setAmount] = useState(line.approvedLimit != null ? String(line.approvedLimit) : "");
+  const [expiry, setExpiry] = useState(line.expiryDate ?? "");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const dirty = line.id != null && (Number(amount) !== line.approvedLimit || expiry !== (line.expiryDate ?? ""));
+
+  async function save() {
+    if (!line.id) return;
+    setBusy(true); setMsg(null);
+    const res = await fetch(`/api/limits/${line.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ approvedLimit: Number(amount), expiryDate: expiry, rev: line.rev }),
+    });
+    setBusy(false);
+    if (res.status === 409) { setMsg({ ok: false, text: "Changed by another user — refresh." }); return; }
+    if (!res.ok) { setMsg({ ok: false, text: (await res.json().catch(() => ({}))).error ?? "Failed." }); return; }
+    setMsg({ ok: true, text: "Saved ✓" });
+    router.refresh();
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <span className="muted" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.03em" }}>{line.key}</span>
+      {line.id ? (
+        <>
+          <input style={{ ...input, fontSize: 13 }} value={amount} inputMode="numeric" placeholder="amount (USD)" onChange={(e) => setAmount(e.target.value)} />
+          <input style={{ ...input, fontSize: 13 }} type="date" value={expiry} onChange={(e) => setExpiry(e.target.value)} />
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <button className="btn secondary" style={{ padding: "3px 10px", fontSize: 12 }} type="button" disabled={busy || !dirty} onClick={save}>{busy ? "…" : "Save"}</button>
+            {amount && <span className="muted" style={{ fontSize: 11 }}>{mm(Number(amount) || 0)}</span>}
+            {msg && <span style={{ fontSize: 11, color: msg.ok ? "var(--green)" : "var(--red)" }}>{msg.text}</span>}
+          </div>
+        </>
+      ) : (
+        <span className="muted" style={{ fontSize: 13 }}>{line.note ?? "N/A"}</span>
+      )}
     </div>
   );
 }
