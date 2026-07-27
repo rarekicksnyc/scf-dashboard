@@ -77,6 +77,7 @@ export default function DocumentsClient({
   }
 
   async function replace(id: string, f: File) {
+    if (!confirm(`Replace this document with "${f.name}"? The current file is overwritten.`)) return;
     setBusy(true);
     const fd = new FormData();
     fd.set("file", f);

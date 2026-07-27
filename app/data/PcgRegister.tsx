@@ -75,7 +75,7 @@ export default function PcgRegister({
         {msg && <div className={`notice ${msg.ok ? "ok" : "err"}`}>{msg.text}</div>}
 
         {canEdit && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 10, alignItems: "end", marginBottom: 14, padding: 12, border: "1px solid var(--border)", borderRadius: 8, background: "#fafbfd" }}>
+          <div onKeyDown={(e) => { if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT" && !busy && add.parentName) { e.preventDefault(); create(); } }} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 10, alignItems: "end", marginBottom: 14, padding: 12, border: "1px solid var(--border)", borderRadius: 8, background: "#fafbfd" }}>
             <label style={field}>Parent company name
               <input style={input} value={add.parentName} onChange={(e) => setA("parentName", e.target.value)} placeholder="e.g. Meridian Holdings Plc" />
             </label>

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getBatches, getSeller, allSellers, allObligors } from "@/lib/data/store";
+import { getBatches, getSeller, getObligor, allSellers, allObligors, sellerObligorLimitsForSeller } from "@/lib/data/store";
 import { currentUserCan } from "@/lib/auth";
 import { mm, dateShort } from "@/lib/format";
 import UploadPanel from "./UploadPanel";
@@ -27,6 +27,7 @@ export default async function BatchesPage() {
             <BatchBuilder
               sellers={allSellers().map((s) => ({ id: s.id, name: s.name }))}
               obligors={allObligors().map((o) => ({ id: o.id, name: o.name }))}
+              sellerObligors={Object.fromEntries(allSellers().map((s) => [s.id, sellerObligorLimitsForSeller(s.id).map((x) => ({ id: x.obligorId, name: getObligor(x.obligorId)?.name ?? x.obligorId }))]))}
             />
           </Collapsible>
         </>

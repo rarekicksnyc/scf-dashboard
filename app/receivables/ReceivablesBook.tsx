@@ -271,7 +271,7 @@ function RowActions({ r, asOf }: { r: RecRow; asOf: string }) {
               </>
             )}
             {r.claimStatus && r.claimStatus !== "FILED" && <span className="badge grey">Claim {r.claimStatus.toLowerCase()}</span>}
-            <button className="btn secondary" style={{ fontSize: 12 }} disabled={busy} onClick={() => act({ action: "clear-default" })}>Clear default (cured)</button>
+            <button className="btn secondary" style={{ fontSize: 12 }} disabled={busy} onClick={() => { if (confirm(`Clear the default on ${r.reference}? It returns to its normal open state and its exposure is restored.`)) act({ action: "clear-default" }, "Default cleared"); }}>Clear default (cured)</button>
           </div>
         </div>
       )}

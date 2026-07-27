@@ -58,7 +58,7 @@ export default function SignatoryManager({ sellerId, sellerName, entities, signa
         )}
 
         {canEdit && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10, alignItems: "end", marginBottom: 12 }}>
+          <div onKeyDown={(e) => { if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT") { e.preventDefault(); add(); } }} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10, alignItems: "end", marginBottom: 12 }}>
             <label style={field}>Name<input style={input} value={f.name} onChange={(e) => setF((s) => ({ ...s, name: e.target.value }))} placeholder="e.g. Jane Smith" /></label>
             <label style={field}>Title<input style={input} value={f.title} onChange={(e) => setF((s) => ({ ...s, title: e.target.value }))} placeholder="e.g. CFO" /></label>
             <label style={field}>Scope

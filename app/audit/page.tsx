@@ -1,5 +1,6 @@
 import { getAuditLog } from "@/lib/data/store";
 import { currentUserCan } from "@/lib/auth";
+import AuditTable from "./AuditTable";
 
 export const dynamic = "force-dynamic";
 
@@ -7,6 +8,7 @@ function ts(iso: string): string {
   const t = Date.parse(iso);
   if (Number.isNaN(t)) return iso;
   return new Date(t).toLocaleString("en-US", {
+    year: "numeric",
     month: "short",
     day: "numeric",
     hour: "2-digit",
@@ -20,7 +22,10 @@ export default async function AuditPage() {
     return (
       <>
         <h1 className="page-title">Audit Log</h1>
-        <div className="notice err">Your role cannot view the audit log.</div>
+        <div style={{ padding: "12px 14px", background: "#f0f4fa", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: "var(--ink-soft)" }}>
+          Your role cannot view the audit log. Ask an administrator to grant your
+          role View audit on the Roles &amp; access screen.
+        </div>
       </>
     );
   }
@@ -35,45 +40,11 @@ export default async function AuditPage() {
         payment-file generation — with actor and timestamp.
       </p>
 
-      <div className="panel">
-        <h2>Activity ({log.length})</h2>
-        {log.length === 0 ? (
-          <div style={{ padding: 18 }} className="muted">
-            No activity recorded yet.
-          </div>
-        ) : (
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Time</th>
-                  <th>Actor</th>
-                  <th>Action</th>
-                  <th>Entity</th>
-                  <th>Detail</th>
-                </tr>
-              </thead>
-              <tbody>
-                {log.map((a) => (
-                  <tr key={a.id}>
-                    <td className="muted">{ts(a.timestamp)}</td>
-                    <td>{a.actorName}</td>
-                    <td>
-                      <span className="badge grey">{a.action}</span>
-                    </td>
-                    <td className="muted">
-                      {a.entityType} {a.entityId}
-                    </td>
-                    <td style={{ whiteSpace: "normal", minWidth: 260 }}>
-                      {a.detail}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      {log.length === 0 ? (
+        <div className="panel"><div style={{ padding: 18 }} className="muted">No activity recorded yet.</div></div>
+      ) : (
+        <AuditTable rows={log.map((a) => ({ id: a.id, time: ts(a.timestamp), actorName: a.actorName, action: a.action, entityType: a.entityType, entityId: a.entityId, detail: a.detail }))} />
+      )}
     </>
   );
 }

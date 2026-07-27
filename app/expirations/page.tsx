@@ -1,5 +1,6 @@
 import { buildExpirations, expiryCounts } from "@/lib/expirations";
 import type { ExpiryFlag } from "@/lib/expirations";
+import ExpirationsTable from "./ExpirationsTable";
 
 export const dynamic = "force-dynamic";
 
@@ -85,42 +86,17 @@ export default function ExpirationsPage() {
         )}
       </div>
 
-      <div className="panel">
-        <h2>All tracked dates ({all.length})</h2>
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Flag</th>
-                <th>Type</th>
-                <th>Reference</th>
-                <th>Entity</th>
-                <th>Detail</th>
-                <th>Expiry date</th>
-                <th className="num">Days</th>
-              </tr>
-            </thead>
-            <tbody>
-              {all.map((i, idx) => {
-                const b = FLAG_BADGE[i.flag];
-                return (
-                  <tr key={idx}>
-                    <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
-                    <td>{i.kind}</td>
-                    <td><code style={{ fontSize: 12 }}>{i.ref}</code></td>
-                    <td>{i.entity}</td>
-                    <td className="muted">{i.detail}</td>
-                    <td>{i.expiryDate || "—"}</td>
-                    <td className="num">
-                      {!isFinite(i.daysToExpiry) ? "—" : i.daysToExpiry < 0 ? `${-i.daysToExpiry}d ago` : `${i.daysToExpiry}d`}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <ExpirationsTable
+        rows={all.map((i) => {
+          const b = FLAG_BADGE[i.flag];
+          return {
+            flag: i.flag, flagLabel: b.label, flagCls: b.cls,
+            kind: i.kind, ref: i.ref, entity: i.entity, detail: i.detail,
+            expiryDate: i.expiryDate || "",
+            days: !isFinite(i.daysToExpiry) ? "—" : i.daysToExpiry < 0 ? `${-i.daysToExpiry}d ago` : `${i.daysToExpiry}d`,
+          };
+        })}
+      />
     </>
   );
 }

@@ -183,6 +183,7 @@ export default function AddToRegistry({
       return;
     }
     setMsg({ ok: true, text: "Added to the register." });
+    setF((s) => ({ ...s, name: "", cdl: "" })); // clear so a second submit isn't an accidental duplicate
     router.refresh();
   }
 
@@ -269,7 +270,7 @@ export default function AddToRegistry({
 
         {mode !== "BULK" && (
         <>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+        <div onKeyDown={(e) => { if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT" && !busy) { e.preventDefault(); submit(); } }} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
           {mode === "LIMIT" && (
             <>
               <label style={field}>Limit type

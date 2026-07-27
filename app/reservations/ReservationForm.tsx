@@ -180,7 +180,7 @@ export default function ReservationForm({
 
         {mode === "DISCOUNT" ? (
           <>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+            <div onKeyDown={(e) => { if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT" && !busy && !blockedReasons) { e.preventDefault(); submit(false); } }} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
               <label style={field}>Seller
                 <select style={input} value={form.sellerId} onChange={(e) => setForm((f) => ({ ...f, sellerId: e.target.value }))}>
                   {sellers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}

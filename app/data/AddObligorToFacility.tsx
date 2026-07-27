@@ -98,7 +98,7 @@ export default function AddObligorToFacility({
         ))}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10, alignItems: "end" }}>
+      <div onKeyDown={(e) => { if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT" && !busy && !(mode === "EXISTING" && !f.obligorId)) { e.preventDefault(); submit(); } }} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10, alignItems: "end" }}>
         {mode === "EXISTING" ? (
           <label style={{ ...field, gridColumn: "span 2" }}>Obligor
             {(allSellers ? everyObligor : availableObligors).length ? (

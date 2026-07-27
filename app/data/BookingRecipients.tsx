@@ -31,6 +31,7 @@ export default function BookingRecipients({ value, canEdit }: { value: string; c
           style={{ ...input, flex: 1, minWidth: 260 }}
           value={emails}
           onChange={(e) => { setEmails(e.target.value); setSaved(false); }}
+          onKeyDown={(e) => { if (e.key === "Enter" && canEdit && emails !== value) { e.preventDefault(); save(); } }}
           placeholder="funding-desk@mufg.com, ops@mufg.com"
           disabled={!canEdit}
         />

@@ -13,7 +13,10 @@ export default async function ReportsPage() {
     return (
       <>
         <h1 className="page-title">Reports</h1>
-        <div className="notice err">Your role cannot view reports.</div>
+        <div style={{ padding: "12px 14px", background: "#f0f4fa", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: "var(--ink-soft)" }}>
+          Reports are limited to the Product Manager and Administrator roles. Ask an
+          administrator to grant your role View reports on the Roles &amp; access screen.
+        </div>
       </>
     );
   }

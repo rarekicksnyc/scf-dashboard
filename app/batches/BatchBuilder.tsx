@@ -25,10 +25,13 @@ const plus = (d: number) => new Date(Date.now() + d * 86_400_000).toISOString().
 // single-seller, so the seller is chosen once for the whole batch and each row
 // is one invoice. On submit the rows are turned into the same CSV the parser
 // reads, so this reuses the existing upload path.
-export default function BatchBuilder({ sellers, obligors }: { sellers: Opt[]; obligors: Opt[] }) {
+export default function BatchBuilder({ sellers, obligors, sellerObligors }: { sellers: Opt[]; obligors: Opt[]; sellerObligors: Record<string, Opt[]> }) {
   const router = useRouter();
   const [sellerId, setSellerId] = useState(sellers[0]?.id ?? "");
-  const blank = (): Row => ({ obligorId: obligors[0]?.id ?? "", invoiceNumber: "", amount: "", advanceRate: "95", margin: "125", valueDate: today(), dueDate: plus(90) });
+  // Obligors on THIS seller's ASR approved list (only those can fund); fall back
+  // to all obligors if the seller has none on file, so it's never a dead end.
+  const obligorsForSeller = (sellerObligors[sellerId]?.length ? sellerObligors[sellerId] : obligors);
+  const blank = (): Row => ({ obligorId: obligorsForSeller[0]?.id ?? "", invoiceNumber: "", amount: "", advanceRate: "95", margin: "125", valueDate: today(), dueDate: plus(90) });
   const [rows, setRows] = useState<Row[]>([blank()]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +40,15 @@ export default function BatchBuilder({ sellers, obligors }: { sellers: Opt[]; ob
   const addRow = () => setRows((rs) => [...rs, blank()]);
   const removeRow = (i: number) => setRows((rs) => rs.filter((_, j) => j !== i));
 
-  const valid = rows.filter((r) => r.obligorId && Number(r.amount) > 0);
+  function changeSeller(id: string) {
+    setSellerId(id);
+    // Re-point every row's obligor to one on the new seller's ASR list.
+    const list = sellerObligors[id]?.length ? sellerObligors[id] : obligors;
+    setRows((rs) => rs.map((r) => (list.some((o) => o.id === r.obligorId) ? r : { ...r, obligorId: list[0]?.id ?? "" })));
+  }
+
+  const isIncomplete = (r: Row) => !r.obligorId || !(Number(r.amount) > 0);
+  const valid = rows.filter((r) => !isIncomplete(r));
 
   async function run() {
     setBusy(true); setError(null);
@@ -68,7 +79,7 @@ export default function BatchBuilder({ sellers, obligors }: { sellers: Opt[]; ob
         <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
           <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12 }}>
             <span className="muted">Seller (whole batch)</span>
-            <select style={{ ...cell, minWidth: 240 }} value={sellerId} onChange={(e) => setSellerId(e.target.value)}>
+            <select style={{ ...cell, minWidth: 240 }} value={sellerId} onChange={(e) => changeSeller(e.target.value)}>
               {sellers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </label>
@@ -85,8 +96,8 @@ export default function BatchBuilder({ sellers, obligors }: { sellers: Opt[]; ob
             </thead>
             <tbody>
               {rows.map((r, i) => (
-                <tr key={i}>
-                  <td><select style={{ ...cell, minWidth: 160 }} value={r.obligorId} onChange={(e) => setRow(i, { obligorId: e.target.value })}>{obligors.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</select></td>
+                <tr key={i} style={isIncomplete(r) ? { boxShadow: "inset 3px 0 0 var(--orange)" } : undefined} title={isIncomplete(r) ? "Incomplete — needs an obligor and an amount to be included" : undefined}>
+                  <td><select style={{ ...cell, minWidth: 160 }} value={r.obligorId} onChange={(e) => setRow(i, { obligorId: e.target.value })}>{obligorsForSeller.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</select></td>
                   <td><input style={{ ...cell, width: 110 }} value={r.invoiceNumber} onChange={(e) => setRow(i, { invoiceNumber: e.target.value })} placeholder={`INV-${1001 + i}`} /></td>
                   <td><NumberInput style={{ ...cell, width: 140 }} value={r.amount} onValue={(v) => setRow(i, { amount: v })} placeholder="amount" ariaLabel="Amount" /></td>
                   <td><input style={small} type="number" value={r.advanceRate} onChange={(e) => setRow(i, { advanceRate: e.target.value })} /></td>
@@ -103,6 +114,7 @@ export default function BatchBuilder({ sellers, obligors }: { sellers: Opt[]; ob
         <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "center" }}>
           <button className="btn secondary" style={{ fontSize: 12 }} type="button" onClick={addRow}>+ Add invoice</button>
           <button className="btn" type="button" disabled={busy || valid.length === 0} onClick={run}>{busy ? "Running eligibility…" : `Run eligibility (${valid.length})`}</button>
+          {rows.length - valid.length > 0 && <span className="muted" style={{ fontSize: 12 }}>{rows.length - valid.length} incomplete row{rows.length - valid.length === 1 ? "" : "s"} will be skipped.</span>}
         </div>
       </div>
     </div>
