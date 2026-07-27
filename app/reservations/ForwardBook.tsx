@@ -27,6 +27,7 @@ export interface BookRow {
   exceptionReasons?: string[];
   resolveByDate?: string;
   fulfilledByInvoice?: string;
+  rev?: number; // edit-conflict version
 }
 
 // Funded transactions a reservation can be linked to (fulfilled by).

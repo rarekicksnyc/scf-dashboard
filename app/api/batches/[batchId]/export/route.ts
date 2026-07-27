@@ -1,4 +1,5 @@
 import { getBatch, getObligor } from "@/lib/data/store";
+import { getCurrentUser, roleHas } from "@/lib/auth";
 import type { InvoiceResult } from "@/lib/types";
 
 // Exception report: every invoice that did not cleanly pass (exception or
@@ -17,6 +18,10 @@ export async function GET(
   { params }: { params: Promise<{ batchId: string }> },
 ) {
   const { batchId } = await params;
+  const user = await getCurrentUser();
+  if (!roleHas(user.role, "VIEW_REPORTS") && !roleHas(user.role, "UPLOAD_BATCH")) {
+    return new Response("Not permitted", { status: 403 });
+  }
   const batch = getBatch(batchId);
   if (!batch) {
     return new Response("Not found", { status: 404 });

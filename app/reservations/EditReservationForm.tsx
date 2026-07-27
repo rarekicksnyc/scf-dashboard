@@ -42,8 +42,10 @@ export default function EditReservationForm({
           override,
           comment,
           resolveByDate: resolveBy || undefined,
+          rev: r.rev,
         }),
       });
+      if (res.status === 409) { setMsg("This reservation was changed by another user since you opened it. Close and reopen to load the latest."); return; }
       const data = await res.json();
       if (!res.ok) {
         const reasons = (data.checks ?? []).map((c: { message: string }) => c.message);

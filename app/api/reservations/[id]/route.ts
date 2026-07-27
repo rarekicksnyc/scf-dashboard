@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import {
   getReservation,
   cancelReservation,
+  recordUnchanged,
+  recordRev,
+  bumpRecordRev,
   addAudit,
   entitySwingline,
 } from "@/lib/data/store";
@@ -59,6 +62,14 @@ export async function PATCH(
   if (!r) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const b = await request.json().catch(() => ({}));
+
+  // Edit-conflict guard: reject if another user changed this reservation since
+  // it was opened (consistent with every other inline editor).
+  const revKey = `reservation:${id}`;
+  if (b.rev != null && !recordUnchanged(revKey, Number(b.rev))) {
+    return NextResponse.json({ error: "This reservation was changed by another user since you opened it.", current: recordRev(revKey) }, { status: 409 });
+  }
+
   const amount = b.amount != null ? Number(b.amount) : r.amount;
   const valueDate = b.valueDate ?? r.valueDate;
   const maturityDate = b.maturityDate ?? r.maturityDate;
@@ -137,6 +148,7 @@ export async function PATCH(
   r.exceptionComment = isException ? comment : undefined;
   r.exceptionReasons = isException ? failing.map((c) => c.message) : undefined;
   r.resolveByDate = isException && b.resolveByDate ? b.resolveByDate : undefined;
+  bumpRecordRev(revKey);
 
   addAudit({
     actorUserId: user.id,

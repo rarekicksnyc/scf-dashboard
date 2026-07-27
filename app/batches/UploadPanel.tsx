@@ -87,6 +87,9 @@ export default function UploadPanel() {
           <button className="btn secondary" onClick={loadSample} type="button">
             Load sample batch
           </button>
+          <button className="btn secondary" onClick={downloadTemplate} type="button">
+            Download template
+          </button>
           <label className="btn secondary" style={{ cursor: "pointer" }}>
             Choose CSV / Excel…
             <input

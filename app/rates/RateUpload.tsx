@@ -30,6 +30,7 @@ export default function RateUpload() {
   }
 
   async function submit() {
+    if (!confirm(`Replace ALL current ${rateType} rate rows with this upload? Transactions price off these rates.`)) return;
     setBusy(true);
     setMsg(null);
     const body = xlsx ? { fileBase64: xlsx, rateType } : { csv, rateType };

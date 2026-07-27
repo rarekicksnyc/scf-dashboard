@@ -1,10 +1,10 @@
 import "./globals.css";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { getSessionUser, ROLE_LABEL, permissionsFor } from "@/lib/auth";
 import { getRevision } from "@/lib/data/store";
 import SessionBar from "./SessionBar";
 import LiveSync from "./LiveSync";
+import NavLinks from "./NavLinks";
 
 export const metadata: Metadata = {
   title: "SCF Discounting Control Tower",
@@ -55,11 +55,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <div className="brand-sub">Seller-Led Discounting</div>
             <SessionBar name={user.name} roleLabel={ROLE_LABEL[user.role]} />
             <nav className="nav">
-              {NAV.filter((n) => !n.need || perms.includes(n.need)).map((n) => (
-                <Link key={n.href} href={n.href}>
-                  {n.label}
-                </Link>
-              ))}
+              <NavLinks items={NAV.filter((n) => !n.need || perms.includes(n.need)).map((n) => ({ href: n.href, label: n.label }))} />
             </nav>
           </aside>
           <main className="main">{children}</main>

@@ -8,6 +8,7 @@ import {
   getSeller,
   getObligor,
   findLimit,
+  recordRev,
 } from "@/lib/data/store";
 import { currentUserCan } from "@/lib/auth";
 import { mm } from "@/lib/format";
@@ -59,6 +60,7 @@ export default async function ReservationsPage() {
       exceptionReasons: r.exceptionReasons,
       resolveByDate: r.resolveByDate,
       fulfilledByInvoice: r.fulfilledByInvoice,
+      rev: recordRev(`reservation:${r.id}`),
     };
   });
 

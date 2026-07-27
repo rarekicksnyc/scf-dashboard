@@ -116,6 +116,13 @@ a {
   color: #fff;
 }
 
+.nav a.active {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: inset 3px 0 0 var(--accent, #6ea8ff);
+}
+
 .main {
   padding: 26px 30px 60px;
   /* Fill the available width (the grid already reserves space for the sidebar)

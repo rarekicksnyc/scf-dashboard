@@ -21,8 +21,12 @@ export function collectedPrincipal(t: BookedTransaction): number {
   return (t.collections ?? []).reduce((a, c) => a + c.amount, 0);
 }
 
-// Principal still outstanding = funded amount − principal collected.
+// Principal still outstanding = funded amount − principal collected. A closed
+// receivable (settledAt set — whether by full collection or a write-off that
+// recognises the loss) carries no live principal, so it frees its limits
+// everywhere at once.
 export function outstandingPrincipal(t: BookedTransaction): number {
+  if (t.settledAt) return 0;
   return Math.max(0, t.amount - collectedPrincipal(t));
 }
 

@@ -571,14 +571,21 @@ export function markReceivableDefault(
   t.defaultedAt = today();
   t.defaultReason = input.reason;
   t.workout = input.workout;
+  // A write-off recognises the loss now — the exposure comes off the line
+  // (settledAt frees it everywhere). The status still reads DEFAULTED because
+  // defaultedAt takes precedence in receivableStatus.
+  if (input.workout === "WRITE_OFF") t.settledAt = today();
   return t;
 }
 
 // Clear a default (e.g. the obligor cured) so the receivable returns to its
-// normal open state.
+// normal open state. If a write-off had frozen the exposure off (settledAt set
+// without a real full collection), restore it too.
 export function clearReceivableDefault(id: string): BookedTransaction | undefined {
   const t = getBookedTransaction(id);
   if (!t) return undefined;
+  const collected = (t.collections ?? []).reduce((a, c) => a + c.amount, 0);
+  if (t.settledAt && collected < t.amount) t.settledAt = undefined;
   t.defaultedAt = undefined;
   t.defaultReason = undefined;
   t.workout = undefined;
