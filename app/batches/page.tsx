@@ -1,8 +1,10 @@
 import Link from "next/link";
-import { getBatches, getSeller } from "@/lib/data/store";
+import { getBatches, getSeller, allSellers, allObligors } from "@/lib/data/store";
 import { currentUserCan } from "@/lib/auth";
 import { mm, dateShort } from "@/lib/format";
 import UploadPanel from "./UploadPanel";
+import BatchBuilder from "./BatchBuilder";
+import Collapsible from "../Collapsible";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +21,15 @@ export default async function BatchesPage() {
       </p>
 
       {canUpload ? (
-        <UploadPanel />
+        <>
+          <UploadPanel />
+          <Collapsible summary="Build a batch by hand — editable invoice table (no file needed)">
+            <BatchBuilder
+              sellers={allSellers().map((s) => ({ id: s.id, name: s.name }))}
+              obligors={allObligors().map((o) => ({ id: o.id, name: o.name }))}
+            />
+          </Collapsible>
+        </>
       ) : (
         <div style={{ padding: "12px 14px", background: "#f0f4fa", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: "var(--ink-soft)" }}>
           Your role has read-only access to batches. To upload, sign out and sign

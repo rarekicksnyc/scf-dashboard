@@ -21,7 +21,21 @@ const TYPE_LABEL: Record<DocTemplateType, string> = {
 };
 const TYPES: DocTemplateType[] = ["PURCHASE_REQUEST", "COMMITMENT_REQUEST", "SCHEDULE_A_DTR", "SCHEDULE_A_UTRC", "SCHEDULE_A_INVESTOR", "CLIENT_EMAIL", "BOOKING_EMAIL", "INVESTOR_EMAIL", "INVOICE_ADDITIONAL_INTEREST", "INVOICE_NOTE"];
 
-const TOKENS = "seller · obligor · reference · currency · invoice_amount · advance_rate · coverage · committed_amount · value_date · maturity_date · commitment_due_date · final_demand_date · pricing_bps · product_type · primary_amount · document_name · today";
+// Per-template guidance: how each template is structured, and exactly which
+// {{tokens}} (or Header|token columns) it can use. Shown under the editor so the
+// desk always knows which fields are editable for the selected template.
+const TOKEN_HELP: Record<DocTemplateType, { struct: string; tokens: string }> = {
+  PURCHASE_REQUEST: { struct: "Free-text document (DTR). Use {{token}} wherever a value changes each deal; the signature block stays as literal text.", tokens: "seller · obligor · reference · currency · invoice_amount · advance_rate · coverage · value_date · maturity_date · pricing_bps · product_type · today" },
+  COMMITMENT_REQUEST: { struct: "Free-text document (UTRC). {{token}} placeholders fill per deal.", tokens: "seller · obligor · reference · currency · committed_amount · value_date · commitment_due_date · final_demand_date · pricing_bps · today" },
+  SCHEDULE_A_DTR: { struct: "Excel column spec — one column per line as Header|token (line order = column order).", tokens: "seller · obligor · reference · currency · invoice_amount · advance_rate · coverage · base_rate · pricing_bps · discount_rate · discount · purchase_price · value_date · maturity_date" },
+  SCHEDULE_A_UTRC: { struct: "Excel column spec (UTRC) — one column per line as Header|token.", tokens: "seller · obligor · reference · currency · committed_amount · value_date · commitment_due_date · final_demand_date · pricing_bps · commitment_fee" },
+  SCHEDULE_A_INVESTOR: { struct: "Excel column spec for the INVESTOR copy — Header|token. Never add skim: the investor only ever sees their own rate (SOFR + investor margin).", tokens: "investor_name · seller · obligor · reference · currency · investor_amount · investor_base · investor_margin · investor_rate · investor_discount · investor_purchase_price · value_date · maturity_date" },
+  CLIENT_EMAIL: { struct: "Email (subject + body) that requests execution from the client. {{token}} placeholders fill per transaction.", tokens: "seller · obligor · document_name · primary_amount · value_date · today" },
+  BOOKING_EMAIL: { struct: "Email to the booking / funding team. {{token}} placeholders fill per transaction.", tokens: "seller · obligor · product_type · primary_amount · value_date · maturity_date · pricing_bps · document_name" },
+  INVESTOR_EMAIL: { struct: "Email to the investor about their participation. {{token}} placeholders fill per transaction.", tokens: "investor_name · seller · obligor · investor_amount · investor_rate · investor_base · investor_margin · value_date · maturity_date" },
+  INVOICE_ADDITIONAL_INTEREST: { struct: "The line-item description printed on the past-due additional-interest statement (PDF).", tokens: "seller · obligor · reference · overdue_days · all_in_rate · principal · additional_interest · maturity_date · invoice_no · due_date · total · today" },
+  INVOICE_NOTE: { struct: "The payment note printed at the bottom of every invoice PDF.", tokens: "invoice_no · total · due_date · seller" },
+};
 
 // Edit the document/email templates that feed Word/Excel/email generation.
 // Sorted by doc type; edit the default or a per-seller override. Gated to PM & Admin.
@@ -115,8 +129,9 @@ export default function TemplateEditor({ templates, sellers, canEdit }: { templa
           disabled={!canEdit}
           style={{ width: "100%", minHeight: 320, boxSizing: "border-box", border: "1px solid var(--border)", borderRadius: 8, padding: 12, fontFamily: "ui-monospace, Menlo, monospace", fontSize: 12.5, lineHeight: 1.55 }}
         />
-        <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>
-          {isSchedule ? <>One column per line as <code>Header|token</code> (order = column order). </> : null}Tokens: {TOKENS}
+        <div style={{ marginTop: 8, padding: "8px 10px", background: "#f0f4fa", border: "1px solid var(--border)", borderRadius: 8, fontSize: 11.5, display: "grid", gap: 4 }}>
+          <span style={{ color: "var(--ink-soft)" }}>{TOKEN_HELP[type].struct}</span>
+          <span style={{ color: "var(--ink-soft)" }}>Editable fields: <code style={{ fontSize: 11 }}>{TOKEN_HELP[type].tokens}</code></span>
         </div>
 
         {canEdit && (
