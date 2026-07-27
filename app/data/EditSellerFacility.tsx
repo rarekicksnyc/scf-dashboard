@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { inputBase as input, fieldLabel as field } from "@/lib/ui";
 import { mm, dateShort } from "@/lib/format";
+import NumberInput from "../NumberInput";
 
 export interface SellerFacilityData {
   id: string;
@@ -30,7 +31,12 @@ export interface FacilityLimitLine {
   approvedLimit?: number;
   expiryDate?: string;
   rev?: number;
-  note?: string; // shown when absent
+  note?: string; // shown when absent and not creatable
+  // Creation metadata for an absent line — lets the desk add it inline.
+  createType?: string; // LimitType, e.g. "RRL_SWINGLINE"
+  entityId?: string;
+  cdl?: string;
+  maxTenorDays?: number;
 }
 
 export default function EditSellerFacility({
@@ -177,13 +183,14 @@ export default function EditSellerFacility({
   );
 }
 
-// Inline edit of one credit line's amount + expiry — PATCHes the same limit
-// record (and edit-conflict guard) as the limit register. An absent line shows a
-// note instead of inputs.
+// Inline edit (or creation) of one credit line's amount + expiry. Editing an
+// existing line PATCHes the same limit record (and edit-conflict guard) as the
+// limit register; an absent-but-creatable line (e.g. RRL swingline) can be added
+// here via the register endpoint. A truly absent line shows its note.
 function LimitLineEdit({ line }: { line: FacilityLimitLine }) {
   const router = useRouter();
   const [amount, setAmount] = useState(line.approvedLimit != null ? String(line.approvedLimit) : "");
-  const [expiry, setExpiry] = useState(line.expiryDate ?? "");
+  const [expiry, setExpiry] = useState(line.expiryDate ?? (line.id ? "" : new Date(Date.now() + 365 * 86_400_000).toISOString().slice(0, 10)));
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const dirty = line.id != null && (Number(amount) !== line.approvedLimit || expiry !== (line.expiryDate ?? ""));
@@ -203,16 +210,40 @@ function LimitLineEdit({ line }: { line: FacilityLimitLine }) {
     router.refresh();
   }
 
+  async function create() {
+    if (!line.createType || !line.entityId) return;
+    setBusy(true); setMsg(null);
+    const res = await fetch("/api/registry", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ kind: "LIMIT", type: line.createType, entityType: "SELLER", entityId: line.entityId, cdl: line.cdl, approvedLimit: Number(amount), maxTenorDays: line.maxTenorDays ?? 45, expiryDate: expiry }),
+    });
+    setBusy(false);
+    if (!res.ok) { setMsg({ ok: false, text: (await res.json().catch(() => ({}))).error ?? "Failed." }); return; }
+    setMsg({ ok: true, text: "Added ✓" });
+    router.refresh();
+  }
+
+  const inp: React.CSSProperties = { ...input, fontSize: 13 };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
       <span className="muted" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.03em" }}>{line.key}</span>
       {line.id ? (
         <>
-          <input style={{ ...input, fontSize: 13 }} value={amount} inputMode="numeric" placeholder="amount (USD)" onChange={(e) => setAmount(e.target.value)} />
-          <input style={{ ...input, fontSize: 13 }} type="date" value={expiry} onChange={(e) => setExpiry(e.target.value)} />
+          <NumberInput style={inp} value={amount} onValue={setAmount} placeholder="amount (USD)" ariaLabel={`${line.key} amount`} />
+          <input style={inp} type="date" value={expiry} onChange={(e) => setExpiry(e.target.value)} />
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             <button className="btn secondary" style={{ padding: "3px 10px", fontSize: 12 }} type="button" disabled={busy || !dirty} onClick={save}>{busy ? "…" : "Save"}</button>
             {amount && <span className="muted" style={{ fontSize: 11 }}>{mm(Number(amount) || 0)}</span>}
+            {msg && <span style={{ fontSize: 11, color: msg.ok ? "var(--green)" : "var(--red)" }}>{msg.text}</span>}
+          </div>
+        </>
+      ) : line.createType ? (
+        <>
+          <NumberInput style={inp} value={amount} onValue={setAmount} placeholder="amount (USD)" ariaLabel={`${line.key} amount`} />
+          <input style={inp} type="date" value={expiry} onChange={(e) => setExpiry(e.target.value)} />
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <button className="btn secondary" style={{ padding: "3px 10px", fontSize: 12 }} type="button" disabled={busy || !(Number(amount) > 0) || !expiry} onClick={create}>{busy ? "…" : `Add ${line.key.toLowerCase()}`}</button>
             {msg && <span style={{ fontSize: 11, color: msg.ok ? "var(--green)" : "var(--red)" }}>{msg.text}</span>}
           </div>
         </>

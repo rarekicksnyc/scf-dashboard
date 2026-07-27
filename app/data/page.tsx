@@ -143,13 +143,13 @@ export default async function DataManagementPage({
                 : { key: "Seller line", note: "—" },
               swl
                 ? { key: "Swingline", id: swl.id, approvedLimit: swl.approvedLimit, expiryDate: swl.expiryDate, rev: recordRev(`limit:${swl.id}`) }
-                : { key: "Swingline", note: "none" },
+                : { key: "Swingline", createType: "SWINGLINE", entityId: seller!.id, cdl: seller!.cdl, maxTenorDays: 45 },
               rrl
                 ? { key: "RRL", id: rrl.id, approvedLimit: rrl.approvedLimit, expiryDate: rrl.expiryDate, rev: recordRev(`limit:${rrl.id}`) }
-                : { key: "RRL", note: "N/A" },
+                : { key: "RRL", createType: "RRL", entityId: seller!.id, cdl: seller!.cdl, maxTenorDays: 150 },
               rrlSwl
                 ? { key: "RRL swingline", id: rrlSwl.id, approvedLimit: rrlSwl.approvedLimit, expiryDate: rrlSwl.expiryDate, rev: recordRev(`limit:${rrlSwl.id}`) }
-                : { key: "RRL swingline", note: "N/A" },
+                : { key: "RRL swingline", createType: "RRL_SWINGLINE", entityId: seller!.id, cdl: seller!.cdl, maxTenorDays: 45 },
             ]}
             canEdit={canEdit}
             rev={recordRev(`seller:${seller.id}`)}

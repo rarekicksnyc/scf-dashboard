@@ -1,5 +1,6 @@
 "use client";
 
+import NumberInput from "../NumberInput";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { usd, daysBetween } from "@/lib/format";
@@ -255,7 +256,7 @@ export default function DocsSection({
             <input style={input} value={f.currency} onChange={(e) => set("currency", e.target.value)} />
           </label>
           <label style={field}>{isUtrc ? "Committed amount (USD)" : "Invoice amount (USD)"}
-            <input style={input} type="number" value={f.amount} onChange={(e) => set("amount", e.target.value)} />
+            <NumberInput style={input} value={f.amount} onValue={(v) => set("amount", v)} ariaLabel="Amount" />
           </label>
           {!isUtrc && (
             <label style={field}>Advance rate (%)
@@ -308,7 +309,7 @@ export default function DocsSection({
                     <input style={input} value={f.investorName} onChange={(e) => set("investorName", e.target.value)} />
                   </label>
                   <label style={field}>Investor amount (USD)
-                    <input style={input} type="number" value={f.investorAmount} onChange={(e) => set("investorAmount", e.target.value)} />
+                    <NumberInput style={input} value={f.investorAmount} onValue={(v) => set("investorAmount", v)} ariaLabel="Investor amount" />
                   </label>
                   <label style={field}>Skim fee (bps)
                     <input style={input} type="number" value={f.skimBps} onChange={(e) => set("skimBps", e.target.value)} />

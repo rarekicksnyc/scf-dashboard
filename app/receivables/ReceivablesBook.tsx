@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { usd, mm, dateShort } from "@/lib/format";
+import NumberInput from "../NumberInput";
 
 export interface RecRow {
   id: string;
@@ -219,7 +220,7 @@ function RowActions({ r, asOf }: { r: RecRow; asOf: string }) {
         <div style={grp}>
           <span className="muted">Record collection</span>
           <div style={{ display: "flex", gap: 6 }}>
-            <input style={{ ...inp, width: 120 }} value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="numeric" aria-label="Amount" />
+            <NumberInput style={{ ...inp, width: 120 }} value={amount} onValue={setAmount} ariaLabel="Collection amount" />
             <input style={{ ...inp, width: 140 }} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             <input style={{ ...inp, width: 150 }} placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
             <button className="btn" style={{ fontSize: 12 }} disabled={busy} onClick={() => act({ action: "collect", amount: Number(amount), date, note }, "Collection recorded")}>Record</button>
@@ -339,7 +340,7 @@ function AdHocInvoice({ sellers }: { sellers: { id: string; name: string }[] }) 
         {items.map((it, i) => (
           <div key={i} style={{ display: "flex", gap: 6 }}>
             <input style={{ ...inp, flex: 3 }} value={it.description} onChange={(e) => setItem(i, { description: e.target.value })} placeholder="Description" />
-            <input style={{ ...inp, flex: 1 }} value={it.amount} onChange={(e) => setItem(i, { amount: e.target.value })} placeholder="Amount" inputMode="decimal" />
+            <NumberInput style={{ ...inp, flex: 1 }} value={it.amount} onValue={(v) => setItem(i, { amount: v })} placeholder="Amount" decimals ariaLabel="Line amount" />
             {items.length > 1 && <button className="btn secondary" style={{ fontSize: 12 }} type="button" onClick={() => setItems((a) => a.filter((_, j) => j !== i))}>×</button>}
           </div>
         ))}

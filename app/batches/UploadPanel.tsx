@@ -20,6 +20,18 @@ export default function UploadPanel() {
     setFileName("sample_batch.csv");
   }
 
+  function downloadTemplate() {
+    const csv =
+      "seller,obligor,invoice_number,invoice_amount,advance_rate,margin,value_date,due_date,currency\n" +
+      "SELLER001,OBL001,INV-1001,10000000,95,125,2026-08-15,2026-11-13,USD\n";
+    const blob = new Blob([csv], { type: "text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "batch_template.csv";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;

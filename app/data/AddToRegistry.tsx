@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import NumberInput from "../NumberInput";
 import { inputBase as input, fieldLabel as field } from "@/lib/ui";
 import type { LimitType } from "@/lib/types";
 
@@ -355,7 +356,7 @@ export default function AddToRegistry({
           {!isEntity && (
             <>
               <label style={field}>{amountLabel}
-                <input style={input} type="number" value={f.approvedLimit} onChange={(e) => set("approvedLimit", e.target.value)} />
+                <NumberInput style={input} value={f.approvedLimit} onValue={(v) => set("approvedLimit", v)} ariaLabel="Amount" />
               </label>
               <label style={field}>Max tenor (days)
                 <input style={input} type="number" value={f.maxTenorDays} onChange={(e) => set("maxTenorDays", e.target.value)} />

@@ -1,5 +1,6 @@
 "use client";
 
+import NumberInput from "../NumberInput";
 import { useEffect, useState } from "react";
 import { usd } from "@/lib/format";
 import { cellInput, clampPct, coverageAmount } from "@/lib/ui";
@@ -157,7 +158,7 @@ export default function MultiTransactionCheck({ sellers, obligors, obligorEntiti
                       <span className="muted" style={{ fontSize: 11 }}>—</span>
                     )}
                   </td>
-                  <td><input style={mw(150, true)} type="number" value={r.invoiceAmount} onChange={(e) => update(i, { invoiceAmount: e.target.value })} /></td>
+                  <td><NumberInput style={mw(150, true)} value={r.invoiceAmount} onValue={(v) => update(i, { invoiceAmount: v })} ariaLabel="Invoice amount" /></td>
                   <td><select style={mw(140)} value={r.invoiceType} onChange={(e) => update(i, { invoiceType: e.target.value })}><option value="FINAL">Final</option><option value="PROVISIONAL">Provisional</option><option value="PIPELINE">Pipeline</option></select></td>
                   <td><input style={mw(90, true)} type="number" min="0" max="100" step="0.5" value={r.advanceRate} onChange={(e) => update(i, { advanceRate: clampPct(e.target.value) })} /></td>
                   <td className="num" style={{ minWidth: 130, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{usd(coverageAmount(Number(r.invoiceAmount) || 0, (Number(r.advanceRate) || 0) / 100))}</td>

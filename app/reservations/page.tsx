@@ -76,7 +76,7 @@ export default async function ReservationsPage() {
       <p className="page-sub">
         The forward book — future discounts and swingline movements, each checked
         against live limits before it is accepted. Once a reservation is booked it
-        becomes a live receivable on the <a href="/receivables">Receivables</a>{" "}
+        becomes a live booking on the <a href="/receivables">Bookings</a>{" "}
         page. Active reservations: {mm(activeTotal)}.
       </p>
 

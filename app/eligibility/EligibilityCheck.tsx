@@ -1,5 +1,6 @@
 "use client";
 
+import NumberInput from "../NumberInput";
 import { useState } from "react";
 import type { EligibilityReport, EligibilityCategory } from "@/lib/types";
 import { usd } from "@/lib/format";
@@ -204,7 +205,7 @@ export default function EligibilityCheck({
             {isUtrc && (
               <>
                 <label style={field}>Committed amount (USD)
-                  <input style={input} type="number" min="0" value={f.committedAmount} onChange={(e) => set("committedAmount", e.target.value)} />
+                  <NumberInput style={input} value={f.committedAmount} onValue={(v) => set("committedAmount", v)} ariaLabel="Committed amount" />
                   <span className="muted" style={{ fontSize: 10 }}>consumes the same limits as a DTR of this size</span>
                 </label>
                 <label style={field}>Commitment due date
@@ -222,7 +223,7 @@ export default function EligibilityCheck({
             {!isUtrc && (
               <>
                 <label style={field}>Invoice amount (USD)
-                  <input style={input} type="number" value={f.invoiceAmount} onChange={(e) => set("invoiceAmount", e.target.value)} />
+                  <NumberInput style={input} value={f.invoiceAmount} onValue={(v) => set("invoiceAmount", v)} ariaLabel="Invoice amount" />
                 </label>
                 <label style={field}>Invoice type
                   <select style={input} value={f.invoiceType} onChange={(e) => set("invoiceType", e.target.value)}>
@@ -265,7 +266,7 @@ export default function EligibilityCheck({
               {f.bookRrl && (
                 <div style={{ display: "flex", gap: 16, marginTop: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
                   <label style={field}>RRL amount (USD)
-                    <input style={input} type="number" min="0" value={f.rrlAmount} onChange={(e) => set("rrlAmount", e.target.value)} />
+                    <NumberInput style={input} value={f.rrlAmount} onValue={(v) => set("rrlAmount", v)} ariaLabel="RRL amount" />
                   </label>
                   <div className="muted" style={{ fontSize: 12, paddingBottom: 8, flex: 1, minWidth: 260 }}>
                     Of {usd(coverage)} funded, <strong>{usd(Math.min(Number(f.rrlAmount) || 0, coverage))}</strong> books to the RRL and{" "}
@@ -294,8 +295,8 @@ export default function EligibilityCheck({
                         </select>
                       </label>
                       <label style={field}>Participation (USD)
-                        <input style={input} type="number" value={a.amount}
-                          onChange={(e) => setInvestorAllocs((rows) => rows.map((r, j) => j === i ? { ...r, amount: e.target.value } : r))} />
+                        <NumberInput style={input} value={a.amount} ariaLabel="Participation"
+                          onValue={(v) => setInvestorAllocs((rows) => rows.map((r, j) => j === i ? { ...r, amount: v } : r))} />
                       </label>
                       {investorAllocs.length > 1 && (
                         <button className="btn secondary" style={{ padding: "6px 9px" }} type="button"
@@ -326,8 +327,8 @@ export default function EligibilityCheck({
                         </select>
                       </label>
                       <label style={field}>Insured amount (USD)
-                        <input style={input} type="number" value={a.amount}
-                          onChange={(e) => setInsurerAllocs((rows) => rows.map((r, j) => j === i ? { ...r, amount: e.target.value } : r))} />
+                        <NumberInput style={input} value={a.amount} ariaLabel="Insured amount"
+                          onValue={(v) => setInsurerAllocs((rows) => rows.map((r, j) => j === i ? { ...r, amount: v } : r))} />
                       </label>
                       {insurerAllocs.length > 1 && (
                         <button className="btn secondary" style={{ padding: "6px 9px" }} type="button"

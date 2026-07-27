@@ -59,9 +59,9 @@ export default async function ReceivablesPage() {
 
   return (
     <>
-      <h1 className="page-title">Receivables</h1>
+      <h1 className="page-title">Bookings</h1>
       <p className="page-sub">
-        The live book after funding — one ledger of every outstanding receivable.
+        The live book after funding — one ledger of every booked receivable.
         Record collections, track overdue and default, file insurance claims,
         settle investor participations, and issue client invoices. Outstanding:{" "}
         {usd(m.totalOutstanding)}; overdue: {usd(m.overdueOutstanding)}.

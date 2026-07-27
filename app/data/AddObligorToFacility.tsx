@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import NumberInput from "../NumberInput";
 import { inputBase as input, fieldLabel as field } from "@/lib/ui";
 
 interface Opt { id: string; name: string }
@@ -120,13 +121,13 @@ export default function AddObligorToFacility({
               <input style={input} value={f.country} onChange={(e) => set("country", e.target.value)} />
             </label>
             <label style={field}>Master limit (USD)
-              <input style={input} type="number" value={f.masterLimit} onChange={(e) => set("masterLimit", e.target.value)} />
+              <NumberInput style={input} value={f.masterLimit} onValue={(v) => set("masterLimit", v)} ariaLabel="Master limit" />
             </label>
           </>
         )}
 
         <label style={field}>ASR sublimit (USD)
-          <input style={input} type="number" value={f.asrSublimit} onChange={(e) => set("asrSublimit", e.target.value)} />
+          <NumberInput style={input} value={f.asrSublimit} onValue={(v) => set("asrSublimit", v)} ariaLabel="ASR sublimit" />
         </label>
         <label style={field}>Max tenor (days)
           <input style={input} type="number" value={f.maxTenorDays} onChange={(e) => set("maxTenorDays", e.target.value)} />

@@ -21,7 +21,7 @@ function Table({ rows, kind }: { rows: ExposureRow[]; kind: string }) {
   // has them — keeps the landing table from being a wall of "—" / "N/A".
   const hasSwingline = rows.some((r) => r.swingline);
   const hasRrl = rows.some((r) => r.rrl);
-  const cols = 9 + (hasSwingline ? 3 : 0) + (hasRrl ? 3 : 0);
+  const cols = 8 + (hasSwingline ? 3 : 0) + (hasRrl ? 3 : 0);
   return (
     <div className="table-scroll">
       <table>
@@ -34,7 +34,6 @@ function Table({ rows, kind }: { rows: ExposureRow[]; kind: string }) {
             <th className="num">Available</th>
             {hasSwingline && <><th className="num">Swingline</th><th className="num">Swingline booked</th><th className="num">Swingline avail</th></>}
             {hasRrl && <><th className="num">RRL limit</th><th className="num">RRL booked</th><th className="num">RRL avail</th></>}
-            <th className="num">Outstanding</th>
             <th className="num">Future reservation</th>
             <th className="num">Utilization</th>
             <th style={{ width: 120 }}>&nbsp;</th>
@@ -92,7 +91,6 @@ function Table({ rows, kind }: { rows: ExposureRow[]; kind: string }) {
                   <td className="num">{r.rrl ? mm(r.rrl.consumed) : <span className="muted">N/A</span>}</td>
                   <td className="num">{r.rrl ? mm(r.rrl.available) : <span className="muted">N/A</span>}</td>
                 </>}
-                <td className="num">{r.main ? mm(r.main.outstanding) : "—"}</td>
                 <td className="num">{r.main ? mm(r.main.reserved) : "—"}</td>
                 <td className="num">{r.main ? pct(r.main.utilizationPct) : "—"}</td>
                 <td>{r.main ? <UtilBar view={r.main} /> : null}</td>

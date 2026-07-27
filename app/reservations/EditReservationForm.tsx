@@ -1,5 +1,6 @@
 "use client";
 
+import NumberInput from "../NumberInput";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { inputCompact as input, fieldLabel as field } from "@/lib/ui";
@@ -67,7 +68,7 @@ export default function EditReservationForm({
       {msg && <div className="notice err">{msg}</div>}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>
         <label style={field}>Amount (USD)
-          <input style={input} type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          <NumberInput style={input} value={amount} onValue={setAmount} ariaLabel="Amount" />
         </label>
         <label style={field}>Value date
           <input style={input} type="date" value={valueDate} onChange={(e) => setValueDate(e.target.value)} />

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { mm } from "@/lib/format";
+import NumberInput from "../NumberInput";
 
 const inp = { border: "1px solid var(--border)", borderRadius: 6, padding: "6px 8px", fontSize: 13, width: "100%", boxSizing: "border-box" as const, textAlign: "right" as const };
 
@@ -92,7 +93,7 @@ export default function EditAsrSublimitRow({
       <td>{group.name}</td>
       <td className="num">{globalLimit}</td>
       <td className="num" style={{ minWidth: canEdit ? 150 : undefined }}>
-        {canEdit ? <input style={inp} type="number" value={sub} onChange={(e) => setSub(e.target.value)} /> : mm(approvedLimit)}
+        {canEdit ? <NumberInput style={inp} value={sub} onValue={setSub} ariaLabel="ASR sublimit" /> : mm(approvedLimit)}
       </td>
       <td className="num" style={{ minWidth: canEdit ? 100 : undefined }}>
         {canEdit ? <input style={inp} type="number" value={tenor} onChange={(e) => setTenor(e.target.value)} /> : `${maxTenorDays}d`}

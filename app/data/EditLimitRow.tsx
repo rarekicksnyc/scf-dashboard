@@ -6,6 +6,7 @@ import type { LimitView } from "@/lib/types";
 import { mm, pct } from "@/lib/format";
 import { inputBase as cell } from "@/lib/ui";
 import { UtilBar } from "../components";
+import NumberInput from "../NumberInput";
 
 export default function EditLimitRow({
   view,
@@ -99,7 +100,7 @@ export default function EditLimitRow({
       <td>
         <input style={{ ...cell, minWidth: 120 }} value={cdl} onChange={(e) => setCdl(e.target.value)} placeholder="8-digit" title={err ?? undefined} />
       </td>
-      <td><input style={{ ...cell, minWidth: 160 }} type="number" value={approved} onChange={(e) => setApproved(e.target.value)} /></td>
+      <td><NumberInput style={{ ...cell, minWidth: 160 }} value={approved} onValue={setApproved} ariaLabel="Approved limit" /></td>
       <td className="num">{mm(view.outstanding)}</td>
       <td className="num">{mm(view.reserved)}</td>
       <td className="num">{mm(view.available)}</td>

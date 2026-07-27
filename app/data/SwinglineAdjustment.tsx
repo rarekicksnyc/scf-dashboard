@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import NumberInput from "../NumberInput";
 import { inputBase as input, fieldLabel as field } from "@/lib/ui";
 
 interface Opt { id: string; name: string }
@@ -107,7 +108,7 @@ export default function SwinglineAdjustment({
             </select>
           </label>
           <label style={field}>Amount (USD)
-            <input style={input} type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
+            <NumberInput style={input} value={amount} onValue={setAmount} ariaLabel="Amount" />
           </label>
           <label style={field}>Value date
             <input style={input} type="date" value={valueDate} onChange={(e) => setValueDate(e.target.value)} />

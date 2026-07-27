@@ -1,5 +1,6 @@
 "use client";
 
+import NumberInput from "../NumberInput";
 import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
 import { inputBase, cellInput } from "@/lib/ui";
@@ -148,13 +149,13 @@ export default function MultiReservationForm({
                       {obligors.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
                     </select>
                   </td>
-                  <td><input style={mw(150, true)} type="number" value={r.amount} onChange={(e) => update(i, { amount: e.target.value, status: "idle" })} /></td>
+                  <td><NumberInput style={mw(150, true)} value={r.amount} onValue={(v) => update(i, { amount: v, status: "idle" })} ariaLabel="Amount" /></td>
                   <td><input style={mw(160)} type="date" value={r.valueDate} onChange={(e) => update(i, { valueDate: e.target.value, status: "idle" })} /></td>
                   <td><input style={mw(160)} type="date" value={r.maturityDate} onChange={(e) => update(i, { maturityDate: e.target.value, status: "idle" })} /></td>
                   <td><input style={mw(110, true)} type="number" value={r.pricingBps} onChange={(e) => update(i, { pricingBps: e.target.value, status: "idle" })} /></td>
                   <td>
                     {rrlSellers.includes(r.sellerId) ? (
-                      <input style={mw(150, true)} type="number" value={r.rrlAmount} onChange={(e) => update(i, { rrlAmount: e.target.value, status: "idle" })} />
+                      <NumberInput style={mw(150, true)} value={r.rrlAmount} onValue={(v) => update(i, { rrlAmount: v, status: "idle" })} ariaLabel="RRL amount" />
                     ) : (
                       <span className="muted" style={{ fontSize: 11 }}>N/A</span>
                     )}

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import NumberInput from "../NumberInput";
 import { inputBase as input, fieldLabel as field } from "@/lib/ui";
 import { mm, dateShort } from "@/lib/format";
 import type { ParentCompanyGuarantee } from "@/lib/types";
@@ -97,7 +98,7 @@ export default function PcgRegister({
               </select>
             </label>
             <label style={field}>Guarantee limit (USD)
-              <input style={input} type="number" value={add.limitAmount} onChange={(e) => setA("limitAmount", e.target.value)} placeholder="optional" />
+              <NumberInput style={input} value={add.limitAmount} onValue={(v) => setA("limitAmount", v)} placeholder="optional" ariaLabel="PCG limit" />
             </label>
             <label style={field}>Expiry date
               <input style={input} type="date" value={add.expiryDate} disabled={add.continuing} onChange={(e) => setA("expiryDate", e.target.value)} />
@@ -236,7 +237,7 @@ function PcgRow({ pcg, sellers, obligors, canEdit, rev }: { pcg: ParentCompanyGu
           {obligors.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
         </select>
       </td>
-      <td><input style={cell} type="number" value={f.limitAmount} onChange={(e) => set("limitAmount", e.target.value)} /></td>
+      <td><NumberInput style={cell} value={f.limitAmount} onValue={(v) => set("limitAmount", v)} ariaLabel="PCG limit" /></td>
       <td>
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <input style={cell} type="date" value={f.expiryDate} disabled={f.continuing} onChange={(e) => set("expiryDate", e.target.value)} />

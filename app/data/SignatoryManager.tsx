@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import NumberInput from "../NumberInput";
 import { inputBase as input, fieldLabel as field } from "@/lib/ui";
 import { mm } from "@/lib/format";
 
@@ -66,7 +67,7 @@ export default function SignatoryManager({ sellerId, sellerName, entities, signa
                 {entities.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
               </select>
             </label>
-            <label style={field}>Signing limit (USD, optional)<input style={input} type="number" value={f.signingLimit} onChange={(e) => setF((s) => ({ ...s, signingLimit: e.target.value }))} /></label>
+            <label style={field}>Signing limit (USD, optional)<NumberInput style={input} value={f.signingLimit} onValue={(v) => setF((s) => ({ ...s, signingLimit: v }))} ariaLabel="Signing limit" /></label>
             <button className="btn" type="button" disabled={busy} onClick={add}>Add signatory</button>
           </div>
         )}

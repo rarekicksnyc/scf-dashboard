@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import NumberInput from "../NumberInput";
 import { mm, dateShort } from "@/lib/format";
 
 interface Country { code: string; name: string }
@@ -154,7 +155,7 @@ export default function EditObligorEntityRow({
           </select>
           {f.pcg === "Y" && (
             <>
-              <input style={inp} type="number" value={f.pcgLimit} onChange={(e) => set("pcgLimit", e.target.value)} placeholder="PCG limit (USD)" />
+              <NumberInput style={inp} value={f.pcgLimit} onValue={(v) => set("pcgLimit", v)} placeholder="PCG limit (USD)" ariaLabel="PCG limit" />
               <input style={inp} type="date" value={f.pcgExpiry} onChange={(e) => set("pcgExpiry", e.target.value)} />
             </>
           )}
