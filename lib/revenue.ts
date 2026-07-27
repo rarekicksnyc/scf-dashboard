@@ -143,3 +143,26 @@ export function pipelineRevenue(): { revenue: number; volume: number; deals: num
 export function batchCount(): number {
   return getBatches().length;
 }
+
+// The bank's fiscal year runs 1 April → 31 March. Returns the 1-April start of
+// the fiscal year that contains asOf.
+export function fiscalYearStart(asOf: string): string {
+  const d = new Date(asOf);
+  const y = d.getUTCFullYear();
+  const startYear = d.getUTCMonth() >= 3 ? y : y - 1; // April is month index 3
+  return `${startYear}-04-01`;
+}
+
+// Income (margin + skim) EARNED between two dates. Revenue accrues daily over
+// each deal's tenor, so the amount earned in [from, to] is the change in the
+// accrued fraction across that window, summed over every deal. Used for FYTD and
+// any period figure.
+export function earnedBetween(deals: RevDeal[], from: string, to: string): number {
+  const frac = (d: RevDeal, at: string) =>
+    d.tenorDays > 0
+      ? Math.max(0, Math.min(1, daysBetween(d.valueDate, at) / d.tenorDays))
+      : (daysBetween(d.valueDate, at) >= 0 ? 1 : 0);
+  let sum = 0;
+  for (const d of deals) sum += (d.revenue + d.skimRevenue) * Math.max(0, frac(d, to) - frac(d, from));
+  return sum;
+}

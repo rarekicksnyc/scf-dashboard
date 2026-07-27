@@ -1,15 +1,15 @@
 import { getSeller, getObligor } from "@/lib/data/store";
-import { usd } from "@/lib/format";
+import { usd, dateShort } from "@/lib/format";
 import {
   allRevenueDeals,
   revenueSummary,
   revenueByMonth,
-  revenueByEntity,
   pipelineRevenue,
   accruedRevenue,
-  batchCount,
+  fiscalYearStart,
+  earnedBetween,
 } from "@/lib/revenue";
-import RevenueTabs, { type RevRow } from "./RevenueTabs";
+import RevenueExplorer, { type ExplorerDeal } from "./RevenueExplorer";
 import MonthlyRevenueChart from "./MonthlyRevenueChart";
 
 export const dynamic = "force-dynamic";
@@ -22,14 +22,24 @@ export default function RevenuePage() {
   const pipeline = pipelineRevenue();
   const accrual = accruedRevenue(deals, today);
   const accruedPct = accrual.contracted > 0 ? (accrual.accrued / accrual.contracted) * 100 : 0;
-  const sellers: RevRow[] = revenueByEntity(deals, "seller").map((r) => ({ ...r, name: getSeller(r.id)?.name ?? r.id }));
-  const obligors: RevRow[] = revenueByEntity(deals, "obligor").map((r) => ({ ...r, name: getObligor(r.id)?.name ?? r.id }));
+  const fyStart = fiscalYearStart(today);
+  const fytdEarned = earnedBetween(deals, fyStart, today);
+  const explorerDeals: ExplorerDeal[] = deals.map((d) => ({
+    sellerId: d.sellerId,
+    sellerName: getSeller(d.sellerId)?.name ?? d.sellerId,
+    obligorId: d.obligorId,
+    obligorName: getObligor(d.obligorId)?.name ?? d.obligorId,
+    income: d.revenue + d.skimRevenue,
+    valueDate: d.valueDate,
+    tenorDays: d.tenorDays,
+  }));
 
   const share = (v: number) => (sum.total > 0 ? (v / sum.total) * 100 : 0);
   const dtrPct = share(sum.dtrRevenue);
   const utrcPct = share(sum.utrcRevenue);
 
   const cards = [
+    { label: "Earned revenue (FYTD)", value: usd(fytdEarned), sub: `fiscal year since ${dateShort(fyStart)}` },
     { label: "Realized revenue", value: usd(sum.total), sub: `${usd(sum.revenue)} margin + ${usd(sum.skimRevenue)} skim` },
     { label: "Skim revenue", value: usd(sum.skimRevenue), sub: "from investor participations" },
     { label: "Pipeline revenue", value: usd(pipeline.revenue), sub: `${pipeline.deals} open reservation${pipeline.deals === 1 ? "" : "s"} · ${usd(pipeline.volume)}` },
@@ -112,7 +122,7 @@ export default function RevenuePage() {
         </div>
       </div>
 
-      <RevenueTabs sellers={sellers} obligors={obligors} />
+      <RevenueExplorer deals={explorerDeals} fyStart={fyStart} today={today} />
     </>
   );
 }
