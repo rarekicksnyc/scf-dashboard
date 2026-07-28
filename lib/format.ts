@@ -34,7 +34,7 @@ export function daysBetween(a: string, b: string): number {
 }
 
 // The ISO date n business days after `iso` (skipping Sat/Sun). n = 0 returns the
-// same date. Used for T+n settlement (funding date = trade date + n days).
+// same date. Used for T+n settlement (funding date = execution date + n business days).
 export function addBusinessDays(iso: string, n: number): string {
   const d = new Date(`${iso}T00:00:00Z`);
   let added = 0;

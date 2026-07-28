@@ -440,8 +440,8 @@ export interface TransactionWorkflow {
   exceptionApprovedByName?: string;
   exceptionApprovedAt?: string;
   // Booking
-  tradeDate?: string; // T (set when booked on a T+n basis)
-  settlementBasis?: number; // 0/1/2/3 — funding is n business days after trade
+  executionDate?: string; // when docs were executed (set when booked on a T+n basis)
+  settlementBasis?: number; // 0/1/2/3 — funding is n business days after execution
   bookedAt?: string;
   bookedTransactionId?: string;
 }
@@ -506,14 +506,15 @@ export interface BookedTransaction {
   advanceRate?: number;
   rrlAmount?: number;
   scope?: ReservationScope;
-  // T+n settlement: the deal is struck / documented on the trade date, funded on
-  // the value (funding) date n business days later. Exposure consumes limits only
-  // from the funding date (valueDate) to maturity — never before funding.
-  tradeDate?: string; // when the deal was booked/struck (T)
-  settlementBasis?: number; // 0 = same day, 1/2/3 = T+1/2/3 business days
+  // T+n settlement: documents are signed on the EXECUTION date; the deal is
+  // funded on the FUNDING date, n business days later. The tenor is preserved —
+  // maturity = funding date + tenor — and exposure consumes limits only from the
+  // funding date to maturity, never before funding.
+  executionDate?: string; // when the documents were executed
+  settlementBasis?: number; // 0 = same day, 1/2/3 business days to funding (T+1/2/3)
   fundsSentAt?: string; // ops confirmation that the funds were sent
   fundsSentBy?: string;
-  valueDate: string; // funding / value date
+  valueDate: string; // funding date
   maturityDate: string;
   pricingBps: number;
   baseRatePct?: number; // client base rate (COF %) at booking, for skim revenue

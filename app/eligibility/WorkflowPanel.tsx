@@ -116,14 +116,14 @@ function Row({ w, sellerEntities, signatories, canBook, currentUserId, canApprov
   // T+n settlement basis picker, shown next to the Book button. "As reserved"
   // keeps the reservation's value date; T+n funds n business days after today.
   const settleSelect = !pendingException && (
-    <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12 }} className="muted" title="Funding date: when the money is actually sent. Exposure consumes from the funding date to maturity.">
+    <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12 }} className="muted" title="Documents are executed now (execution date); the deal funds this many business days later (funding date). The tenor is preserved (maturity = funding + tenor), and limits are consumed only from the funding date.">
       Settlement
       <select value={settleBasis} onChange={(e) => setSettleBasis(e.target.value)} style={{ padding: "4px 6px", borderRadius: 6, border: "1px solid var(--border)", fontSize: 12 }}>
         <option value="">As reserved</option>
-        <option value="0">T+0 (today)</option>
-        <option value="1">T+1</option>
-        <option value="2">T+2</option>
-        <option value="3">T+3</option>
+        <option value="0">Fund same day</option>
+        <option value="1">T+1 (fund +1 bd)</option>
+        <option value="2">T+2 (fund +2 bd)</option>
+        <option value="3">T+3 (fund +3 bd)</option>
       </select>
     </label>
   );

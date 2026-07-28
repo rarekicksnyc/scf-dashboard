@@ -26,22 +26,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const b = await request.json().catch(() => ({}));
   const comment = typeof b.comment === "string" ? b.comment.trim() : "";
 
-  // T+n settlement: if a basis is chosen, the deal is struck today (trade date)
-  // and funded n business days later — the funding (value) date drives the
-  // exposure window, so eligibility below is re-checked against the funding date.
+  // T+n settlement: if a basis is chosen, the documents are executed today
+  // (execution date) and the deal is funded n BUSINESS days later. The tenor is
+  // PRESERVED — maturity = funding date + tenor — so the deal always runs its full
+  // tenor from funding. The funding (value) date drives the exposure window, so
+  // eligibility below is re-checked against [funding, funding + tenor].
   if (b.settlementBasis != null) {
     const n = Math.round(Number(b.settlementBasis));
     if (Number.isNaN(n) || n < 0 || n > 3) {
       return NextResponse.json({ error: "Settlement basis must be T+0, T+1, T+2, or T+3." }, { status: 400 });
     }
-    const today = new Date().toISOString().slice(0, 10);
-    const fundingDate = addBusinessDays(today, n);
-    if (daysBetween(fundingDate, wf.maturityDate) <= 0) {
-      return NextResponse.json({ error: `Funding date ${fundingDate} (T+${n}) is on or after maturity ${wf.maturityDate} — no tenor left.` }, { status: 422 });
-    }
-    wf.tradeDate = today;
+    const tenor = daysBetween(wf.valueDate, wf.maturityDate); // calendar-day tenor to preserve
+    if (tenor <= 0) return NextResponse.json({ error: "This transaction has no positive tenor to book." }, { status: 422 });
+    const executionDate = new Date().toISOString().slice(0, 10);
+    const fundingDate = addBusinessDays(executionDate, n);
+    const maturity = new Date(Date.parse(fundingDate) + tenor * 86_400_000).toISOString().slice(0, 10);
+    wf.executionDate = executionDate;
     wf.settlementBasis = n;
     wf.valueDate = fundingDate;
+    wf.maturityDate = maturity;
   }
 
   // Governance: re-run eligibility at booking (against the funding date).

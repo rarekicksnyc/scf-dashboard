@@ -486,7 +486,7 @@ export function bookTransactionFromWorkflow(id: string, by: string): { workflow:
     amount: wf.coverage, // funded amount that consumes limits
     rrlAmount: rsv?.rrlAmount,
     scope: wf.scope ?? rsv?.scope,
-    tradeDate: wf.tradeDate,
+    executionDate: wf.executionDate,
     settlementBasis: wf.settlementBasis,
     valueDate: wf.valueDate, // funding date (T+n); exposure consumes from here
     maturityDate: wf.productType === "UTRC" ? wf.finalDemandDate || wf.maturityDate : wf.maturityDate,
