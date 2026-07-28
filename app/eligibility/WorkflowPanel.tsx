@@ -80,11 +80,12 @@ function Row({ w, sellerEntities, signatories, canBook, currentUserId, canApprov
   const [signerOther, setSignerOther] = useState(false);
   const [bookBlock, setBookBlock] = useState<string[] | null>(null);
   const [bookComment, setBookComment] = useState("");
+  const [settleBasis, setSettleBasis] = useState(""); // "" = as reserved; "0".."3" = T+n
   const st = STATUS[w.status];
 
   async function book() {
     setBusy(true); setErr(null);
-    const res = await fetch(`/api/transaction-flow/${w.id}/book`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ comment: bookComment }) });
+    const res = await fetch(`/api/transaction-flow/${w.id}/book`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ comment: bookComment, settlementBasis: settleBasis === "" ? undefined : Number(settleBasis) }) });
     const data = await res.json().catch(() => ({}));
     setBusy(false);
     if (data.needsApproval) {
@@ -111,6 +112,21 @@ function Row({ w, sellerEntities, signatories, canBook, currentUserId, canApprov
   const pendingException = Boolean(w.exceptionRequestedBy && !w.exceptionApprovedBy);
   const exceptionApproved = Boolean(w.exceptionApprovedBy);
   const isMaker = w.exceptionRequestedBy === currentUserId;
+
+  // T+n settlement basis picker, shown next to the Book button. "As reserved"
+  // keeps the reservation's value date; T+n funds n business days after today.
+  const settleSelect = !pendingException && (
+    <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12 }} className="muted" title="Funding date: when the money is actually sent. Exposure consumes from the funding date to maturity.">
+      Settlement
+      <select value={settleBasis} onChange={(e) => setSettleBasis(e.target.value)} style={{ padding: "4px 6px", borderRadius: 6, border: "1px solid var(--border)", fontSize: 12 }}>
+        <option value="">As reserved</option>
+        <option value="0">T+0 (today)</option>
+        <option value="1">T+1</option>
+        <option value="2">T+2</option>
+        <option value="3">T+3</option>
+      </select>
+    </label>
+  );
 
   async function post(path: string, body?: unknown) {
     setBusy(true); setErr(null);
@@ -197,11 +213,15 @@ function Row({ w, sellerEntities, signatories, canBook, currentUserId, canApprov
           <>
             <span className="badge green">Signer {w.signerName} verified</span>
             <button className="btn" style={{ padding: "6px 12px", fontSize: 12 }} type="button" disabled={busy} onClick={() => emailDraft("booking-email")}>Generate booking-team email</button>
+            {settleSelect}
             {!pendingException && <button className="btn" style={{ padding: "6px 12px", fontSize: 12, background: "var(--green)" }} type="button" disabled={busy} onClick={book}>{exceptionApproved ? "Book with approved exception" : "Book transaction in system"}</button>}
           </>
         )}
         {w.status === "BOOKING_EMAILED" && !pendingException && (
-          <button className="btn" style={{ padding: "6px 12px", fontSize: 12, background: "var(--green)" }} type="button" disabled={busy} onClick={book}>{exceptionApproved ? "Book with approved exception" : "Book transaction in system"}</button>
+          <>
+            {settleSelect}
+            <button className="btn" style={{ padding: "6px 12px", fontSize: 12, background: "var(--green)" }} type="button" disabled={busy} onClick={book}>{exceptionApproved ? "Book with approved exception" : "Book transaction in system"}</button>
+          </>
         )}
       </div>
       )}

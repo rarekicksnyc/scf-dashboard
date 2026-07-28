@@ -14,6 +14,7 @@ export default async function ReceivablesPage() {
   const asOf = new Date().toISOString().slice(0, 10);
   const m = portfolioMetrics(asOf);
   const canManage = await currentUserCan("CHANGE_LIMIT");
+  const canConfirmFunds = await currentUserCan("GENERATE_PAYMENT_FILE");
 
   const metrics: Metrics = {
     totalOutstanding: m.totalOutstanding,
@@ -45,6 +46,8 @@ export default async function ReceivablesPage() {
     daysToMaturity: r.daysToMaturity,
     valueDate: r.txn.valueDate,
     maturityDate: r.txn.maturityDate,
+    settlementBasis: r.txn.settlementBasis,
+    fundsSentAt: r.txn.fundsSentAt,
     additionalInterest: r.additionalInterest,
     additionalInterestConfirmed: r.additionalInterestConfirmed,
     additionalInterestConfirmedAt: r.txn.additionalInterestConfirmedAt,
@@ -66,7 +69,7 @@ export default async function ReceivablesPage() {
         settle investor participations, and issue client invoices. Outstanding:{" "}
         {usd(m.totalOutstanding)}; overdue: {usd(m.overdueOutstanding)}.
       </p>
-      <ReceivablesBook asOf={asOf} metrics={metrics} aging={aging} rows={rows} sellers={sellers} canManage={canManage} />
+      <ReceivablesBook asOf={asOf} metrics={metrics} aging={aging} rows={rows} sellers={sellers} canManage={canManage} canConfirmFunds={canConfirmFunds} />
     </>
   );
 }

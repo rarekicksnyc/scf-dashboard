@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getTransactionWorkflow, bookTransactionFromWorkflow, advanceWorkflow, requestWorkflowException, addAudit } from "@/lib/data/store";
 import { getCurrentUser, roleHas } from "@/lib/auth";
 import { evaluateWorkflow } from "@/lib/workflowEligibility";
+import { addBusinessDays, daysBetween } from "@/lib/format";
 
 // Final step: book the transaction in the system. Re-verifies eligibility on the
 // live parameters first (a limit/date/rating could have changed since the
@@ -25,7 +26,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const b = await request.json().catch(() => ({}));
   const comment = typeof b.comment === "string" ? b.comment.trim() : "";
 
-  // Governance: re-run eligibility at booking.
+  // T+n settlement: if a basis is chosen, the deal is struck today (trade date)
+  // and funded n business days later — the funding (value) date drives the
+  // exposure window, so eligibility below is re-checked against the funding date.
+  if (b.settlementBasis != null) {
+    const n = Math.round(Number(b.settlementBasis));
+    if (Number.isNaN(n) || n < 0 || n > 3) {
+      return NextResponse.json({ error: "Settlement basis must be T+0, T+1, T+2, or T+3." }, { status: 400 });
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    const fundingDate = addBusinessDays(today, n);
+    if (daysBetween(fundingDate, wf.maturityDate) <= 0) {
+      return NextResponse.json({ error: `Funding date ${fundingDate} (T+${n}) is on or after maturity ${wf.maturityDate} — no tenor left.` }, { status: 422 });
+    }
+    wf.tradeDate = today;
+    wf.settlementBasis = n;
+    wf.valueDate = fundingDate;
+  }
+
+  // Governance: re-run eligibility at booking (against the funding date).
   const evalr = evaluateWorkflow(wf);
   const approved = Boolean(wf.exceptionApprovedBy);
   if (!evalr.clears && !approved) {

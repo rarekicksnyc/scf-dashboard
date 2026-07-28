@@ -8,6 +8,7 @@ import {
   decideInsuranceClaim,
   settleInvestorParticipation,
   confirmAdditionalInterest,
+  confirmFundsSent,
   addAudit,
 } from "@/lib/data/store";
 import { getCurrentUser, roleHas } from "@/lib/auth";
@@ -22,14 +23,20 @@ import type { WorkoutRoute } from "@/lib/types";
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await getCurrentUser();
-  if (!roleHas(user.role, "CHANGE_LIMIT")) {
-    return NextResponse.json({ error: `Role ${user.role} is not permitted to manage receivables.` }, { status: 403 });
+  const body = await request.json().catch(() => ({}));
+  const action = String(body.action ?? "");
+
+  // Confirming funds were sent is an OPS settlement action (Payment file / Ops),
+  // not a PM manage action — allow it for either. Everything else is CHANGE_LIMIT.
+  const permitted = action === "confirm-funds-sent"
+    ? roleHas(user.role, "GENERATE_PAYMENT_FILE") || roleHas(user.role, "CHANGE_LIMIT")
+    : roleHas(user.role, "CHANGE_LIMIT");
+  if (!permitted) {
+    return NextResponse.json({ error: `Role ${user.role} is not permitted to perform this action.` }, { status: 403 });
   }
   const t = getBookedTransaction(id);
   if (!t) return NextResponse.json({ error: "Receivable not found." }, { status: 404 });
 
-  const body = await request.json().catch(() => ({}));
-  const action = String(body.action ?? "");
   const audit = (detail: string, subAction: string) =>
     addAudit({ actorUserId: user.id, actorName: user.name, action: subAction, entityType: "BOOKED_TRANSACTION", entityId: id, detail });
 
@@ -76,6 +83,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const updated = settleInvestorParticipation(id, user.name);
       if (!updated) return NextResponse.json({ error: "This receivable has no investor participation." }, { status: 400 });
       audit(`Settled investor participation on ${t.reference}.`, "INVESTOR_SETTLE");
+      return NextResponse.json({ ok: true });
+    }
+    case "confirm-funds-sent": {
+      const updated = confirmFundsSent(id, user.name);
+      if (!updated) return NextResponse.json({ error: "Funds are already confirmed sent (or the receivable was not found)." }, { status: 400 });
+      audit(`Confirmed funds sent for ${t.reference} (funding date ${t.valueDate}).`, "FUNDS_SENT_CONFIRM");
       return NextResponse.json({ ok: true });
     }
     case "confirm-additional-interest": {

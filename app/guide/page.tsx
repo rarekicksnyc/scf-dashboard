@@ -19,7 +19,7 @@ const FLOW: { step: string; detail: string }[] = [
   { step: "Reserve", detail: "Book a future discount on the Reservations page (the forward book). It is checked against live limits before it is accepted." },
   { step: "Check & proceed", detail: "On Transaction Flow, load the reservation, run every eligibility control at once, then proceed to the documents stage." },
   { step: "Document & execute", detail: "Generate the purchase/commitment request and Schedule A, email the client, and upload the executed document. The signer is checked against the authorized signatory list." },
-  { step: "Book (four eyes if breached)", detail: "Eligibility is re-run at booking. A clean deal books in one click; a breach requires a documented reason and a second user's approval before it can be booked." },
+  { step: "Book (four eyes if breached)", detail: "Eligibility is re-run at booking. A clean deal books in one click; a breach requires a documented reason and a second user's approval before it can be booked. Book on a T+0/T+1/T+2/T+3 basis — documents are executed now and the funds go out on the funding date; limits are consumed only from the funding date. Ops confirms once funds are sent (nothing further for the PM)." },
   { step: "Booking", detail: "The booked deal appears on the Bookings page as real outstanding exposure. Record collections (partial or full), track overdue and default, file insurance claims, and settle investor participations." },
   { step: "Additional interest & invoices", detail: "A past-due receivable shows indicative additional interest at the original all-in rate (margin + base). When the client confirms it will repay, accrue it all at once (it freezes at that date), then generate a MUFG additional-interest statement, or an ad-hoc client invoice, as a downloadable PDF." },
 ];
@@ -67,6 +67,7 @@ const GLOSSARY: [string, string][] = [
   ["Time-phasing", "A reservation or receivable only consumes a limit while its value-to-maturity window overlaps the date being checked. An unsettled receivable stays live past maturity."],
   ["Additional interest", "Default interest on a past-due balance, at the original all-in rate (margin + base) over the overdue days, actual/360. Shown indicatively while past due; recognised (accrued) all at once when the client confirms it will repay, and frozen at that date."],
   ["Maker-checker", "Four-eyes control: the person who requests an exception cannot approve it — a second authorized user must."],
+  ["Settlement (T+n)", "The funding date is n business days after the trade date (T+1/2/3); documents are executed up front. Exposure consumes limits only from the funding date to maturity, and Ops confirms once the funds are sent."],
 ];
 
 export default async function GuidePage() {

@@ -33,6 +33,19 @@ export function daysBetween(a: string, b: string): number {
   return Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000);
 }
 
+// The ISO date n business days after `iso` (skipping Sat/Sun). n = 0 returns the
+// same date. Used for T+n settlement (funding date = trade date + n days).
+export function addBusinessDays(iso: string, n: number): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  let added = 0;
+  while (added < n) {
+    d.setUTCDate(d.getUTCDate() + 1);
+    const day = d.getUTCDay();
+    if (day !== 0 && day !== 6) added++;
+  }
+  return d.toISOString().slice(0, 10);
+}
+
 // True if a date is missing or falls before the as-of date (expired).
 export function expired(dateISO: string | undefined, asOf: string): boolean {
   if (!dateISO) return true;

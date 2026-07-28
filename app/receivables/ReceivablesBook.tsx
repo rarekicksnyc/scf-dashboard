@@ -21,6 +21,8 @@ export interface RecRow {
   daysToMaturity: number;
   valueDate: string;
   maturityDate: string;
+  settlementBasis?: number;
+  fundsSentAt?: string;
   additionalInterest: number;
   additionalInterestConfirmed: boolean;
   additionalInterestConfirmedAt?: string;
@@ -78,8 +80,8 @@ async function downloadPdf(payload: Record<string, unknown>): Promise<string | n
 }
 
 export default function ReceivablesBook({
-  asOf, metrics, aging, rows, sellers, canManage,
-}: { asOf: string; metrics: Metrics; aging: AgingRow[]; rows: RecRow[]; sellers: { id: string; name: string }[]; canManage: boolean }) {
+  asOf, metrics, aging, rows, sellers, canManage, canConfirmFunds,
+}: { asOf: string; metrics: Metrics; aging: AgingRow[]; rows: RecRow[]; sellers: { id: string; name: string }[]; canManage: boolean; canConfirmFunds: boolean }) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showInvoice, setShowInvoice] = useState(false);
   const live = rows.filter((r) => r.status !== "SETTLED");
@@ -149,7 +151,7 @@ export default function ReceivablesBook({
               </thead>
               <tbody>
                 {rows.map((r) => (
-                  <RowView key={r.id} r={r} canManage={canManage} asOf={asOf} expanded={expanded === r.id} onToggle={() => setExpanded(expanded === r.id ? null : r.id)} />
+                  <RowView key={r.id} r={r} canManage={canManage} canConfirmFunds={canConfirmFunds} asOf={asOf} expanded={expanded === r.id} onToggle={() => setExpanded(expanded === r.id ? null : r.id)} />
                 ))}
               </tbody>
             </table>
@@ -160,8 +162,10 @@ export default function ReceivablesBook({
   );
 }
 
-function RowView({ r, canManage, asOf, expanded, onToggle }: { r: RecRow; canManage: boolean; asOf: string; expanded: boolean; onToggle: () => void }) {
+function RowView({ r, canManage, canConfirmFunds, asOf, expanded, onToggle }: { r: RecRow; canManage: boolean; canConfirmFunds: boolean; asOf: string; expanded: boolean; onToggle: () => void }) {
   const status = STATUS[r.status];
+  const awaitingFunds = r.settlementBasis != null && !r.fundsSentAt;
+  const showManage = canManage || (canConfirmFunds && awaitingFunds);
   return (
     <>
       <tr>
@@ -171,14 +175,19 @@ function RowView({ r, canManage, asOf, expanded, onToggle }: { r: RecRow; canMan
         <td><span className="badge grey">{r.productType}</span></td>
         <td className="num">{r.outstanding > 0 ? mm(r.outstanding) : "—"}{r.collected > 0 && r.outstanding > 0 && <span className="muted" style={{ fontSize: 11, display: "block" }}>of {mm(r.amount)}</span>}</td>
         <td>{dateShort(r.maturityDate)}</td>
-        <td><span className={`badge ${status.cls}`}>{status.label}</span>{r.defaulted && r.workout && <span className="badge grey" style={{ marginLeft: 4 }}>{WORKOUTS.find((w) => w.v === r.workout)?.label}</span>}</td>
+        <td>
+          <span className={`badge ${status.cls}`}>{status.label}</span>
+          {r.defaulted && r.workout && <span className="badge grey" style={{ marginLeft: 4 }}>{WORKOUTS.find((w) => w.v === r.workout)?.label}</span>}
+          {awaitingFunds && <span className="badge yellow" style={{ marginLeft: 4 }} title={`Funds due ${dateShort(r.valueDate)}`}>T+{r.settlementBasis} · funding {dateShort(r.valueDate)}</span>}
+          {r.fundsSentAt && <span className="badge green" style={{ marginLeft: 4 }}>funds sent {dateShort(r.fundsSentAt)}</span>}
+        </td>
         <td className="num">{r.overdueDays > 0 ? <span style={{ color: "var(--red)" }}>{r.overdueDays}d</span> : r.status === "SETTLED" ? "—" : `${Math.max(0, r.daysToMaturity)}d`}</td>
-        {canManage && <td><button className="btn secondary" style={{ padding: "4px 10px", fontSize: 12 }} type="button" onClick={onToggle}>{expanded ? "Close" : "Manage"}</button></td>}
+        {showManage && <td><button className="btn secondary" style={{ padding: "4px 10px", fontSize: 12 }} type="button" onClick={onToggle}>{expanded ? "Close" : "Manage"}</button></td>}
       </tr>
-      {expanded && canManage && (
+      {expanded && showManage && (
         <tr>
           <td colSpan={9} style={{ background: "var(--bg)", padding: 0 }}>
-            <RowActions r={r} asOf={asOf} />
+            <RowActions r={r} asOf={asOf} canManage={canManage} canConfirmFunds={canConfirmFunds} awaitingFunds={awaitingFunds} />
           </td>
         </tr>
       )}
@@ -186,7 +195,7 @@ function RowView({ r, canManage, asOf, expanded, onToggle }: { r: RecRow; canMan
   );
 }
 
-function RowActions({ r, asOf }: { r: RecRow; asOf: string }) {
+function RowActions({ r, asOf, canManage, canConfirmFunds, awaitingFunds }: { r: RecRow; asOf: string; canManage: boolean; canConfirmFunds: boolean; awaitingFunds: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -216,7 +225,13 @@ function RowActions({ r, asOf }: { r: RecRow; asOf: string }) {
 
   return (
     <div style={cell}>
-      {r.status !== "SETTLED" && !r.defaulted && (
+      {awaitingFunds && (canManage || canConfirmFunds) && (
+        <div style={grp}>
+          <span className="muted">Settlement — funds due {dateShort(r.valueDate)} (T+{r.settlementBasis})</span>
+          <button className="btn" style={{ fontSize: 12 }} disabled={busy} onClick={() => act({ action: "confirm-funds-sent" }, "Funds confirmed sent")}>Confirm funds sent</button>
+        </div>
+      )}
+      {canManage && r.status !== "SETTLED" && !r.defaulted && (
         <div style={grp}>
           <span className="muted">Record collection</span>
           <div style={{ display: "flex", gap: 6 }}>
@@ -228,7 +243,7 @@ function RowActions({ r, asOf }: { r: RecRow; asOf: string }) {
         </div>
       )}
 
-      {(r.overdueDays > 0 || r.additionalInterestConfirmed) && (
+      {canManage && (r.overdueDays > 0 || r.additionalInterestConfirmed) && (
         <div style={grp}>
           {r.additionalInterestConfirmed ? (
             <span className="muted">Additional interest accrued <strong>{usd(r.additionalInterest)}</strong>{r.additionalInterestConfirmedAt ? ` · confirmed ${r.additionalInterestConfirmedAt}` : ""}</span>
@@ -244,7 +259,7 @@ function RowActions({ r, asOf }: { r: RecRow; asOf: string }) {
         </div>
       )}
 
-      {r.status !== "SETTLED" && !r.defaulted && (
+      {canManage && r.status !== "SETTLED" && !r.defaulted && (
         <div style={grp}>
           <span className="muted">Declare default</span>
           <div style={{ display: "flex", gap: 6 }}>
@@ -257,7 +272,7 @@ function RowActions({ r, asOf }: { r: RecRow; asOf: string }) {
         </div>
       )}
 
-      {r.defaulted && (
+      {canManage && r.defaulted && (
         <div style={grp}>
           <span className="muted">In workout ({WORKOUTS.find((w) => w.v === r.workout)?.label})</span>
           <div style={{ display: "flex", gap: 6 }}>
@@ -276,13 +291,13 @@ function RowActions({ r, asOf }: { r: RecRow; asOf: string }) {
         </div>
       )}
 
-      {r.hasInvestor && !r.investorSettled && (
+      {canManage && r.hasInvestor && !r.investorSettled && (
         <div style={grp}>
           <span className="muted">Investor participation</span>
           <button className="btn secondary" style={{ fontSize: 12 }} disabled={busy} onClick={() => act({ action: "investor-settle" })}>Settle investor</button>
         </div>
       )}
-      {r.hasInvestor && r.investorSettled && <span className="badge green" style={{ alignSelf: "center" }}>Investor settled</span>}
+      {canManage && r.hasInvestor && r.investorSettled && <span className="badge green" style={{ alignSelf: "center" }}>Investor settled</span>}
 
       {msg && <div style={{ color: "var(--red)", fontSize: 12, flexBasis: "100%" }}>{msg}</div>}
       {okFlash && <div style={{ flexBasis: "100%" }}><span className="badge green">{okFlash} ✓</span></div>}

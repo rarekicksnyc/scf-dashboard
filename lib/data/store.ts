@@ -486,7 +486,9 @@ export function bookTransactionFromWorkflow(id: string, by: string): { workflow:
     amount: wf.coverage, // funded amount that consumes limits
     rrlAmount: rsv?.rrlAmount,
     scope: wf.scope ?? rsv?.scope,
-    valueDate: wf.valueDate,
+    tradeDate: wf.tradeDate,
+    settlementBasis: wf.settlementBasis,
+    valueDate: wf.valueDate, // funding date (T+n); exposure consumes from here
     maturityDate: wf.productType === "UTRC" ? wf.finalDemandDate || wf.maturityDate : wf.maturityDate,
     pricingBps: wf.pricingBps,
     baseRatePct: wf.baseRate,
@@ -514,6 +516,17 @@ export function bookTransactionFromWorkflow(id: string, by: string): { workflow:
 
 export function getBookedTransaction(id: string): BookedTransaction | undefined {
   return store.bookedTransactions.find((t) => t.id === id);
+}
+
+// Ops confirms the funds were sent for a T+n booking (settlement confirmation).
+// Purely informational — exposure already consumes from the funding date; this
+// records that the money actually went out. Nothing for the PM to do.
+export function confirmFundsSent(id: string, by: string): BookedTransaction | undefined {
+  const t = getBookedTransaction(id);
+  if (!t || t.fundsSentAt) return undefined;
+  t.fundsSentAt = new Date().toISOString().slice(0, 10);
+  t.fundsSentBy = by;
+  return t;
 }
 
 // ---------------------------------------------------------------------------
