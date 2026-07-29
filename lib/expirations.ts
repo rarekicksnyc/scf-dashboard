@@ -27,6 +27,12 @@ export interface ExpiringItem {
   expiryDate: string;
   daysToExpiry: number;
   flag: ExpiryFlag;
+  // The seller group and/or obligor group this date belongs to, so the register
+  // can be filtered to everything tracked for one name.
+  sellerId?: string;
+  sellerName?: string;
+  obligorId?: string;
+  obligorName?: string;
 }
 
 function flagFor(days: number): ExpiryFlag {
@@ -55,14 +61,19 @@ export function buildExpirations(asOf: string): ExpiringItem[] {
 
   for (const v of limitViews()) {
     const d = days(asOf, v.limit.expiryDate);
+    const et = v.limit.entityType;
     items.push({
       kind: "Limit",
       ref: v.limit.id,
-      entity: entityName(v.limit.entityType, v.limit.entityId),
+      entity: entityName(et, v.limit.entityId),
       detail: `${LIMIT_LABEL[v.limit.type]} limit`,
       expiryDate: v.limit.expiryDate,
       daysToExpiry: d,
       flag: flagFor(d),
+      sellerId: et === "SELLER" ? v.limit.entityId : undefined,
+      sellerName: et === "SELLER" ? getSeller(v.limit.entityId)?.name : undefined,
+      obligorId: et === "OBLIGOR" ? v.limit.entityId : undefined,
+      obligorName: et === "OBLIGOR" ? getObligor(v.limit.entityId)?.name : undefined,
     });
   }
 
@@ -70,7 +81,7 @@ export function buildExpirations(asOf: string): ExpiringItem[] {
     const push = (kind: string, expiry: string, detail: string) => {
       if (!expiry) return;
       const d = days(asOf, expiry);
-      items.push({ kind, ref: s.id, entity: s.name, detail, expiryDate: expiry, daysToExpiry: d, flag: flagFor(d) });
+      items.push({ kind, ref: s.id, entity: s.name, detail, expiryDate: expiry, daysToExpiry: d, flag: flagFor(d), sellerId: s.id, sellerName: s.name });
     };
     push("Borrower rating", s.borrowerRatingExpiry, `Rating ${s.borrowerRating}`);
     push("ASR rating", s.asrExpiry, `ASR ${s.asrRating}`);
@@ -81,24 +92,25 @@ export function buildExpirations(asOf: string): ExpiringItem[] {
   for (const o of allObligors()) {
     if (!o.expiryDate) continue;
     const d = days(asOf, o.expiryDate);
-    items.push({ kind: "Obligor group approval", ref: o.id, entity: o.name, detail: "Group approval / review", expiryDate: o.expiryDate, daysToExpiry: d, flag: flagFor(d) });
+    items.push({ kind: "Obligor group approval", ref: o.id, entity: o.name, detail: "Group approval / review", expiryDate: o.expiryDate, daysToExpiry: d, flag: flagFor(d), obligorId: o.id, obligorName: o.name });
   }
 
   // Obligor legal-entity credentials — borrower rating, insurance, and PCG.
   for (const e of allObligorEntities()) {
     const parent = getObligor(e.groupId)?.name ?? e.groupId;
     const label = `${e.name} (${parent})`;
+    const assoc = { obligorId: e.groupId, obligorName: getObligor(e.groupId)?.name ?? e.groupId };
     if (e.borrowerRatingExpiry) {
       const d = days(asOf, e.borrowerRatingExpiry);
-      items.push({ kind: "Obligor entity rating", ref: e.id, entity: label, detail: `Rating ${e.borrowerRating}`, expiryDate: e.borrowerRatingExpiry, daysToExpiry: d, flag: flagFor(d) });
+      items.push({ kind: "Obligor entity rating", ref: e.id, entity: label, detail: `Rating ${e.borrowerRating}`, expiryDate: e.borrowerRatingExpiry, daysToExpiry: d, flag: flagFor(d), ...assoc });
     }
     if (e.insurancePolicyId && e.insuranceExpiry) {
       const d = days(asOf, e.insuranceExpiry);
-      items.push({ kind: "Obligor entity insurance", ref: e.id, entity: label, detail: "Insurance coverage", expiryDate: e.insuranceExpiry, daysToExpiry: d, flag: flagFor(d) });
+      items.push({ kind: "Obligor entity insurance", ref: e.id, entity: label, detail: "Insurance coverage", expiryDate: e.insuranceExpiry, daysToExpiry: d, flag: flagFor(d), ...assoc });
     }
     if (e.pcg === "Y" && e.pcgExpiry) {
       const d = days(asOf, e.pcgExpiry);
-      items.push({ kind: "Obligor entity PCG", ref: e.id, entity: label, detail: "Parent company guarantee", expiryDate: e.pcgExpiry, daysToExpiry: d, flag: flagFor(d) });
+      items.push({ kind: "Obligor entity PCG", ref: e.id, entity: label, detail: "Parent company guarantee", expiryDate: e.pcgExpiry, daysToExpiry: d, flag: flagFor(d), ...assoc });
     }
   }
 
@@ -108,7 +120,9 @@ export function buildExpirations(asOf: string): ExpiringItem[] {
     if (g.continuing || !g.expiryDate) continue;
     const parties = [g.sellerId ? getSeller(g.sellerId)?.name : null, g.obligorId ? getObligor(g.obligorId)?.name : null].filter(Boolean).join(" / ") || "—";
     const d = days(asOf, g.expiryDate);
-    items.push({ kind: "Parent company guarantee", ref: g.id, entity: g.parentName, detail: `Supports ${parties}`, expiryDate: g.expiryDate, daysToExpiry: d, flag: flagFor(d) });
+    items.push({ kind: "Parent company guarantee", ref: g.id, entity: g.parentName, detail: `Supports ${parties}`, expiryDate: g.expiryDate, daysToExpiry: d, flag: flagFor(d),
+      sellerId: g.sellerId || undefined, sellerName: g.sellerId ? getSeller(g.sellerId)?.name : undefined,
+      obligorId: g.obligorId || undefined, obligorName: g.obligorId ? getObligor(g.obligorId)?.name : undefined });
   }
 
   for (const p of activePolicies()) {

@@ -94,6 +94,7 @@ export default function ExpirationsPage() {
             kind: i.kind, ref: i.ref, entity: i.entity, detail: i.detail,
             expiryDate: i.expiryDate || "",
             days: !isFinite(i.daysToExpiry) ? "—" : i.daysToExpiry < 0 ? `${-i.daysToExpiry}d ago` : `${i.daysToExpiry}d`,
+            sellerId: i.sellerId, sellerName: i.sellerName, obligorId: i.obligorId, obligorName: i.obligorName,
           };
         })}
       />
