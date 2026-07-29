@@ -1,4 +1,4 @@
-import { getBatches, listBookedTransactions, getReservations } from "@/lib/data/store";
+import { getBatches, listBookedTransactions, getReservations, activePolicies } from "@/lib/data/store";
 import { priceDeal } from "@/lib/pricing";
 import { daysBetween } from "@/lib/format";
 import type { ProductType } from "@/lib/types";
@@ -16,6 +16,7 @@ export interface RevDeal {
   skimRevenue: number; // total extra income on the investor portion = fundingBasis + marginSkim
   fundingBasisRevenue: number; // COF − interpolated SOFR on the investor portion (funding-spread income)
   marginSkimRevenue: number; // the negotiated margin skim (skimBps) on the investor portion
+  insurerSkimRevenue: number; // insured portion × (client insurance rate − insurer rate), over tenor
   customerDiscount: number; // full price reduction to the client (margin + base)
   valueDate: string;
   maturityDate: string;
@@ -46,11 +47,22 @@ export function allRevenueDeals(): RevDeal[] {
     const fundingBasisRev = hasInv ? inv * ((t.baseRatePct! - t.investorSofrPct!) / 100) * tt : 0;
     const marginSkimRev = hasInv ? inv * ((t.skimBps ?? 0) / 10000) * tt : 0;
     const skimRev = fundingBasisRev + marginSkimRev;
+    // Insurer skim: on each insured allocation MUFG charges the client the insurance
+    // rate but pays the insurer a lower rate, keeping the spread over the tenor.
+    const insurerSkimRev = (t.insurerAllocations ?? []).reduce(
+      (a, x) => a + x.amount * ((((x.clientRateBps ?? 0) - (x.insurerRateBps ?? 0)) / 10000)) * tt, 0);
     const p = priceDeal({ productType: t.productType, marginBps: t.pricingBps, coverage: t.amount, tenorDays: tenor });
-    deals.push({ source: t.source === "BATCH" ? "BATCH" : "BOOKED", id: t.id, sellerId: t.sellerId, obligorId: t.obligorId, productType: t.productType, coverage: t.amount, revenue: marginRev, skimRevenue: skimRev, fundingBasisRevenue: fundingBasisRev, marginSkimRevenue: marginSkimRev, customerDiscount: t.productType === "UTRC" ? p.commitmentFee : p.discount, valueDate: t.valueDate, maturityDate: t.maturityDate, tenorDays: tenor, marginPct: t.pricingBps / 100 });
+    deals.push({ source: t.source === "BATCH" ? "BATCH" : "BOOKED", id: t.id, sellerId: t.sellerId, obligorId: t.obligorId, productType: t.productType, coverage: t.amount, revenue: marginRev, skimRevenue: skimRev, fundingBasisRevenue: fundingBasisRev, marginSkimRevenue: marginSkimRev, insurerSkimRevenue: insurerSkimRev, customerDiscount: t.productType === "UTRC" ? p.commitmentFee : p.discount, valueDate: t.valueDate, maturityDate: t.maturityDate, tenorDays: tenor, marginPct: t.pricingBps / 100 });
   }
 
   return deals;
+}
+
+// Total MUFG income on a deal: retained margin + investor skim (funding basis +
+// margin skim) + insurer skim. The single definition of "income" used by every
+// rollup, so accrual, monthly, by-entity, and FYTD can never disagree.
+export function dealIncome(d: RevDeal): number {
+  return d.revenue + d.skimRevenue + d.insurerSkimRevenue;
 }
 
 // Daily accrual: revenue is earned pro-rata over the tenor, not at maturity. As
@@ -59,7 +71,7 @@ export function allRevenueDeals(): RevDeal[] {
 export function accruedRevenue(deals: RevDeal[], asOf: string): { contracted: number; accrued: number; unearned: number } {
   let contracted = 0, accrued = 0;
   for (const d of deals) {
-    const income = d.revenue + d.skimRevenue;
+    const income = dealIncome(d);
     contracted += income;
     const elapsed = daysBetween(d.valueDate, asOf);
     const frac = d.tenorDays > 0 ? Math.max(0, Math.min(1, elapsed / d.tenorDays)) : (elapsed >= 0 ? 1 : 0);
@@ -73,7 +85,8 @@ export interface RevenueSummary {
   skimRevenue: number; // extra income from investor participations (funding basis + margin skim)
   fundingBasisRevenue: number; // COF − SOFR funding-spread component of skim
   marginSkimRevenue: number; // negotiated margin-skim component of skim
-  total: number; // revenue + skim
+  insurerSkimRevenue: number; // spread kept on insured portions (client rate − insurer rate)
+  total: number; // revenue + investor skim + insurer skim
   volume: number;
   deals: number;
   weightedMarginBps: number; // coverage-weighted effective yield, in bps
@@ -84,21 +97,22 @@ export interface RevenueSummary {
 }
 
 export function revenueSummary(deals: RevDeal[]): RevenueSummary {
-  let revenue = 0, skim = 0, basis = 0, mSkim = 0, volume = 0, dtr = 0, utrc = 0, booked = 0, batch = 0, wSum = 0;
+  let revenue = 0, skim = 0, basis = 0, mSkim = 0, iSkim = 0, volume = 0, dtr = 0, utrc = 0, booked = 0, batch = 0, wSum = 0;
   for (const d of deals) {
-    const income = d.revenue + d.skimRevenue;
+    const income = dealIncome(d);
     revenue += d.revenue;
     skim += d.skimRevenue;
     basis += d.fundingBasisRevenue;
     mSkim += d.marginSkimRevenue;
+    iSkim += d.insurerSkimRevenue;
     volume += d.coverage;
     wSum += d.marginPct * d.coverage;
     if (d.productType === "UTRC") utrc += income; else dtr += income;
     if (d.source === "BOOKED") booked += income; else batch += income;
   }
   return {
-    revenue, skimRevenue: skim, fundingBasisRevenue: basis, marginSkimRevenue: mSkim,
-    total: revenue + skim, volume, deals: deals.length,
+    revenue, skimRevenue: skim, fundingBasisRevenue: basis, marginSkimRevenue: mSkim, insurerSkimRevenue: iSkim,
+    total: revenue + skim + iSkim, volume, deals: deals.length,
     weightedMarginBps: volume > 0 ? Math.round((wSum / volume) * 100) : 0,
     dtrRevenue: dtr, utrcRevenue: utrc, bookedRevenue: booked, batchRevenue: batch,
   };
@@ -111,7 +125,7 @@ export function revenueByMonth(deals: RevDeal[]): { month: string; revenue: numb
     const month = (d.valueDate || "").slice(0, 7);
     if (!month) continue;
     const row = map.get(month) ?? { month, revenue: 0, volume: 0, deals: 0 };
-    row.revenue += d.revenue + d.skimRevenue;
+    row.revenue += dealIncome(d);
     row.volume += d.coverage;
     row.deals += 1;
     map.set(month, row);
@@ -128,7 +142,7 @@ export function revenueByEntity(deals: RevDeal[], dim: "seller" | "obligor"): Re
     const row = map.get(id) ?? { id, deals: 0, volume: 0, revenue: 0, wSum: 0 };
     row.deals += 1;
     row.volume += d.coverage;
-    row.revenue += d.revenue + d.skimRevenue;
+    row.revenue += dealIncome(d);
     row.wSum += d.marginPct * d.coverage;
     map.set(id, row);
   }
@@ -165,6 +179,41 @@ export function fiscalYearStart(asOf: string): string {
   return `${startYear}-04-01`;
 }
 
+export interface PolicyPremiumStatus {
+  policyId: string;
+  insurerName: string;
+  policyNumber: string;
+  minimumPremium: number;
+  generatedFYTD: number; // insurer-rate premium generated by deals funded this fiscal year
+  shortfall: number; // max(0, minimum − generated) — the seller's year-end top-up
+  fyStart: string;
+}
+
+// Per-policy minimum-premium tracking over the bank's fiscal year (4/1–3/31).
+// Each insured deal generates premium on the INSURER-rate side; a policy whose
+// cumulative premium falls short of its annual minimum bills the seller a
+// year-end top-up equal to the shortfall (pass-through to the insurer — MUFG
+// takes no skim on the top-up). Premium is measured over each deal's tenor and
+// attributed to the fiscal year the deal is funded in.
+export function policyPremiumStatus(asOf: string): PolicyPremiumStatus[] {
+  const fyStart = fiscalYearStart(asOf);
+  const gen = new Map<string, number>();
+  for (const t of listBookedTransactions()) {
+    if (!t.insurerAllocations?.length) continue;
+    if (t.valueDate < fyStart || t.valueDate > asOf) continue;
+    const tt = daysBetween(t.valueDate, t.maturityDate) / 360;
+    for (const a of t.insurerAllocations) {
+      gen.set(a.policyId, (gen.get(a.policyId) ?? 0) + a.amount * ((a.insurerRateBps ?? 0) / 10000) * tt);
+    }
+  }
+  return activePolicies()
+    .filter((p) => (p.minimumPremium ?? 0) > 0)
+    .map((p) => {
+      const generatedFYTD = gen.get(p.id) ?? 0;
+      return { policyId: p.id, insurerName: p.insurerName, policyNumber: p.policyNumber, minimumPremium: p.minimumPremium!, generatedFYTD, shortfall: Math.max(0, p.minimumPremium! - generatedFYTD), fyStart };
+    });
+}
+
 // Income (margin + skim) EARNED between two dates. Revenue accrues daily over
 // each deal's tenor, so the amount earned in [from, to] is the change in the
 // accrued fraction across that window, summed over every deal. Used for FYTD and
@@ -175,6 +224,6 @@ export function earnedBetween(deals: RevDeal[], from: string, to: string): numbe
       ? Math.max(0, Math.min(1, daysBetween(d.valueDate, at) / d.tenorDays))
       : (daysBetween(d.valueDate, at) >= 0 ? 1 : 0);
   let sum = 0;
-  for (const d of deals) sum += (d.revenue + d.skimRevenue) * Math.max(0, frac(d, to) - frac(d, from));
+  for (const d of deals) sum += dealIncome(d) * Math.max(0, frac(d, to) - frac(d, from));
   return sum;
 }

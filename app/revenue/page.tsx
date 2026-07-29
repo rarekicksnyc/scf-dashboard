@@ -8,6 +8,8 @@ import {
   accruedRevenue,
   fiscalYearStart,
   earnedBetween,
+  dealIncome,
+  policyPremiumStatus,
 } from "@/lib/revenue";
 import RevenueExplorer, { type ExplorerDeal } from "./RevenueExplorer";
 import MonthlyRevenueChart from "./MonthlyRevenueChart";
@@ -29,10 +31,11 @@ export default function RevenuePage() {
     sellerName: getSeller(d.sellerId)?.name ?? d.sellerId,
     obligorId: d.obligorId,
     obligorName: getObligor(d.obligorId)?.name ?? d.obligorId,
-    income: d.revenue + d.skimRevenue,
+    income: dealIncome(d),
     valueDate: d.valueDate,
     tenorDays: d.tenorDays,
   }));
+  const premiumStatus = policyPremiumStatus(today);
 
   const share = (v: number) => (sum.total > 0 ? (v / sum.total) * 100 : 0);
   const dtrPct = share(sum.dtrRevenue);
@@ -40,8 +43,9 @@ export default function RevenuePage() {
 
   const cards = [
     { label: "Earned revenue (FYTD)", value: usd(fytdEarned), sub: `fiscal year since ${dateShort(fyStart)}` },
-    { label: "Realized revenue", value: usd(sum.total), sub: `${usd(sum.revenue)} margin + ${usd(sum.skimRevenue)} skim` },
-    { label: "Skim revenue", value: usd(sum.skimRevenue), sub: `${usd(sum.fundingBasisRevenue)} funding basis + ${usd(sum.marginSkimRevenue)} margin skim` },
+    { label: "Realized revenue", value: usd(sum.total), sub: `${usd(sum.revenue)} margin + ${usd(sum.skimRevenue)} investor skim + ${usd(sum.insurerSkimRevenue)} insurer skim` },
+    { label: "Investor skim", value: usd(sum.skimRevenue), sub: `${usd(sum.fundingBasisRevenue)} funding basis + ${usd(sum.marginSkimRevenue)} margin skim` },
+    { label: "Insurer skim", value: usd(sum.insurerSkimRevenue), sub: "client rate − insurer rate on insured deals" },
     { label: "Pipeline revenue", value: usd(pipeline.revenue), sub: `${pipeline.deals} open reservation${pipeline.deals === 1 ? "" : "s"} · ${usd(pipeline.volume)}` },
     { label: "Weighted yield", value: `${sum.weightedMarginBps} bps`, sub: "coverage-weighted, annualized" },
     { label: "Volume funded", value: usd(sum.volume), sub: `${sum.deals} deals · realized coverage` },
@@ -52,10 +56,10 @@ export default function RevenuePage() {
       <h1 className="page-title">Revenue</h1>
       <p className="page-sub">
         MUFG revenue is margin income (base rate is funding cost, not income) plus
-        skim from investor participations, earned daily over each deal&rsquo;s
-        tenor. Total contracted: {usd(sum.total)} ({usd(sum.revenue)} margin +{" "}
-        {usd(sum.skimRevenue)} skim); earned to date: {usd(accrual.accrued)};
-        pipeline: {usd(pipeline.revenue)}.
+        investor skim (funding basis + margin skim) and insurer skim, earned daily
+        over each deal&rsquo;s tenor. Total contracted: {usd(sum.total)} ({usd(sum.revenue)} margin +{" "}
+        {usd(sum.skimRevenue)} investor skim + {usd(sum.insurerSkimRevenue)} insurer skim);
+        earned to date: {usd(accrual.accrued)}; pipeline: {usd(pipeline.revenue)}.
       </p>
 
       <div className="cards">
@@ -110,6 +114,7 @@ export default function RevenuePage() {
             <MixTile label="Margin income" value={usd(sum.revenue)} sub="retained margin" />
             <MixTile label="Funding basis" value={usd(sum.fundingBasisRevenue)} sub="COF − SOFR on investor portion" />
             <MixTile label="Margin skim" value={usd(sum.marginSkimRevenue)} sub="negotiated investor skim (bps)" />
+            <MixTile label="Insurer skim" value={usd(sum.insurerSkimRevenue)} sub="client rate − insurer rate" />
             <MixTile label="From bookings" value={usd(sum.bookedRevenue)} sub="Transaction Flow" />
             <MixTile label="From batches" value={usd(sum.batchRevenue)} sub="bulk uploads" />
           </div>
@@ -122,6 +127,43 @@ export default function RevenuePage() {
           <MonthlyRevenueChart data={monthly} />
         </div>
       </div>
+
+      {premiumStatus.length > 0 && (
+        <div className="panel">
+          <h2>Insurance minimum premium (fiscal year)</h2>
+          <div style={{ padding: "0 16px 4px" }} className="muted">
+            <p style={{ fontSize: 13, maxWidth: "95ch" }}>
+              Each insured deal generates premium on the insurer-rate side. If a policy&rsquo;s cumulative
+              premium falls short of its annual minimum by fiscal year end, the seller pays a top-up equal to
+              the shortfall (remitted to the insurer — MUFG takes no skim on the top-up). FY since {dateShort(fyStart)}.
+            </p>
+          </div>
+          <div className="table-scroll">
+            <table>
+              <thead><tr><th>Insurer</th><th>Policy</th><th className="num">Minimum premium</th><th className="num">Generated FYTD</th><th className="num">Shortfall (top-up)</th><th>Status</th></tr></thead>
+              <tbody>
+                {premiumStatus.map((p) => {
+                  const pctToMin = p.minimumPremium > 0 ? Math.min(100, (p.generatedFYTD / p.minimumPremium) * 100) : 100;
+                  const met = p.shortfall <= 0;
+                  return (
+                    <tr key={p.policyId}>
+                      <td style={{ fontWeight: 600 }}>{p.insurerName}</td>
+                      <td><code style={{ fontSize: 12 }}>{p.policyNumber}</code></td>
+                      <td className="num">{usd(p.minimumPremium)}</td>
+                      <td className="num">
+                        {usd(p.generatedFYTD)}
+                        <div className="bar" style={{ height: 6, marginTop: 4, minWidth: 80 }}><span className={met ? "ok" : "warn"} style={{ width: `${pctToMin}%` }} /></div>
+                      </td>
+                      <td className="num" style={{ fontWeight: 700, color: met ? "var(--green)" : "var(--orange)" }}>{met ? "—" : usd(p.shortfall)}</td>
+                      <td>{met ? <span className="badge green">Minimum met</span> : <span className="badge orange">Top-up due</span>}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <RevenueExplorer deals={explorerDeals} fyStart={fyStart} today={today} />
     </>

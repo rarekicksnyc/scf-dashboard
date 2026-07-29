@@ -92,8 +92,8 @@ export default function EligibilityCheck({
   const [investorAllocs, setInvestorAllocs] = useState<{ investorId: string; amount: string }[]>([
     { investorId: investors[0]?.id ?? "", amount: "4000000" },
   ]);
-  const [insurerAllocs, setInsurerAllocs] = useState<{ policyId: string; amount: string }[]>([
-    { policyId: policies[0]?.id ?? "", amount: "5000000" },
+  const [insurerAllocs, setInsurerAllocs] = useState<{ policyId: string; amount: string; clientRateBps: string; insurerRateBps: string }[]>([
+    { policyId: policies[0]?.id ?? "", amount: "5000000", clientRateBps: "90", insurerRateBps: "75" },
   ]);
   const [report, setReport] = useState<EligibilityReport | null>(null);
   const [busy, setBusy] = useState(false);
@@ -132,7 +132,7 @@ export default function EligibilityCheck({
         : undefined,
       insured: !isUtrc && f.insured,
       insurerAllocations: !isUtrc && f.insured
-        ? insurerAllocs.map((a) => ({ policyId: a.policyId, amount: Number(a.amount) }))
+        ? insurerAllocs.map((a) => ({ policyId: a.policyId, amount: Number(a.amount), clientRateBps: Number(a.clientRateBps) || 0, insurerRateBps: Number(a.insurerRateBps) || 0 }))
         : undefined,
     };
     const res = await fetch("/api/eligibility", {
@@ -330,6 +330,14 @@ export default function EligibilityCheck({
                         <NumberInput style={input} value={a.amount} ariaLabel="Insured amount"
                           onValue={(v) => setInsurerAllocs((rows) => rows.map((r, j) => j === i ? { ...r, amount: v } : r))} />
                       </label>
+                      <label style={{ ...field, width: 92 }}>Client rate (bps)
+                        <NumberInput style={input} value={a.clientRateBps} ariaLabel="Client insurance rate bps"
+                          onValue={(v) => setInsurerAllocs((rows) => rows.map((r, j) => j === i ? { ...r, clientRateBps: v } : r))} />
+                      </label>
+                      <label style={{ ...field, width: 92 }}>Insurer rate (bps)
+                        <NumberInput style={input} value={a.insurerRateBps} ariaLabel="Insurer rate bps"
+                          onValue={(v) => setInsurerAllocs((rows) => rows.map((r, j) => j === i ? { ...r, insurerRateBps: v } : r))} />
+                      </label>
                       {insurerAllocs.length > 1 && (
                         <button className="btn secondary" style={{ padding: "6px 9px" }} type="button"
                           onClick={() => setInsurerAllocs((rows) => rows.filter((_, j) => j !== i))}>✕</button>
@@ -337,7 +345,7 @@ export default function EligibilityCheck({
                     </div>
                   ))}
                   <button className="btn secondary" style={{ padding: "5px 10px", fontSize: 12 }} type="button"
-                    onClick={() => setInsurerAllocs((rows) => [...rows, { policyId: policies[0]?.id ?? "", amount: "1000000" }])}>
+                    onClick={() => setInsurerAllocs((rows) => [...rows, { policyId: policies[0]?.id ?? "", amount: "1000000", clientRateBps: "90", insurerRateBps: "75" }])}>
                     + Add insurer
                   </button>
                 </div>

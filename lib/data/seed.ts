@@ -278,6 +278,7 @@ export const insurancePolicies: InsurancePolicy[] = [
     recourseToSeller: true,
     domicile: "NL",
     status: "ACTIVE",
+    minimumPremium: 250_000, // annual minimum (insurer-rate side); seller tops up any FY shortfall
   },
 ];
 

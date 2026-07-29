@@ -246,6 +246,10 @@ export interface InsurancePolicy {
   recourseToSeller: boolean; // uninsured residual has recourse to the seller
   domicile: string; // insurer country of domicile
   status: EntityStatus;
+  // Annual minimum premium (insurer-rate side) the policy must generate over the
+  // fiscal year. If natural usage falls short, the seller pays a year-end top-up to
+  // make up the shortfall (pass-through to the insurer; MUFG takes no skim on it).
+  minimumPremium?: number;
 }
 
 // Per-buyer (obligor) sublimit under an insurance policy.
@@ -650,6 +654,12 @@ export interface PricingResult {
 export interface InsurerAllocation {
   policyId: string;
   amount: number; // insured amount allocated to this policy
+  // Per-deal insurance rates (bps). The client is charged the insurance rate on
+  // the insured amount; the insurer is paid the lower insurer rate. MUFG keeps the
+  // spread as insurer skim (income), and the insurer-rate side is the premium that
+  // accrues toward the policy's annual minimum. Both optional (legacy/no-skim deals).
+  clientRateBps?: number; // insurance rate charged to the client
+  insurerRateBps?: number; // rate paid to the insurer (premium side)
 }
 
 export interface InvestorAllocation {
