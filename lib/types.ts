@@ -214,6 +214,7 @@ export interface ParentCompanyGuarantee {
 // with a sellerId overrides the default (sellerId undefined) for that seller.
 export type DocTemplateType =
   | "PURCHASE_REQUEST"
+  | "PURCHASE_REQUEST_INVESTOR" // investor copy — client pricing replaced with investor terms
   | "COMMITMENT_REQUEST"
   | "SCHEDULE_A_DTR"
   | "SCHEDULE_A_UTRC"

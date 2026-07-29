@@ -198,8 +198,8 @@ function Row({ w, sellerEntities, signatories, canBook, currentUserId, canApprov
           </button>
         )}
         {w.investorAmount != null && w.investorAmount > 0 && (
-          <button className="btn secondary" style={{ padding: "6px 12px", fontSize: 12 }} type="button" disabled={busy} onClick={() => emailDraft("investor-email")} title="Draft the investor email with the investor Schedule A">
-            Email investor
+          <button className="btn secondary" style={{ padding: "6px 12px", fontSize: 12 }} type="button" disabled={busy} onClick={() => emailDraft("investor-email")} title="Draft the investor offer — investor Purchase Request (repriced to the investor's terms) + investor Schedule A">
+            Investor offer
           </button>
         )}
         {w.status === "SIGNATURE_FLAGGED" && (

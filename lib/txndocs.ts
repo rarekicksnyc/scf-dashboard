@@ -1,6 +1,6 @@
 import * as XLSX from "xlsx";
 import { getDocTemplate, interpolateSofr } from "@/lib/data/store";
-import { fillTemplate, buildDocSet, pricingTokens, investorTokens, scheduleAFromSpec, wordDocument, type DocTokens } from "@/lib/docgen";
+import { fillTemplate, buildDocSet, pricingTokens, investorTokens, scheduleAFromSpec, requestDocHtml, wordDocument, type DocTokens } from "@/lib/docgen";
 import { usd, daysBetween } from "@/lib/format";
 import type { TransactionWorkflow, DocTemplateType } from "@/lib/types";
 import type { EmlAttachment } from "@/lib/email";
@@ -88,6 +88,25 @@ export function investorAttachment(wf: TransactionWorkflow): EmlAttachment | und
   if (wf.productType === "UTRC" || !wf.investorAmount || wf.investorAmount <= 0) return undefined;
   const table = scheduleAFromSpec(getDocTemplate("SCHEDULE_A_INVESTOR", wf.sellerId)?.body ?? "", workflowTokens(wf));
   return { filename: `Schedule-A-Investor-${slug(wf.reference)}.xlsx`, mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", base64: xlsxBase64("Schedule A Investor", table.columns, table.row) };
+}
+
+// The full investor OFFER package: the investor Purchase Request (client pricing
+// replaced with the investor's own terms — SOFR + investor margin, never the
+// skim) plus the investor Schedule A. Both fill from the same tokens the on-page
+// preview uses, so the offer, the export, and the email always agree. Returns []
+// for a UTRC or a deal with no investor participation.
+export function investorOfferAttachments(wf: TransactionWorkflow): EmlAttachment[] {
+  if (wf.productType === "UTRC" || !wf.investorAmount || wf.investorAmount <= 0) return [];
+  const tokens = workflowTokens(wf); // investor_* tokens are merged in when investorAmount > 0
+  const base = slug(wf.reference);
+  const prBody = fillTemplate(getDocTemplate("PURCHASE_REQUEST_INVESTOR", wf.sellerId)?.body ?? "", tokens);
+  const prHtml = requestDocHtml("Purchase Request — Investor", prBody);
+  const out: EmlAttachment[] = [
+    { filename: `Purchase-Request-Investor-${base}.doc`, mime: "application/msword", base64: Buffer.from(wordDocument(prHtml), "utf-8").toString("base64") },
+  ];
+  const sch = investorAttachment(wf);
+  if (sch) out.push(sch);
+  return out;
 }
 
 // Fill an email template (subject + body) for a workflow.

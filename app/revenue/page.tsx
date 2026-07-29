@@ -41,7 +41,7 @@ export default function RevenuePage() {
   const cards = [
     { label: "Earned revenue (FYTD)", value: usd(fytdEarned), sub: `fiscal year since ${dateShort(fyStart)}` },
     { label: "Realized revenue", value: usd(sum.total), sub: `${usd(sum.revenue)} margin + ${usd(sum.skimRevenue)} skim` },
-    { label: "Skim revenue", value: usd(sum.skimRevenue), sub: "from investor participations" },
+    { label: "Skim revenue", value: usd(sum.skimRevenue), sub: `${usd(sum.fundingBasisRevenue)} funding basis + ${usd(sum.marginSkimRevenue)} margin skim` },
     { label: "Pipeline revenue", value: usd(pipeline.revenue), sub: `${pipeline.deals} open reservation${pipeline.deals === 1 ? "" : "s"} · ${usd(pipeline.volume)}` },
     { label: "Weighted yield", value: `${sum.weightedMarginBps} bps`, sub: "coverage-weighted, annualized" },
     { label: "Volume funded", value: usd(sum.volume), sub: `${sum.deals} deals · realized coverage` },
@@ -108,7 +108,8 @@ export default function RevenuePage() {
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12, marginTop: 16 }}>
             <MixTile label="Margin income" value={usd(sum.revenue)} sub="retained margin" />
-            <MixTile label="Skim income" value={usd(sum.skimRevenue)} sub="investor rate differential + skim" />
+            <MixTile label="Funding basis" value={usd(sum.fundingBasisRevenue)} sub="COF − SOFR on investor portion" />
+            <MixTile label="Margin skim" value={usd(sum.marginSkimRevenue)} sub="negotiated investor skim (bps)" />
             <MixTile label="From bookings" value={usd(sum.bookedRevenue)} sub="Transaction Flow" />
             <MixTile label="From batches" value={usd(sum.batchRevenue)} sub="bulk uploads" />
           </div>

@@ -13,7 +13,9 @@ export interface RevDeal {
   productType: ProductType;
   coverage: number; // funded amount
   revenue: number; // MUFG margin income (on the bank-retained portion for investor deals)
-  skimRevenue: number; // extra income on the investor portion = (COF − interp SOFR + skim)
+  skimRevenue: number; // total extra income on the investor portion = fundingBasis + marginSkim
+  fundingBasisRevenue: number; // COF − interpolated SOFR on the investor portion (funding-spread income)
+  marginSkimRevenue: number; // the negotiated margin skim (skimBps) on the investor portion
   customerDiscount: number; // full price reduction to the client (margin + base)
   valueDate: string;
   maturityDate: string;
@@ -36,11 +38,16 @@ export function allRevenueDeals(): RevDeal[] {
     // the margin cancels (client pays margin, investor gets margin − skim) and the
     // bank keeps the skim plus the COF−SOFR rate differential.
     const marginRev = Math.max(t.amount - inv, 0) * (t.pricingBps / 10000) * tt;
-    const skimRev = inv > 0 && t.baseRatePct != null && t.investorSofrPct != null
-      ? inv * (((t.baseRatePct - t.investorSofrPct) / 100) + (t.skimBps ?? 0) / 10000) * tt
-      : 0;
+    // Investor income has two distinct sources: the funding basis (bank funds the
+    // client at COF but pays the investor only the interpolated SOFR) and the
+    // negotiated margin skim (skimBps of margin the bank retains). Gate both on the
+    // rates being present so the total matches the prior single-figure skim exactly.
+    const hasInv = inv > 0 && t.baseRatePct != null && t.investorSofrPct != null;
+    const fundingBasisRev = hasInv ? inv * ((t.baseRatePct! - t.investorSofrPct!) / 100) * tt : 0;
+    const marginSkimRev = hasInv ? inv * ((t.skimBps ?? 0) / 10000) * tt : 0;
+    const skimRev = fundingBasisRev + marginSkimRev;
     const p = priceDeal({ productType: t.productType, marginBps: t.pricingBps, coverage: t.amount, tenorDays: tenor });
-    deals.push({ source: t.source === "BATCH" ? "BATCH" : "BOOKED", id: t.id, sellerId: t.sellerId, obligorId: t.obligorId, productType: t.productType, coverage: t.amount, revenue: marginRev, skimRevenue: skimRev, customerDiscount: t.productType === "UTRC" ? p.commitmentFee : p.discount, valueDate: t.valueDate, maturityDate: t.maturityDate, tenorDays: tenor, marginPct: t.pricingBps / 100 });
+    deals.push({ source: t.source === "BATCH" ? "BATCH" : "BOOKED", id: t.id, sellerId: t.sellerId, obligorId: t.obligorId, productType: t.productType, coverage: t.amount, revenue: marginRev, skimRevenue: skimRev, fundingBasisRevenue: fundingBasisRev, marginSkimRevenue: marginSkimRev, customerDiscount: t.productType === "UTRC" ? p.commitmentFee : p.discount, valueDate: t.valueDate, maturityDate: t.maturityDate, tenorDays: tenor, marginPct: t.pricingBps / 100 });
   }
 
   return deals;
@@ -63,7 +70,9 @@ export function accruedRevenue(deals: RevDeal[], asOf: string): { contracted: nu
 
 export interface RevenueSummary {
   revenue: number; // margin income
-  skimRevenue: number; // extra income from investor participations
+  skimRevenue: number; // extra income from investor participations (funding basis + margin skim)
+  fundingBasisRevenue: number; // COF − SOFR funding-spread component of skim
+  marginSkimRevenue: number; // negotiated margin-skim component of skim
   total: number; // revenue + skim
   volume: number;
   deals: number;
@@ -75,18 +84,21 @@ export interface RevenueSummary {
 }
 
 export function revenueSummary(deals: RevDeal[]): RevenueSummary {
-  let revenue = 0, skim = 0, volume = 0, dtr = 0, utrc = 0, booked = 0, batch = 0, wSum = 0;
+  let revenue = 0, skim = 0, basis = 0, mSkim = 0, volume = 0, dtr = 0, utrc = 0, booked = 0, batch = 0, wSum = 0;
   for (const d of deals) {
     const income = d.revenue + d.skimRevenue;
     revenue += d.revenue;
     skim += d.skimRevenue;
+    basis += d.fundingBasisRevenue;
+    mSkim += d.marginSkimRevenue;
     volume += d.coverage;
     wSum += d.marginPct * d.coverage;
     if (d.productType === "UTRC") utrc += income; else dtr += income;
     if (d.source === "BOOKED") booked += income; else batch += income;
   }
   return {
-    revenue, skimRevenue: skim, total: revenue + skim, volume, deals: deals.length,
+    revenue, skimRevenue: skim, fundingBasisRevenue: basis, marginSkimRevenue: mSkim,
+    total: revenue + skim, volume, deals: deals.length,
     weightedMarginBps: volume > 0 ? Math.round((wSum / volume) * 100) : 0,
     dtrRevenue: dtr, utrcRevenue: utrc, bookedRevenue: booked, batchRevenue: batch,
   };

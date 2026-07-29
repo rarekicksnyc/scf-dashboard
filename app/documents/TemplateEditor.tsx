@@ -9,6 +9,7 @@ interface Opt { id: string; name: string }
 
 const TYPE_LABEL: Record<DocTemplateType, string> = {
   PURCHASE_REQUEST: "Purchase Request (DTR, signed)",
+  PURCHASE_REQUEST_INVESTOR: "Purchase Request — Investor (offer)",
   COMMITMENT_REQUEST: "Commitment Request (UTRC, signed)",
   SCHEDULE_A_DTR: "Schedule A — DTR (columns)",
   SCHEDULE_A_UTRC: "Schedule A — UTRC (columns)",
@@ -19,13 +20,14 @@ const TYPE_LABEL: Record<DocTemplateType, string> = {
   INVOICE_ADDITIONAL_INTEREST: "Invoice — additional interest (past due)",
   INVOICE_NOTE: "Invoice — payment notes",
 };
-const TYPES: DocTemplateType[] = ["PURCHASE_REQUEST", "COMMITMENT_REQUEST", "SCHEDULE_A_DTR", "SCHEDULE_A_UTRC", "SCHEDULE_A_INVESTOR", "CLIENT_EMAIL", "BOOKING_EMAIL", "INVESTOR_EMAIL", "INVOICE_ADDITIONAL_INTEREST", "INVOICE_NOTE"];
+const TYPES: DocTemplateType[] = ["PURCHASE_REQUEST", "PURCHASE_REQUEST_INVESTOR", "COMMITMENT_REQUEST", "SCHEDULE_A_DTR", "SCHEDULE_A_UTRC", "SCHEDULE_A_INVESTOR", "CLIENT_EMAIL", "BOOKING_EMAIL", "INVESTOR_EMAIL", "INVOICE_ADDITIONAL_INTEREST", "INVOICE_NOTE"];
 
 // Per-template guidance: how each template is structured, and exactly which
 // {{tokens}} (or Header|token columns) it can use. Shown under the editor so the
 // desk always knows which fields are editable for the selected template.
 const TOKEN_HELP: Record<DocTemplateType, { struct: string; tokens: string }> = {
   PURCHASE_REQUEST: { struct: "Free-text document (DTR). Use {{token}} wherever a value changes each deal; the signature block stays as literal text.", tokens: "seller · obligor · reference · currency · invoice_amount · advance_rate · coverage · value_date · maturity_date · pricing_bps · product_type · today" },
+  PURCHASE_REQUEST_INVESTOR: { struct: "Investor copy of the Purchase Request (DTR). Client pricing is REPLACED with the investor's terms — use investor_base (interpolated SOFR) in place of base_rate, and investor_margin / investor_rate in place of the client margin. NEVER show the skim or the client margin here.", tokens: "investor_name · seller · obligor · reference · currency · invoice_amount · advance_rate · coverage · investor_amount · investor_base · investor_margin · investor_rate · investor_discount · investor_purchase_price · value_date · maturity_date · today" },
   COMMITMENT_REQUEST: { struct: "Free-text document (UTRC). {{token}} placeholders fill per deal.", tokens: "seller · obligor · reference · currency · committed_amount · value_date · commitment_due_date · final_demand_date · pricing_bps · today" },
   SCHEDULE_A_DTR: { struct: "Excel column spec — one column per line as Header|token (line order = column order).", tokens: "seller · obligor · reference · currency · invoice_amount · advance_rate · coverage · base_rate · pricing_bps · discount_rate · discount · purchase_price · value_date · maturity_date" },
   SCHEDULE_A_UTRC: { struct: "Excel column spec (UTRC) — one column per line as Header|token.", tokens: "seller · obligor · reference · currency · committed_amount · value_date · commitment_due_date · final_demand_date · pricing_bps · commitment_fee" },

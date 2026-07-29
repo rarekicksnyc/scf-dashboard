@@ -30,6 +30,44 @@ Authorized Signatory: ______________________________
 Name / Title: ______________________________
 Date: ______________________________`;
 
+// Investor copy of the Purchase Request. Same structure as the client's, but the
+// client-only pricing is REPLACED (not blanked) with the investor's own terms:
+// the base rate (COF) becomes the interpolated SOFR ({{investor_base}}), and the
+// client margin / discount rate become the investor margin ({{investor_margin}})
+// and investor rate ({{investor_rate}}). The skim is the bank's and must NEVER
+// appear here. Investor-specific tokens: investor_name, investor_amount,
+// investor_base, investor_margin, investor_rate, investor_discount,
+// investor_purchase_price. Shared deal tokens (obligor, reference, currency,
+// invoice_amount, advance_rate, coverage, value_date, maturity_date) are unchanged.
+const PURCHASE_REQUEST_INVESTOR = `PURCHASE REQUEST — INVESTOR PARTICIPATION
+
+Date: {{today}}
+Investor: {{investor_name}}
+Seller: {{seller}}
+Obligor (Buyer): {{obligor}}
+Reference: {{reference}}
+
+We offer the following receivable participation under the Master Participation Agreement:
+
+Currency: {{currency}}
+Invoice / Face Amount: {{invoice_amount}}
+Advance Rate: {{advance_rate}}
+Total Coverage Amount: {{coverage}}
+Value Date: {{value_date}}
+Maturity Date: {{maturity_date}}
+
+Your Participation:
+  Participation Amount: {{investor_amount}}
+  Rate: {{investor_rate}} (interpolated SOFR {{investor_base}} + {{investor_margin}})
+  Discount: {{investor_discount}}
+  Purchase Price: {{investor_purchase_price}}
+
+This participation is subject to the terms of the governing Master Participation Agreement.
+
+Authorized Signatory: ______________________________
+Name / Title: ______________________________
+Date: ______________________________`;
+
 const COMMITMENT_REQUEST = `COMMITMENT REQUEST
 
 Date: {{today}}
@@ -136,16 +174,21 @@ Commitment fee|commitment_fee`;
 
 const INVESTOR_EMAIL = `Dear {{investor_name}} team,
 
-Please find attached the investor Schedule A for your participation in the following transaction:
+We are pleased to offer you the following receivable participation. The investor Purchase Request and investor Schedule A are attached.
 
   Seller: {{seller}}
   Obligor: {{obligor}}
+  Reference: {{reference}}
+  Currency: {{currency}}
+
   Your participation: {{investor_amount}}
   Rate: {{investor_rate}} (interpolated SOFR {{investor_base}} + {{investor_margin}})
-  Value Date: {{value_date}}
-  Maturity Date: {{maturity_date}}
+  Discount: {{investor_discount}}
+  Purchase price: {{investor_purchase_price}}
+  Value date: {{value_date}}
+  Maturity date: {{maturity_date}}
 
-Please review and confirm your participation.
+Please review the attached documents and confirm your participation by return email, executing the investor Purchase Request with an authorized signatory.
 
 Best regards,
 Supply Chain Finance Team`;
@@ -161,6 +204,7 @@ const INVOICE_NOTE = `Please remit {{total}} to MUFG Bank, Ltd. quoting invoice 
 
 export const DEFAULT_TEMPLATES: DocTemplate[] = [
   { id: "TMPL-PURCHASE_REQUEST", type: "PURCHASE_REQUEST", body: PURCHASE_REQUEST },
+  { id: "TMPL-PURCHASE_REQUEST_INVESTOR", type: "PURCHASE_REQUEST_INVESTOR", body: PURCHASE_REQUEST_INVESTOR },
   { id: "TMPL-COMMITMENT_REQUEST", type: "COMMITMENT_REQUEST", body: COMMITMENT_REQUEST },
   { id: "TMPL-SCHEDULE_A_DTR", type: "SCHEDULE_A_DTR", body: SCHEDULE_A_DTR },
   { id: "TMPL-SCHEDULE_A_UTRC", type: "SCHEDULE_A_UTRC", body: SCHEDULE_A_UTRC },
