@@ -965,6 +965,16 @@ export function getInsurancePolicy(id: string): InsurancePolicy | undefined {
   return store.insurancePolicies.find((p) => p.id === id);
 }
 
+// Edit a policy's economic terms (currently the annual minimum premium). Mutates
+// the single stored policy so every reader — the premium tracker, the eligibility
+// engine, the dropdowns — sees the change at once.
+export function updateInsurancePolicy(id: string, patch: Partial<Pick<InsurancePolicy, "minimumPremium">>): InsurancePolicy | undefined {
+  const p = store.insurancePolicies.find((x) => x.id === id);
+  if (!p) return undefined;
+  if (patch.minimumPremium !== undefined) p.minimumPremium = Math.max(0, patch.minimumPremium);
+  return p;
+}
+
 export function activeInvestors(): Investor[] {
   return store.investors.filter((i) => i.status === "ACTIVE");
 }

@@ -31,6 +31,7 @@ import SignatoryManager from "./SignatoryManager";
 import BookingRecipients from "./BookingRecipients";
 import AddObligorToFacility from "./AddObligorToFacility";
 import PcgRegister from "./PcgRegister";
+import InsurancePolicies from "./InsurancePolicies";
 import ResetExposure from "./ResetExposure";
 import Collapsible from "../Collapsible";
 
@@ -275,6 +276,23 @@ export default async function DataManagementPage({
             obligors={allObligors().map((o) => ({ id: o.id, name: o.name }))}
             canEdit={canEdit}
             revs={Object.fromEntries(listParentGuarantees().map((p) => [p.id, recordRev(`pcg:${p.id}`)]))}
+          />
+        </Collapsible>
+      </div>
+
+      {/* Insurance policies — set each policy's annual minimum premium in-app */}
+      <div style={{ marginTop: 8 }}>
+        <Collapsible summary={`Insurance policies (${activePolicies().length}) — annual minimum premium per policy`}>
+          <InsurancePolicies
+            policies={activePolicies().map((p) => ({
+              id: p.id,
+              insurerName: p.insurerName,
+              policyNumber: p.policyNumber,
+              coveragePercent: p.coveragePercent,
+              minimumPremium: p.minimumPremium ?? 0,
+              rev: recordRev(`policy:${p.id}`),
+            }))}
+            canEdit={canEdit}
           />
         </Collapsible>
       </div>
