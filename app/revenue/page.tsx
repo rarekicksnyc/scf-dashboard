@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { getSeller, getObligor } from "@/lib/data/store";
 import { usd, dateShort } from "@/lib/format";
 import {
@@ -134,29 +135,49 @@ export default function RevenuePage() {
           <div style={{ padding: "0 16px 4px" }} className="muted">
             <p style={{ fontSize: 13, maxWidth: "95ch" }}>
               Each insured deal generates premium on the insurer-rate side. If a policy&rsquo;s cumulative
-              premium falls short of its annual minimum by fiscal year end, the seller pays a top-up equal to
-              the shortfall (remitted to the insurer — MUFG takes no skim on the top-up). FY since {dateShort(fyStart)}.
+              premium falls short of its annual minimum by fiscal year end, the shortfall is topped up
+              (remitted to the insurer — MUFG takes no skim on it). When a policy covers more than one seller,
+              the top-up is split across them pro-rata to the premium each generated (shown as sub-rows).
+              FY since {dateShort(fyStart)}.
             </p>
           </div>
           <div className="table-scroll">
             <table>
-              <thead><tr><th>Insurer</th><th>Policy</th><th className="num">Minimum premium</th><th className="num">Generated FYTD</th><th className="num">Shortfall (top-up)</th><th>Status</th></tr></thead>
+              <thead><tr><th>Insurer / seller</th><th>Policy</th><th className="num">Minimum premium</th><th className="num">Generated FYTD</th><th className="num">Shortfall (top-up)</th><th>Status</th></tr></thead>
               <tbody>
                 {premiumStatus.map((p) => {
                   const pctToMin = p.minimumPremium > 0 ? Math.min(100, (p.generatedFYTD / p.minimumPremium) * 100) : 100;
                   const met = p.shortfall <= 0;
                   return (
-                    <tr key={p.policyId}>
-                      <td style={{ fontWeight: 600 }}>{p.insurerName}</td>
-                      <td><code style={{ fontSize: 12 }}>{p.policyNumber}</code></td>
-                      <td className="num">{usd(p.minimumPremium)}</td>
-                      <td className="num">
-                        {usd(p.generatedFYTD)}
-                        <div className="bar" style={{ height: 6, marginTop: 4, minWidth: 80 }}><span className={met ? "ok" : "warn"} style={{ width: `${pctToMin}%` }} /></div>
-                      </td>
-                      <td className="num" style={{ fontWeight: 700, color: met ? "var(--green)" : "var(--orange)" }}>{met ? "—" : usd(p.shortfall)}</td>
-                      <td>{met ? <span className="badge green">Minimum met</span> : <span className="badge orange">Top-up due</span>}</td>
-                    </tr>
+                    <Fragment key={p.policyId}>
+                      <tr>
+                        <td style={{ fontWeight: 600 }}>{p.insurerName}</td>
+                        <td><code style={{ fontSize: 12 }}>{p.policyNumber}</code></td>
+                        <td className="num">{usd(p.minimumPremium)}</td>
+                        <td className="num">
+                          {usd(p.generatedFYTD)}
+                          <div className="bar" style={{ height: 6, marginTop: 4, minWidth: 80 }}><span className={met ? "ok" : "warn"} style={{ width: `${pctToMin}%` }} /></div>
+                        </td>
+                        <td className="num" style={{ fontWeight: 700, color: met ? "var(--green)" : "var(--orange)" }}>{met ? "—" : usd(p.shortfall)}</td>
+                        <td>{met ? <span className="badge green">Minimum met</span> : <span className="badge orange">Top-up due</span>}</td>
+                      </tr>
+                      {/* Per-seller attribution — each seller's share of the shortfall, pro-rata to the premium it generated. */}
+                      {p.sellers.map((s) => (
+                        <tr key={`${p.policyId}:${s.sellerId}`} style={{ background: "var(--bg)" }}>
+                          <td style={{ paddingLeft: 22 }} className="muted">↳ {getSeller(s.sellerId)?.name ?? s.sellerId}</td>
+                          <td></td>
+                          <td></td>
+                          <td className="num muted">{usd(s.generated)}</td>
+                          <td className="num" style={met ? undefined : { color: "var(--orange)" }}>{met ? "—" : usd(s.topUp)}</td>
+                          <td className="muted" style={{ fontSize: 12 }}>{p.generatedFYTD > 0 ? `${((s.generated / p.generatedFYTD) * 100).toFixed(0)}% of usage` : ""}</td>
+                        </tr>
+                      ))}
+                      {!met && p.sellers.length === 0 && (
+                        <tr style={{ background: "var(--bg)" }}>
+                          <td colSpan={6} className="muted" style={{ paddingLeft: 22, fontSize: 12 }}>No insured usage yet — the full minimum is outstanding and not yet attributed to a seller.</td>
+                        </tr>
+                      )}
+                    </Fragment>
                   );
                 })}
               </tbody>
