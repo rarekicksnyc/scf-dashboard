@@ -16,7 +16,7 @@ import {
 } from "@/lib/data/store";
 import { priceDeal } from "@/lib/pricing";
 import { obligorEntityFindings } from "@/lib/engine/obligorEntity";
-import { mm2 as mm, daysBetween, expired } from "@/lib/format";
+import { mm2 as mm, daysBetween, expired, limitLapsed } from "@/lib/format";
 import { ADVANCE_RATE_CAP, ADVANCE_RATE_MIN, ADVANCE_RATE_MAX } from "@/lib/config";
 import type {
   DiscountTransaction,
@@ -132,14 +132,14 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
       txn.currency === seller.currency ? "GREEN" : "RED",
       txn.currency === seller.currency ? "Transaction currency matches the facility." : `Transaction currency ${txn.currency} does not match the ${seller.currency} facility — convert before drawing the limit.`);
 
-    const sl = findLimit("SELLER", seller.id);
+    const sl = findLimit("SELLER", seller.id, txn.valueDate);
     if (sl) {
       const v = viewLimit(sl, window);
       // Seller line consumes the funded amount NET of any RRL portion.
       capacity("SELLER", "Seller credit limit", v.available, v.approvedLimit, v.consumed, sellerBooking);
       add("SELLER", "Credit limit expiry", sl.expiryDate, txn.valueDate,
-        expired(sl.expiryDate, txn.valueDate) ? "RED" : "GREEN",
-        expired(sl.expiryDate, txn.valueDate) ? "Credit limit expires before value date." : "Credit limit valid through value date.");
+        limitLapsed(sl.expiryDate, txn.valueDate) ? "RED" : "GREEN",
+        limitLapsed(sl.expiryDate, txn.valueDate) ? "Credit limit lapsed as of the value date." : "Credit limit valid through the value date.");
       add("SELLER", "Seller max tenor", `${sl.maxTenorDays}d`, `${tenorDays}d`,
         tenorDays > sl.maxTenorDays ? "RED" : "GREEN",
         tenorDays > sl.maxTenorDays ? `Tenor exceeds seller max by ${tenorDays - sl.maxTenorDays}d.` : "Within seller max tenor.");
@@ -172,11 +172,11 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
     if (isUtrc) {
       add("SELLER", "RRL (Risk Reimbursement Line)", "Not applicable to UTRC", "—", "GREY", "RRL split applies to DTR discounting only.");
     } else if (seller.rrlEnabled) {
-      const rrlLimit = findLimit("RRL", seller.id);
+      const rrlLimit = findLimit("RRL", seller.id, txn.valueDate);
       // Expiry comes from the editable RRL limit record when present (single
       // source), falling back to the seller field.
       const rrlExpiryDate = rrlLimit?.expiryDate || seller.rrlExpiry;
-      const rrlExp = expired(rrlExpiryDate, txn.valueDate);
+      const rrlExp = limitLapsed(rrlExpiryDate, txn.valueDate);
       if (rrlExp) {
         add("SELLER", "RRL (Risk Reimbursement Line)", `exp ${rrlExpiryDate || "—"}`, mm(rrlAmount), "RED", "RRL expired.");
       } else if (rrlLimit) {
@@ -198,10 +198,10 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
     }
 
     // RRL swingline — mirrors the RRL booking (separate from the regular swingline).
-    const rrlSwl = findLimit("RRL_SWINGLINE", seller.id);
+    const rrlSwl = findLimit("RRL_SWINGLINE", seller.id, txn.valueDate);
     if (rrlSwl && seller.rrlEnabled && !isUtrc) {
       const rrlSwlView = viewLimit(rrlSwl, window);
-      const rrlMain = findLimit("RRL", seller.id);
+      const rrlMain = findLimit("RRL", seller.id, txn.valueDate);
       const rrlConsumed = (rrlMain ? viewLimit(rrlMain, window).consumed : 0) + swinglineAdjustmentNet("SELLER", seller.id, "RRL", window);
       capacity("SELLER", "RRL swingline", rrlSwlView.approvedLimit - rrlConsumed, rrlSwlView.approvedLimit, rrlConsumed, rrlAmount);
     } else {
@@ -245,7 +245,7 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
         obligor.guaranteeEligible ? "Guarantee eligible." : "Guarantee not eligible — approval required.");
     }
 
-    const ol = findLimit("OBLIGOR", obligor.id);
+    const ol = findLimit("OBLIGOR", obligor.id, txn.valueDate);
     if (ol) {
       const v = viewLimit(ol, window);
       capacity("OBLIGOR", "Obligor master limit", v.available, v.approvedLimit, v.consumed, advanceAmount);
@@ -349,7 +349,7 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
           pa?.executed ? "GREEN" : "RED",
           pa?.executed ? "Executed participation agreement on file." : "No executed participation agreement for this investor/seller.");
       }
-      const il = findLimit("INVESTOR", investor.id);
+      const il = findLimit("INVESTOR", investor.id, txn.valueDate);
       if (il) {
         // Time-phased: existing reservations that hold this investor's capacity
         // within the transaction window reduce what's available.

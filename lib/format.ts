@@ -46,10 +46,28 @@ export function addBusinessDays(iso: string, n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-// True if a date is missing or falls before the as-of date (expired).
+// True if a date is missing or falls before the as-of date (expired). INCLUSIVE:
+// valid through and including the expiry date. Used for ratings, approvals, and
+// insurance validity.
 export function expired(dateISO: string | undefined, asOf: string): boolean {
   if (!dateISO) return true;
   return Date.parse(dateISO) < Date.parse(asOf);
+}
+
+// Limit expiry is EXCLUSIVE — a limit is lapsed ON and after its expiry date, so a
+// replacement effective on that same date takes over with no overlap and no gap.
+// A missing expiry is open-ended (never lapses). Distinct from expired() above.
+export function limitLapsed(expiryISO: string | undefined, asOf: string): boolean {
+  if (!expiryISO) return false;
+  return Date.parse(expiryISO) <= Date.parse(asOf);
+}
+
+// A limit is active on a date when effectiveDate <= date < expiryDate (expiry
+// exclusive). Missing dates are open-ended on that side.
+export function limitActiveOn(l: { effectiveDate?: string; expiryDate?: string }, asOf: string): boolean {
+  if (l.effectiveDate && Date.parse(l.effectiveDate) > Date.parse(asOf)) return false;
+  if (l.expiryDate && Date.parse(l.expiryDate) <= Date.parse(asOf)) return false;
+  return true;
 }
 
 // Millions with 2 decimals — the precision the eligibility engine reports in.

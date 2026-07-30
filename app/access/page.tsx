@@ -19,7 +19,7 @@ export default async function AccessPage() {
       <>
         <h1 className="page-title">Roles &amp; Access</h1>
         <div className="notice err">
-          Your role cannot manage access. Only a Product Manager or Administrator
+          Your role cannot manage access. Only a Portfolio Manager or Administrator
           can change role permissions or add users.
         </div>
       </>

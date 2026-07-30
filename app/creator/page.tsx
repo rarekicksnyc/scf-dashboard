@@ -14,7 +14,7 @@ export default async function CreatorPage() {
       <>
         <h1 className="page-title">Creator mode</h1>
         <div style={{ padding: "12px 14px", background: "#f0f4fa", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: "var(--ink-soft)" }}>
-          Creator mode is limited to the Product Manager and Administrator roles. Ask an
+          Creator mode is limited to the Portfolio Manager and Administrator roles. Ask an
           administrator to grant your role Creator mode on the Roles &amp; access screen.
         </div>
       </>

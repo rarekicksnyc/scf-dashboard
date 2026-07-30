@@ -38,7 +38,7 @@ export default async function ExceptionsPage() {
         <div style={{ padding: "12px 14px", background: "#f0f4fa", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: "var(--ink-soft)" }}>
           You are signed in as {user.name}, a role with read-only access here. To
           approve exceptions, sign out and sign in as a user with the Credit
-          Officer, Risk Manager, or Product Manager role.
+          Officer, Risk Manager, or Portfolio Manager role.
         </div>
       )}
 

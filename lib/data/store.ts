@@ -39,7 +39,7 @@ import type { WorkoutRoute, InvoiceResult } from "@/lib/types";
 import type { CustomFieldDef, CustomRegister, KpiTile, WatchRule } from "@/lib/types";
 import { DEFAULT_TEMPLATES } from "@/lib/data/templates";
 import { toLimitView, computeConsumed } from "@/lib/engine/availability";
-import { daysBetween } from "@/lib/format";
+import { daysBetween, limitActiveOn } from "@/lib/format";
 import { DEFAULT_MARGIN_BPS } from "@/lib/config";
 import {
   bookedInWindow,
@@ -1239,13 +1239,46 @@ export function getUtilization(limitId: string): Utilization {
 }
 
 // Find the active limit of a given type for an entity (seller/obligor/program).
+// Among same type+entity ACTIVE-status limits, the one that governs on a date.
+// With a single candidate (the common case) it is returned unchanged. With more
+// than one (a same-date renewal/overlap), the one active on the date wins —
+// expiry is exclusive, so an old limit expiring on X and a new one effective on X
+// hand off cleanly. Ties/none fall back to the latest-effective for determinism.
+function governingLimit(cands: Limit[], asOf: string): Limit | undefined {
+  if (cands.length <= 1) return cands[0];
+  const active = cands.filter((l) => limitActiveOn(l, asOf));
+  const pool = active.length ? active : cands;
+  return pool.slice().sort((a, b) => Date.parse(b.effectiveDate || "1970-01-01") - Date.parse(a.effectiveDate || "1970-01-01"))[0];
+}
+
 export function findLimit(
   type: LimitType,
   entityId: string,
+  asOf?: string,
 ): Limit | undefined {
-  return store.limits.find(
-    (l) => l.type === type && l.entityId === entityId && l.status === "ACTIVE",
-  );
+  const cands = store.limits.filter((l) => l.type === type && l.entityId === entityId && l.status === "ACTIVE");
+  if (cands.length <= 1) return cands[0];
+  return governingLimit(cands, asOf ?? new Date().toISOString().slice(0, 10));
+}
+
+// Limit ids superseded on a date: within a (type,entity) group of >1 ACTIVE
+// limits, every one except the governing limit. Used to drop double-counted
+// duplicates from the portfolio without hiding a solo (even if lapsed) limit.
+function supersededLimitIds(asOf: string): Set<string> {
+  const groups = new Map<string, Limit[]>();
+  for (const l of store.limits) {
+    if (l.status !== "ACTIVE") continue;
+    const k = `${l.type}:${l.entityId}`;
+    const arr = groups.get(k);
+    if (arr) arr.push(l); else groups.set(k, [l]);
+  }
+  const out = new Set<string>();
+  for (const cands of groups.values()) {
+    if (cands.length <= 1) continue;
+    const gov = governingLimit(cands, asOf);
+    for (const l of cands) if (l !== gov) out.add(l.id);
+  }
+  return out;
 }
 
 // Normalise an as-of argument to a {from,to} window. A bare ISO date is the
@@ -1431,7 +1464,11 @@ export function viewLimit(limit: Limit, asOf?: AsOf): LimitView {
 }
 
 export function limitViews(asOf?: AsOf) {
-  return store.limits.map((l) => viewLimit(l, asOf));
+  // Suppress superseded duplicates (a same-date limit renewal) so capacity is
+  // never double-counted; a solo limit still shows even once lapsed.
+  const date = typeof asOf === "string" ? asOf : new Date().toISOString().slice(0, 10);
+  const suppressed = supersededLimitIds(date);
+  return store.limits.filter((l) => !suppressed.has(l.id)).map((l) => viewLimit(l, asOf));
 }
 
 // Net standalone swingline ADJUSTMENTS for a target (REDUCTION draws down =

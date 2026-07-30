@@ -22,7 +22,7 @@ import { verifySession, SESSION_COOKIE, sessionSecret } from "@/lib/session";
 export const ROLE_LABEL: Record<Role, string> = {
   OPERATIONS: "Operations",
   CREDIT_OFFICER: "Credit Officer",
-  PRODUCT_MANAGER: "Product Manager",
+  PRODUCT_MANAGER: "Portfolio Manager",
   RELATIONSHIP_MANAGER: "Relationship Manager",
   RISK_MANAGER: "Risk Manager",
   ADMIN: "Administrator",
