@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getObligor, findLimit, viewLimit, allCountries, recordRev } from "@/lib/data/store";
+import { getObligor, findLimit, viewLimit, allCountries, recordRev, listCustomFields, getCustomFieldValues } from "@/lib/data/store";
 import { currentUserCan } from "@/lib/auth";
 import { mm, pct } from "@/lib/format";
 import EntityDetail from "../../entity/EntityDetail";
+import EntityCustomFields from "../../creator/EntityCustomFields";
 import DeleteObligorButton from "./DeleteObligorButton";
 import EditObligorGroup from "./EditObligorGroup";
 
@@ -57,6 +58,7 @@ export default async function ObligorPage({ params }: { params: Promise<{ id: st
       )}
 
       <EntityDetail mode="OBLIGOR" id={id} />
+      <EntityCustomFields entityType="OBLIGOR" entityId={id} defs={listCustomFields("OBLIGOR")} values={getCustomFieldValues("OBLIGOR", id)} canEdit={canEdit} />
     </>
   );
 }

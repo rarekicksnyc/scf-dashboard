@@ -36,6 +36,7 @@ import type {
   AuthorizedSignatory,
 } from "@/lib/types";
 import type { WorkoutRoute, InvoiceResult } from "@/lib/types";
+import type { CustomFieldDef, CustomRegister, KpiTile, WatchRule } from "@/lib/types";
 import { DEFAULT_TEMPLATES } from "@/lib/data/templates";
 import { toLimitView, computeConsumed } from "@/lib/engine/availability";
 import { daysBetween } from "@/lib/format";
@@ -83,6 +84,12 @@ interface Store {
   bookedTransactions: BookedTransaction[];
   signatories: AuthorizedSignatory[];
   settings: OrgSettings; // desk-wide, runtime-editable settings
+  // Creator Mode — governed declarative extensions (see lib/types.ts).
+  customFields: CustomFieldDef[];
+  customFieldValues: Record<string, Record<string, string>>; // "ENTITY:id" → { fieldKey: value }
+  customRegisters: CustomRegister[];
+  kpiTiles: KpiTile[];
+  watchRules: WatchRule[];
   rev: number; // global change counter — bumped on every audited action (live sync)
   recordRevs: Record<string, number>; // per-record change counters (edit-conflict guard)
   seq: number; // monotonic id counter
@@ -127,6 +134,11 @@ function seedStore(): Store {
     bookedTransactions: [],
     signatories: [],
     settings: {},
+    customFields: [],
+    customFieldValues: {},
+    customRegisters: [],
+    kpiTiles: [],
+    watchRules: [],
     rev: 0,
     recordRevs: {},
     // Start the id counter past the seeded reservation ids (RSV-0000N) so
@@ -194,6 +206,15 @@ export function runMigrations(): void {
   // derive from one place. Idempotent per batch (clears prior bookings first).
   once("batch-ledger-merge-2026-07", () => {
     for (const b of store.batches) materializeBatchBookings(b, "system:migration");
+  });
+
+  // Creator Mode (governed platform extensions) is available to Product Manager
+  // and Administrator. Grant it in persisted state; future Roles & Access edits win.
+  once("creator-mode-pm-admin-2026-07", () => {
+    for (const role of ["PRODUCT_MANAGER", "ADMIN"] as Role[]) {
+      const perms = store.rolePermissions[role] ?? [];
+      if (!perms.includes("CREATOR_MODE")) store.rolePermissions[role] = [...perms, "CREATOR_MODE"];
+    }
   });
 
   // Reports are restricted to Administrator and Product Manager. Strip
@@ -981,6 +1002,130 @@ export function activeInvestors(): Investor[] {
 
 export function activePolicies(): InsurancePolicy[] {
   return store.insurancePolicies.filter((p) => p.status === "ACTIVE");
+}
+
+// ---------------------------------------------------------------------------
+// Creator Mode registry — declarative extensions (custom fields, registers, KPI
+// tiles, watch rules). Accessors default undefined→empty so a snapshot saved
+// before Creator Mode existed still hydrates cleanly.
+// ---------------------------------------------------------------------------
+
+// --- Custom fields --------------------------------------------------------
+export function listCustomFields(entityType?: CustomFieldDef["entityType"]): CustomFieldDef[] {
+  const all = (store.customFields ??= []);
+  return entityType ? all.filter((f) => f.entityType === entityType) : all;
+}
+export function addCustomField(def: Omit<CustomFieldDef, "id" | "updatedAt">): CustomFieldDef {
+  const field: CustomFieldDef = { ...def, id: nextId("CFLD"), updatedAt: new Date().toISOString() };
+  (store.customFields ??= []).push(field);
+  return field;
+}
+export function updateCustomField(id: string, patch: Partial<Omit<CustomFieldDef, "id" | "entityType" | "key">>): CustomFieldDef | undefined {
+  const f = (store.customFields ??= []).find((x) => x.id === id);
+  if (!f) return undefined;
+  if (patch.label !== undefined) f.label = patch.label;
+  if (patch.type !== undefined) f.type = patch.type;
+  if (patch.options !== undefined) f.options = patch.options;
+  f.updatedAt = new Date().toISOString();
+  return f;
+}
+export function removeCustomField(id: string): boolean {
+  const arr = (store.customFields ??= []);
+  const i = arr.findIndex((x) => x.id === id);
+  if (i < 0) return false;
+  arr.splice(i, 1);
+  return true;
+}
+export function getCustomFieldValues(entityType: CustomFieldDef["entityType"], entityId: string): Record<string, string> {
+  return (store.customFieldValues ??= {})[`${entityType}:${entityId}`] ?? {};
+}
+export function setCustomFieldValues(entityType: CustomFieldDef["entityType"], entityId: string, values: Record<string, string>): void {
+  (store.customFieldValues ??= {})[`${entityType}:${entityId}`] = values;
+}
+
+// --- Custom registers -----------------------------------------------------
+export function listCustomRegisters(): CustomRegister[] {
+  return (store.customRegisters ??= []);
+}
+export function getCustomRegister(id: string): CustomRegister | undefined {
+  return (store.customRegisters ??= []).find((r) => r.id === id);
+}
+export function addCustomRegister(reg: Omit<CustomRegister, "id" | "updatedAt">): CustomRegister {
+  const r: CustomRegister = { ...reg, id: nextId("CREG"), updatedAt: new Date().toISOString() };
+  (store.customRegisters ??= []).push(r);
+  return r;
+}
+export function updateCustomRegister(id: string, patch: Partial<Omit<CustomRegister, "id">>): CustomRegister | undefined {
+  const r = (store.customRegisters ??= []).find((x) => x.id === id);
+  if (!r) return undefined;
+  if (patch.name !== undefined) r.name = patch.name;
+  if (patch.description !== undefined) r.description = patch.description;
+  if (patch.columns !== undefined) r.columns = patch.columns;
+  if (patch.rows !== undefined) r.rows = patch.rows;
+  r.updatedAt = new Date().toISOString();
+  return r;
+}
+export function removeCustomRegister(id: string): boolean {
+  const arr = (store.customRegisters ??= []);
+  const i = arr.findIndex((x) => x.id === id);
+  if (i < 0) return false;
+  arr.splice(i, 1);
+  return true;
+}
+
+// --- KPI tiles ------------------------------------------------------------
+export function listKpiTiles(): KpiTile[] {
+  return (store.kpiTiles ??= []);
+}
+export function addKpiTile(tile: Omit<KpiTile, "id" | "updatedAt">): KpiTile {
+  const t: KpiTile = { ...tile, id: nextId("KPI"), updatedAt: new Date().toISOString() };
+  (store.kpiTiles ??= []).push(t);
+  return t;
+}
+export function updateKpiTile(id: string, patch: Partial<Omit<KpiTile, "id">>): KpiTile | undefined {
+  const t = (store.kpiTiles ??= []).find((x) => x.id === id);
+  if (!t) return undefined;
+  if (patch.label !== undefined) t.label = patch.label;
+  if (patch.formula !== undefined) t.formula = patch.formula;
+  if (patch.format !== undefined) t.format = patch.format;
+  t.updatedAt = new Date().toISOString();
+  return t;
+}
+export function removeKpiTile(id: string): boolean {
+  const arr = (store.kpiTiles ??= []);
+  const i = arr.findIndex((x) => x.id === id);
+  if (i < 0) return false;
+  arr.splice(i, 1);
+  return true;
+}
+
+// --- Watch rules ----------------------------------------------------------
+export function listWatchRules(): WatchRule[] {
+  return (store.watchRules ??= []);
+}
+export function addWatchRule(rule: Omit<WatchRule, "id" | "updatedAt">): WatchRule {
+  const r: WatchRule = { ...rule, id: nextId("WRUL"), updatedAt: new Date().toISOString() };
+  (store.watchRules ??= []).push(r);
+  return r;
+}
+export function updateWatchRule(id: string, patch: Partial<Omit<WatchRule, "id">>): WatchRule | undefined {
+  const r = (store.watchRules ??= []).find((x) => x.id === id);
+  if (!r) return undefined;
+  if (patch.label !== undefined) r.label = patch.label;
+  if (patch.scope !== undefined) r.scope = patch.scope;
+  if (patch.expression !== undefined) r.expression = patch.expression;
+  if (patch.severity !== undefined) r.severity = patch.severity;
+  if (patch.message !== undefined) r.message = patch.message;
+  if (patch.enabled !== undefined) r.enabled = patch.enabled;
+  r.updatedAt = new Date().toISOString();
+  return r;
+}
+export function removeWatchRule(id: string): boolean {
+  const arr = (store.watchRules ??= []);
+  const i = arr.findIndex((x) => x.id === id);
+  if (i < 0) return false;
+  arr.splice(i, 1);
+  return true;
 }
 
 // ASR approved-obligor sublimit for a seller/obligor pair (undefined = obligor

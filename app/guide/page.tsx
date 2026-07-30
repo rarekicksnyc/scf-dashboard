@@ -48,6 +48,7 @@ const SCREENS: [string, string][] = [
   ["Exceptions", "The maker-checker queue for batch breaches — a checker approves or rejects."],
   ["Enforceability", "Country register and any entity domiciled outside an eligible country."],
   ["Reports", "Exportable transaction and exposure reports — Product Manager and Administrator roles only."],
+  ["Creator mode", "Governed, no-code platform extension (PM and Administrator): add custom fields and reference registers, build KPI tiles from a safe formula, and set advisory watch rules over the book. Every change is validated, audited, and reversible; nothing here changes the ledger or a control."],
   ["Audit log", "Every action, who did it, and when."],
   ["Roles & access", "The role to permission map and user management."],
 ];

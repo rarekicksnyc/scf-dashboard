@@ -234,6 +234,60 @@ export interface DocTemplate {
   updatedAt?: string;
 }
 
+// ---------------------------------------------------------------------------
+// Creator Mode — governed, declarative platform extensions (PM + Admin). Each is
+// inert data interpreted by a fixed runtime; no executable code, no LLM. Custom
+// fields/registers are additive; KPI tiles and watch rules read the canonical
+// store through the safe expression evaluator. Nothing here can mutate the ledger
+// or weaken a control.
+// ---------------------------------------------------------------------------
+
+export type CustomFieldType = "text" | "number" | "date" | "select" | "boolean";
+export type CustomFieldEntity = "SELLER" | "OBLIGOR";
+
+export interface CustomFieldDef {
+  id: string;
+  entityType: CustomFieldEntity;
+  key: string; // machine key, unique within an entity type
+  label: string;
+  type: CustomFieldType;
+  options?: string[]; // for select
+  updatedAt?: string;
+}
+
+export interface CustomRegister {
+  id: string;
+  name: string;
+  description?: string;
+  columns: string[];
+  rows: string[][]; // each row aligned to columns
+  updatedAt?: string;
+}
+
+export type KpiFormat = "currency" | "number" | "percent" | "bps";
+
+export interface KpiTile {
+  id: string;
+  label: string;
+  formula: string; // safe expression over the book-level aggregate surface
+  format: KpiFormat;
+  updatedAt?: string;
+}
+
+export type WatchScope = "DEAL" | "SELLER" | "OBLIGOR";
+export type WatchSeverity = "INFO" | "WARN";
+
+export interface WatchRule {
+  id: string;
+  label: string;
+  scope: WatchScope; // what the rule iterates over
+  expression: string; // safe boolean expression; a true result raises the item
+  severity: WatchSeverity;
+  message?: string;
+  enabled: boolean;
+  updatedAt?: string;
+}
+
 export interface InsurancePolicy {
   id: string;
   insurerName: string;
@@ -821,7 +875,8 @@ export type Permission =
   | "VIEW_REPORTS"
   | "VIEW_AUDIT"
   | "GENERATE_PAYMENT_FILE"
-  | "MANAGE_ROLES";
+  | "MANAGE_ROLES"
+  | "CREATOR_MODE"; // build/extend the platform via governed configuration (PM + Admin)
 
 export type Role =
   | "OPERATIONS"

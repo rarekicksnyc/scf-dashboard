@@ -47,6 +47,7 @@ export const ALL_PERMISSIONS: Permission[] = [
   "VIEW_AUDIT",
   "GENERATE_PAYMENT_FILE",
   "MANAGE_ROLES",
+  "CREATOR_MODE",
 ];
 
 export const PERMISSION_LABEL: Record<Permission, string> = {
@@ -57,6 +58,7 @@ export const PERMISSION_LABEL: Record<Permission, string> = {
   VIEW_AUDIT: "View audit",
   GENERATE_PAYMENT_FILE: "Payment file",
   MANAGE_ROLES: "Manage roles",
+  CREATOR_MODE: "Creator mode",
 };
 
 export function listUsers(): User[] {

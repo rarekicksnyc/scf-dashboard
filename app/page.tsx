@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { limitViews } from "@/lib/data/store";
+import { limitViews, listKpiTiles } from "@/lib/data/store";
 import { sellerExposure, obligorExposure } from "@/lib/exposure";
 import { buildExpirations, expiryCounts } from "@/lib/expirations";
+import { computeKpis } from "@/lib/creator/run";
 import { mm } from "@/lib/format";
 import ExposureTabs from "./ExposureTabs";
 import type { LimitType } from "@/lib/types";
@@ -27,6 +28,7 @@ export default async function PortfolioPage({
   const obligors = obligorExposure(asOf);
   const exp = expiryCounts(buildExpirations(today));
   const expAlert = exp.expired + exp.within30 + exp.within60;
+  const kpiTiles = computeKpis(listKpiTiles());
 
   const byType = (t: LimitType) => views.filter((v) => v.limit.type === t);
   const sumApproved = (t: LimitType) =>
@@ -76,6 +78,20 @@ export default async function PortfolioPage({
           </div>
         ))}
       </div>
+
+      {kpiTiles.length > 0 && (
+        <div className="panel">
+          <h2>Custom KPIs</h2>
+          <div className="cards" style={{ padding: 16 }}>
+            {kpiTiles.map((k) => (
+              <div className="card" key={k.id}>
+                <div className="label">{k.label}</div>
+                <div className="value small" style={k.error ? { color: "var(--red)", fontSize: 14 } : undefined}>{k.error ? "—" : k.formatted}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <ExposureTabs sellers={sellers} obligors={obligors} asOf={asOf ?? ""} aggregate={aggregate} today={today} />
     </>

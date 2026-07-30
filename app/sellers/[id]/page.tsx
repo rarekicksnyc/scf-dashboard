@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getSeller, findLimit, viewLimit } from "@/lib/data/store";
+import { getSeller, findLimit, viewLimit, listCustomFields, getCustomFieldValues } from "@/lib/data/store";
 import { mm, pct } from "@/lib/format";
+import { currentUserCan } from "@/lib/auth";
 import EntityDetail from "../../entity/EntityDetail";
+import EntityCustomFields from "../../creator/EntityCustomFields";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +15,8 @@ export default async function SellerPage({ params }: { params: Promise<{ id: str
 
   const sl = findLimit("SELLER", id);
   const view = sl ? viewLimit(sl) : undefined;
+  const customFields = listCustomFields("SELLER");
+  const canEditData = await currentUserCan("CHANGE_LIMIT");
 
   return (
     <>
@@ -32,6 +36,7 @@ export default async function SellerPage({ params }: { params: Promise<{ id: str
       </p>
 
       <EntityDetail mode="SELLER" id={id} />
+      <EntityCustomFields entityType="SELLER" entityId={id} defs={customFields} values={getCustomFieldValues("SELLER", id)} canEdit={canEditData} />
     </>
   );
 }
