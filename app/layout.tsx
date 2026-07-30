@@ -5,6 +5,7 @@ import { getRevision } from "@/lib/data/store";
 import SessionBar from "./SessionBar";
 import LiveSync from "./LiveSync";
 import NavLinks from "./NavLinks";
+import NotificationsBell from "./NotificationsBell";
 
 export const metadata: Metadata = {
   title: "SCF Discounting Control Tower",
@@ -55,6 +56,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <div className="brand">SCF Control Tower</div>
             <div className="brand-sub">Seller-Led Discounting</div>
             <SessionBar name={user.name} roleLabel={ROLE_LABEL[user.role]} />
+            <NotificationsBell />
             <nav className="nav">
               <NavLinks items={NAV.filter((n) => !n.need || perms.includes(n.need)).map((n) => ({ href: n.href, label: n.label }))} />
             </nav>

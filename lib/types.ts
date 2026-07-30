@@ -288,6 +288,35 @@ export interface WatchRule {
   updatedAt?: string;
 }
 
+// ---------------------------------------------------------------------------
+// Coverage + notifications. A user "covers" specific sellers and/or obligors;
+// notifications (maturities, reservations, expiring limits, exceptions) route to
+// the covering users. Multiple users may cover the same entity (OOO backup).
+// ---------------------------------------------------------------------------
+
+export interface CoverageAssignment {
+  id: string;
+  userId: string;
+  entityType: "SELLER" | "OBLIGOR";
+  entityId: string;
+}
+
+export type NotificationType = "EXCEPTION" | "MATURITY" | "RESERVATION" | "LIMIT_EXPIRY";
+
+// A stored notification event (currently only four-eyes exceptions). The live
+// digest items (maturities/reservations/limits due) are derived, not stored.
+export interface NotificationEvent {
+  id: string;
+  userId: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  ref?: string; // e.g. a workflow reference or entity id
+  href?: string; // where clicking should take the user
+  createdAt: string;
+  readAt?: string;
+}
+
 export interface InsurancePolicy {
   id: string;
   insurerName: string;

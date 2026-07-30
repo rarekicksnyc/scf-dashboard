@@ -7,8 +7,9 @@ import {
   PERMISSION_LABEL,
   listUsers,
 } from "@/lib/auth";
-import { rolePermissionMap } from "@/lib/data/store";
+import { rolePermissionMap, listCoverage, allSellers, allObligors } from "@/lib/data/store";
 import { RolesMatrix, UserRoles } from "./AccessControls";
+import CoverageManager from "./CoverageManager";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,13 @@ export default async function AccessPage() {
       />
 
       <UserRoles users={listUsers()} roles={ALL_ROLES} roleLabel={ROLE_LABEL} />
+
+      <CoverageManager
+        users={listUsers().map((u) => ({ id: u.id, name: u.name, roleLabel: ROLE_LABEL[u.role] }))}
+        sellers={allSellers().map((s) => ({ id: s.id, name: s.name }))}
+        obligors={allObligors().map((o) => ({ id: o.id, name: o.name }))}
+        coverage={listCoverage()}
+      />
     </>
   );
 }

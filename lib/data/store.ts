@@ -36,7 +36,7 @@ import type {
   AuthorizedSignatory,
 } from "@/lib/types";
 import type { WorkoutRoute, InvoiceResult } from "@/lib/types";
-import type { CustomFieldDef, CustomRegister, KpiTile, WatchRule } from "@/lib/types";
+import type { CustomFieldDef, CustomRegister, KpiTile, WatchRule, CoverageAssignment, NotificationEvent } from "@/lib/types";
 import { DEFAULT_TEMPLATES } from "@/lib/data/templates";
 import { toLimitView, computeConsumed } from "@/lib/engine/availability";
 import { daysBetween, limitActiveOn } from "@/lib/format";
@@ -90,6 +90,8 @@ interface Store {
   customRegisters: CustomRegister[];
   kpiTiles: KpiTile[];
   watchRules: WatchRule[];
+  coverage: CoverageAssignment[]; // user ↔ seller/obligor coverage
+  notifications: NotificationEvent[]; // stored notification events (exceptions)
   rev: number; // global change counter — bumped on every audited action (live sync)
   recordRevs: Record<string, number>; // per-record change counters (edit-conflict guard)
   seq: number; // monotonic id counter
@@ -139,6 +141,8 @@ function seedStore(): Store {
     customRegisters: [],
     kpiTiles: [],
     watchRules: [],
+    coverage: [],
+    notifications: [],
     rev: 0,
     recordRevs: {},
     // Start the id counter past the seeded reservation ids (RSV-0000N) so
@@ -443,6 +447,9 @@ export function requestWorkflowException(id: string, reason: string, makerId: st
   wf.exceptionApprovedByName = undefined;
   wf.exceptionApprovedAt = undefined;
   wf.timeline.push({ at: new Date().toISOString(), by: makerName, event: `Exception approval requested: ${reason}` });
+  // Alert co-covering reviewers (four-eyes) — everyone covering this seller/obligor
+  // who can approve, except the maker.
+  notifyWorkflowException(wf, makerId);
   return wf;
 }
 
@@ -1126,6 +1133,90 @@ export function removeWatchRule(id: string): boolean {
   if (i < 0) return false;
   arr.splice(i, 1);
   return true;
+}
+
+// ---------------------------------------------------------------------------
+// Coverage — user ↔ seller/obligor assignments. Multiple users per entity
+// (OOO backup); notifications route to whoever covers the entity.
+// ---------------------------------------------------------------------------
+export function listCoverage(): CoverageAssignment[] { return (store.coverage ??= []); }
+export function coverageForUser(userId: string): CoverageAssignment[] {
+  return (store.coverage ??= []).filter((c) => c.userId === userId);
+}
+export function coveredEntityIds(userId: string): { sellers: Set<string>; obligors: Set<string> } {
+  const sellers = new Set<string>(), obligors = new Set<string>();
+  for (const c of coverageForUser(userId)) (c.entityType === "SELLER" ? sellers : obligors).add(c.entityId);
+  return { sellers, obligors };
+}
+export function usersCoveringEntity(entityType: "SELLER" | "OBLIGOR", entityId: string): string[] {
+  return (store.coverage ??= []).filter((c) => c.entityType === entityType && c.entityId === entityId).map((c) => c.userId);
+}
+export function addCoverage(a: Omit<CoverageAssignment, "id">): CoverageAssignment | undefined {
+  const arr = (store.coverage ??= []);
+  if (arr.some((c) => c.userId === a.userId && c.entityType === a.entityType && c.entityId === a.entityId)) return undefined; // dedupe
+  const rec: CoverageAssignment = { ...a, id: nextId("COV") };
+  arr.push(rec);
+  return rec;
+}
+export function removeCoverage(id: string): boolean {
+  const arr = (store.coverage ??= []);
+  const i = arr.findIndex((c) => c.id === id);
+  if (i < 0) return false;
+  arr.splice(i, 1);
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Notification events (stored). Live digest items are derived in lib/notifications.
+// ---------------------------------------------------------------------------
+export function addNotification(n: Omit<NotificationEvent, "id" | "createdAt">): NotificationEvent {
+  const rec: NotificationEvent = { ...n, id: nextId("NTF"), createdAt: new Date().toISOString() };
+  (store.notifications ??= []).unshift(rec);
+  return rec;
+}
+export function listNotificationsForUser(userId: string, limit = 50): NotificationEvent[] {
+  return (store.notifications ??= []).filter((n) => n.userId === userId).slice(0, limit);
+}
+export function unreadNotificationCount(userId: string): number {
+  return (store.notifications ??= []).filter((n) => n.userId === userId && !n.readAt).length;
+}
+export function markNotificationRead(id: string, userId: string): boolean {
+  const n = (store.notifications ??= []).find((x) => x.id === id && x.userId === userId);
+  if (!n) return false;
+  if (!n.readAt) n.readAt = new Date().toISOString();
+  return true;
+}
+export function markAllNotificationsRead(userId: string): number {
+  let count = 0;
+  for (const n of (store.notifications ??= [])) if (n.userId === userId && !n.readAt) { n.readAt = new Date().toISOString(); count++; }
+  return count;
+}
+
+// Four-eyes exception routing: notify every user who covers the deal's seller or
+// obligor, can approve exceptions, and is NOT the maker — so a second authorized
+// reviewer is alerted. Safe to call on every exception request (idempotent enough;
+// one event per covering reviewer per call).
+export function notifyWorkflowException(wf: TransactionWorkflow, makerId: string): number {
+  const reviewers = new Set<string>([
+    ...usersCoveringEntity("SELLER", wf.sellerId),
+    ...usersCoveringEntity("OBLIGOR", wf.obligorId),
+  ]);
+  reviewers.delete(makerId);
+  let sent = 0;
+  for (const uid of reviewers) {
+    const u = storeGetUserById(uid);
+    if (!u || !roleHasPermission(u.role, "APPROVE_EXCEPTION")) continue;
+    addNotification({
+      userId: uid,
+      type: "EXCEPTION",
+      title: `Exception needs a second approver`,
+      body: `${wf.reference} (${wf.sellerName} / ${wf.obligorName}) has a booking exception awaiting four-eyes approval.`,
+      ref: wf.reference,
+      href: "/eligibility",
+    });
+    sent++;
+  }
+  return sent;
 }
 
 // ASR approved-obligor sublimit for a seller/obligor pair (undefined = obligor
