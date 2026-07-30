@@ -34,13 +34,16 @@ export default function ScheduleCalendar({
   sellers,
   obligors,
   defaultMonth,
+  outstandingByDate = {},
 }: {
   events: ScheduleEvent[];
   sellers: Opt[];
   obligors: Opt[];
   defaultMonth: string;
+  outstandingByDate?: Record<string, number>;
 }) {
   const [ym, setYm] = useState(defaultMonth);
+  const [showOutstanding, setShowOutstanding] = useState(true);
   const [selSellers, setSelSellers] = useState<Set<string>>(new Set());
   const [selObligors, setSelObligors] = useState<Set<string>>(new Set());
 
@@ -86,6 +89,12 @@ export default function ScheduleCalendar({
 
   const firstWeekday = new Date(Date.UTC(year, month - 1, 1)).getUTCDay();
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  // Peak expected outstanding across the visible month (funded principal).
+  let monthPeak = 0;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const v = outstandingByDate[`${ym}-${String(d).padStart(2, "0")}`] ?? 0;
+    if (v > monthPeak) monthPeak = v;
+  }
   const cells: Array<number | null> = [];
   for (let i = 0; i < firstWeekday; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
@@ -128,6 +137,7 @@ export default function ScheduleCalendar({
         <div className="card"><div className="label">Fundings this month</div><div className="value small">{mm(totals.FUNDING)}</div></div>
         <div className="card"><div className="label">Expected repayments</div><div className="value small">{mm(totals.REPAYMENT)}</div></div>
         <div className="card"><div className="label">Swingline movements</div><div className="value small">{mm(totals.SWINGLINE_DRAW)}</div></div>
+        <div className="card"><div className="label">Peak expected outstanding</div><div className="value small">{mm(monthPeak)}</div><div className="muted" style={{ fontSize: 11, marginTop: 4 }}>funded principal · this month</div></div>
       </div>
 
       <div className="row-actions" style={{ justifyContent: "space-between" }}>
@@ -141,9 +151,15 @@ export default function ScheduleCalendar({
         {cells.map((d, i) => {
           const key = d ? `${ym}-${String(d).padStart(2, "0")}` : `blank-${i}`;
           const evs = d ? (byDay.get(key) ?? []) : [];
+          const outs = d ? (outstandingByDate[key] ?? 0) : 0;
           return (
             <div key={key} className={`cal-cell ${d ? "" : "cal-empty"}`}>
-              {d && <div className="cal-day">{d}</div>}
+              {d && (
+                <div className="cal-day" style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 4 }}>
+                  <span>{d}</span>
+                  {showOutstanding && outs > 0 && <span title={`Expected outstanding ${mm(outs)}`} style={{ fontSize: 10, fontWeight: 600, color: "var(--brand)" }}>{mm(outs)}</span>}
+                </div>
+              )}
               {evs.map((e, j) => (
                 <div
                   key={j}
@@ -158,10 +174,13 @@ export default function ScheduleCalendar({
         })}
       </div>
 
-      <div className="row-actions" style={{ marginTop: 14 }}>
+      <div className="row-actions" style={{ marginTop: 14, alignItems: "center" }}>
         <span className="cal-ev ev-funding" style={{ position: "static" }}>Funding</span>
         <span className="cal-ev ev-repayment" style={{ position: "static" }}>Repayment</span>
         <span className="cal-ev ev-swingline" style={{ position: "static" }}>Swingline</span>
+        <label style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, fontSize: 13 }} className="muted">
+          <input type="checkbox" checked={showOutstanding} onChange={(e) => setShowOutstanding(e.target.checked)} /> Expected outstanding per day
+        </label>
       </div>
     </>
   );
