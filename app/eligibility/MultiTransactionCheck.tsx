@@ -113,6 +113,7 @@ export default function MultiTransactionCheck({ sellers, obligors, obligorEntiti
               invoiceType: r.invoiceType, advanceRate: Number(r.advanceRate) / 100,
               valueDate: r.valueDate, maturityDate: r.maturityDate, pricingBps: Number(r.pricingBps),
               productType: r.productType, baseRateType: r.baseRateType, baseRate: Number(r.baseRate),
+              reservationId: r.reservationId || undefined, // exclude the loaded reservation from its own check
             }),
           });
           const d = await res.json().catch(() => ({}));

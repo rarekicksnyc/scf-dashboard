@@ -142,6 +142,8 @@ export default function ExposureTabs({
   const router = useRouter();
   const [tab, setTab] = useState<"sellers" | "obligors">("sellers");
   const [q, setQ] = useState("");
+  const [showPicker, setShowPicker] = useState(!aggregate && asOf !== today);
+  const viewMode = aggregate ? "aggregate" : showPicker ? "asof" : "today";
 
   const source = tab === "sellers" ? sellers : obligors;
   const filtered = useMemo(() => {
@@ -187,31 +189,32 @@ export default function ExposureTabs({
           </button>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }} className="muted">
-            As of
-            <input
-              type="date"
-              value={aggregate ? "" : asOf}
-              onChange={(e) => router.push(e.target.value ? `/?asOf=${e.target.value}` : "/")}
-              style={{ border: "1px solid var(--border)", borderRadius: 6, padding: "6px 8px", fontSize: 13 }}
-            />
-            {aggregate ? (
-              <button className="btn secondary" style={{ padding: "3px 8px", fontSize: 11 }} type="button" onClick={() => router.push("/")}>
-                current
-              </button>
-            ) : (
-              <>
-                {asOf !== today && (
-                  <button className="btn secondary" style={{ padding: "3px 8px", fontSize: 11 }} type="button" onClick={() => router.push("/")}>
-                    today
-                  </button>
-                )}
-                <button className="btn secondary" style={{ padding: "3px 8px", fontSize: 11 }} type="button" onClick={() => router.push("/?asOf=all")}>
-                  aggregate
+          {/* Explicit view mode so the date field never navigates on a stray click:
+              picking "As-of date" only reveals the picker; a view changes only on
+              an actual button press or a chosen date. */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }} className="muted">
+            <span>View:</span>
+            <div style={{ display: "inline-flex", border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
+              {([
+                { m: "today", label: "Today", on: () => { setShowPicker(false); router.push("/"); } },
+                { m: "asof", label: "As of date", on: () => setShowPicker(true) },
+                { m: "aggregate", label: "Aggregate", on: () => { setShowPicker(false); router.push("/?asOf=all"); } },
+              ] as const).map((b) => (
+                <button key={b.m} type="button" onClick={b.on}
+                  style={{ padding: "5px 10px", fontSize: 12, border: "none", cursor: "pointer", background: viewMode === b.m ? "var(--brand)" : "transparent", color: viewMode === b.m ? "#fff" : "var(--ink)" }}>
+                  {b.label}
                 </button>
-              </>
+              ))}
+            </div>
+            {viewMode === "asof" && (
+              <input
+                type="date"
+                value={asOf === today ? "" : asOf}
+                onChange={(e) => { if (e.target.value) router.push(`/?asOf=${e.target.value}`); }}
+                style={{ border: "1px solid var(--border)", borderRadius: 6, padding: "5px 8px", fontSize: 13 }}
+              />
             )}
-          </label>
+          </div>
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}

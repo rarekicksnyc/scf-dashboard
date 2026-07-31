@@ -15,11 +15,15 @@ export default function AddObligorToFacility({
   sellerName,
   availableObligors,
   everyObligor,
+  sellerLimit,
+  obligorLimits,
 }: {
   sellerId: string;
   sellerName: string;
   availableObligors: Opt[]; // obligors not yet on this seller's ASR
   everyObligor: Opt[]; // all obligors (used when adding to all sellers)
+  sellerLimit?: number; // this seller's approved line
+  obligorLimits?: Record<string, number>; // obligorId → master obligor line
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<"EXISTING" | "NEW">(availableObligors.length ? "EXISTING" : "NEW");
@@ -34,6 +38,13 @@ export default function AddObligorToFacility({
     maxTenorDays: "150",
     groupExpiry: oneYearOut,
   });
+  // The ASR sublimit is usually the LOWER of the seller line and the obligor line.
+  // Suggest that and keep the field in sync until the user edits it themselves.
+  const [sublimitTouched, setSublimitTouched] = useState(false);
+  const obligorMaster = mode === "NEW" ? (Number(f.masterLimit) || 0) : (obligorLimits?.[f.obligorId] ?? 0);
+  const candidates = [sellerLimit, obligorMaster].filter((n): n is number => typeof n === "number" && n > 0);
+  const suggestedSublimit = candidates.length ? Math.min(...candidates) : 0;
+  const sublimitValue = sublimitTouched || suggestedSublimit === 0 ? f.asrSublimit : String(suggestedSublimit);
   const [busy, setBusy] = useState(false);
   const [allSellers, setAllSellers] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -54,7 +65,7 @@ export default function AddObligorToFacility({
         cdl: f.cdl,
         country: f.country,
         masterLimit: Number(f.masterLimit),
-        asrSublimit: Number(f.asrSublimit),
+        asrSublimit: Number(sublimitValue),
         maxTenorDays: Number(f.maxTenorDays),
         groupExpiry: f.groupExpiry,
       }),
@@ -127,7 +138,8 @@ export default function AddObligorToFacility({
         )}
 
         <label style={field}>ASR sublimit (USD)
-          <NumberInput style={input} value={f.asrSublimit} onValue={(v) => set("asrSublimit", v)} ariaLabel="ASR sublimit" />
+          <NumberInput style={input} value={sublimitValue} onValue={(v) => { setSublimitTouched(true); set("asrSublimit", v); }} ariaLabel="ASR sublimit" />
+          {!sublimitTouched && suggestedSublimit > 0 && <span className="muted" style={{ fontSize: 11 }}>Suggested: lower of the seller and obligor line</span>}
         </label>
         <label style={field}>Max tenor (days)
           <input style={input} type="number" value={f.maxTenorDays} onChange={(e) => set("maxTenorDays", e.target.value)} />

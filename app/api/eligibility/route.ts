@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { checkDiscount } from "@/lib/engine/eligibility";
+import { checkDiscountExcluding } from "@/lib/workflowEligibility";
 import type { DiscountTransaction } from "@/lib/types";
 
 // Run one discount transaction through the consolidated eligibility engine.
 export async function POST(request: Request) {
-  const b = (await request.json().catch(() => null)) as Partial<DiscountTransaction> | null;
+  const b = (await request.json().catch(() => null)) as (Partial<DiscountTransaction> & { reservationId?: string }) | null;
   const isUtrc = b?.productType === "UTRC";
   // DTR needs an invoice amount; UTRC needs a committed amount.
   const primaryAmount = isUtrc ? Number(b?.committedAmount) : Number(b?.invoiceAmount);
@@ -48,5 +48,8 @@ export async function POST(request: Request) {
       : undefined,
   };
 
-  return NextResponse.json(checkDiscount(txn));
+  // If this check was loaded from a reservation, exclude it so the deal is not
+  // double-counted against its own held capacity (matches proceed/booking).
+  const reservationId = typeof b.reservationId === "string" ? b.reservationId : undefined;
+  return NextResponse.json(checkDiscountExcluding(txn, reservationId));
 }

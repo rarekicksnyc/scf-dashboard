@@ -197,6 +197,8 @@ export default async function DataManagementPage({
               .filter((o) => !asrObligors.some((x) => x.obligorId === o.id))
               .map((o) => ({ id: o.id, name: o.name }))}
             everyObligor={allObligors().map((o) => ({ id: o.id, name: o.name }))}
+            sellerLimit={sellerLimit?.approvedLimit}
+            obligorLimits={Object.fromEntries(allObligors().map((o) => [o.id, findLimit("OBLIGOR", o.id)?.approvedLimit ?? 0]))}
           />
         )}
         <ObligorGroupsTable
