@@ -170,7 +170,7 @@ host-to-host ingestion stub (`POST /api/ingest`).
 |---|---|---|---|---|---|---|
 | Operations | ✓ | | | ✓ | ✓ | ✓ |
 | Credit Officer | | ✓ | ✓ | ✓ | ✓ | |
-| Product Manager | ✓ | ✓ | | ✓ | ✓ | |
+| Portfolio Manager | ✓ | ✓ | | ✓ | ✓ | |
 | Risk Manager | | ✓ | ✓ | ✓ | ✓ | |
 | Relationship Manager | ✓ | | | ✓ | | |
 | Administrator | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |

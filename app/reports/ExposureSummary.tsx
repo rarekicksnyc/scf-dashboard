@@ -2,12 +2,32 @@
 
 import { useMemo, useState } from "react";
 import { mm, pct, usd } from "@/lib/format";
+import { evaluateExpression, toNumber } from "@/lib/creator/expr";
 import type { EntityExposure } from "@/lib/exposure";
+import type { TemplateFieldDef } from "@/lib/types";
 
 type SortKey = "name" | "approved" | "outstanding" | "reserved" | "available" | "utilizationPct";
 
+// A custom exposure-report column's value for one row (same pure evaluator).
+function exposureCell(f: TemplateFieldDef, r: EntityExposure): string {
+  if (f.kind === "text") return f.text ?? "";
+  if (f.kind === "dropdown") return f.options?.[0] ?? "";
+  const ctx = { approved: r.approved, outstanding: r.outstanding, reserved: r.reserved, available: r.available, utilization_pct: r.utilizationPct };
+  const { value, error } = evaluateExpression(f.formula ?? "", ctx);
+  if (error !== undefined || value === undefined) return "—";
+  const n = toNumber(value);
+  switch (f.format) {
+    case "currency": return usd(n);
+    case "percent": return `${(n * 100).toFixed(1)}%`;
+    case "bps": return `${Math.round(n)} bps`;
+    case "text": return String(value);
+    default: return n.toLocaleString("en-US", { maximumFractionDigits: 2 });
+  }
+}
 
-export default function ExposureSummary({ rows }: { rows: EntityExposure[] }) {
+export default function ExposureSummary({ rows, templateFields = [], hiddenColumns = [] }: { rows: EntityExposure[]; templateFields?: TemplateFieldDef[]; hiddenColumns?: string[] }) {
+  const hidden = useMemo(() => new Set(hiddenColumns), [hiddenColumns]);
+  const show = (k: string) => !hidden.has(k);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [kindFilter, setKindFilter] = useState<"ALL" | "SELLER" | "OBLIGOR">("ALL");
   const [query, setQuery] = useState("");
@@ -190,19 +210,20 @@ export default function ExposureSummary({ rows }: { rows: EntityExposure[] }) {
             <thead>
               <tr>
                 <th style={{ width: 34 }}></th>
-                <th>Type</th>
-                {th("name", "Name")}
-                <th>CDL</th>
-                {th("approved", "Approved", true)}
-                {th("outstanding", "Outstanding", true)}
-                {th("reserved", "Reserved", true)}
-                {th("available", "Available", true)}
-                {th("utilizationPct", "Util", true)}
+                {show("kind") && <th>Type</th>}
+                {show("name") && th("name", "Name")}
+                {show("cdl") && <th>CDL</th>}
+                {show("approved") && th("approved", "Approved", true)}
+                {show("outstanding") && th("outstanding", "Outstanding", true)}
+                {show("reserved") && th("reserved", "Reserved", true)}
+                {show("available") && th("available", "Available", true)}
+                {show("utilizationPct") && th("utilizationPct", "Util", true)}
+                {templateFields.map((f) => <th key={f.id} className={f.kind === "formula" && f.format !== "text" ? "num" : ""}>{f.label}</th>)}
               </tr>
             </thead>
             <tbody>
               {visible.length === 0 ? (
-                <tr><td colSpan={9} className="muted" style={{ padding: 16 }}>No names match.</td></tr>
+                <tr><td colSpan={1 + ["kind", "name", "cdl", "approved", "outstanding", "reserved", "available", "utilizationPct"].filter(show).length + templateFields.length} className="muted" style={{ padding: 16 }}>No names match.</td></tr>
               ) : (
                 visible.map((r) => {
                   const isChosen = selected.size === 0 || selected.has(key(r));
@@ -211,18 +232,19 @@ export default function ExposureSummary({ rows }: { rows: EntityExposure[] }) {
                       <td style={{ textAlign: "center" }}>
                         <input type="checkbox" checked={selected.has(key(r))} onChange={() => toggle(r)} />
                       </td>
-                      <td>
+                      {show("kind") && <td>
                         <span className={`badge ${r.kind === "SELLER" ? "green" : "grey"}`}>
                           {r.kind === "SELLER" ? "Seller" : "Obligor"}
                         </span>
-                      </td>
-                      <td style={{ fontWeight: 600 }}>{r.name}</td>
-                      <td><code style={{ fontSize: 12 }}>{r.cdl || "—"}</code></td>
-                      <td className="num">{mm(r.approved)}</td>
-                      <td className="num">{mm(r.outstanding)}</td>
-                      <td className="num">{mm(r.reserved)}</td>
-                      <td className="num">{mm(r.available)}</td>
-                      <td className="num">{pct(r.utilizationPct)}</td>
+                      </td>}
+                      {show("name") && <td style={{ fontWeight: 600 }}>{r.name}</td>}
+                      {show("cdl") && <td><code style={{ fontSize: 12 }}>{r.cdl || "—"}</code></td>}
+                      {show("approved") && <td className="num">{mm(r.approved)}</td>}
+                      {show("outstanding") && <td className="num">{mm(r.outstanding)}</td>}
+                      {show("reserved") && <td className="num">{mm(r.reserved)}</td>}
+                      {show("available") && <td className="num">{mm(r.available)}</td>}
+                      {show("utilizationPct") && <td className="num">{pct(r.utilizationPct)}</td>}
+                      {templateFields.map((f) => <td key={f.id} className={f.kind === "formula" && f.format !== "text" ? "num" : ""}>{exposureCell(f, r)}</td>)}
                     </tr>
                   );
                 })

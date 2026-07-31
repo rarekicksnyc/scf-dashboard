@@ -277,7 +277,7 @@ export interface KpiTile {
 // A custom field added to a report (or, later, a file template) via Creator Mode.
 // Unified across targets; formula fields compute per row through the safe
 // evaluator over that target's row surface.
-export type TemplateTarget = "REPORT_TRANSACTIONS";
+export type TemplateTarget = "REPORT_TRANSACTIONS" | "REPORT_EXPOSURE" | "DOCUMENT";
 export type TemplateFieldKind = "formula" | "text" | "dropdown";
 export type TemplateFieldFormat = "text" | "currency" | "number" | "percent" | "bps";
 

@@ -1,5 +1,5 @@
 import { evaluateExpression, toBool, toNumber, validateExpression } from "@/lib/creator/expr";
-import { kpiContext, watchSurface, KPI_FIELDS, watchFields, REPORT_TXN_FIELDS, type WatchItem } from "@/lib/creator/surface";
+import { kpiContext, watchSurface, KPI_FIELDS, watchFields, REPORT_TXN_FIELDS, REPORT_EXPOSURE_FIELDS, DOC_FIELDS, type WatchItem } from "@/lib/creator/surface";
 import { usd } from "@/lib/format";
 import type { KpiTile, WatchRule, KpiFormat, WatchScope } from "@/lib/types";
 
@@ -15,6 +15,8 @@ export function validateWatchExpression(expression: string, scope: WatchScope) {
 // Report/template field surfaces, keyed by target. Today: the Transaction report.
 export function templateFieldKeys(target: string): string[] {
   if (target === "REPORT_TRANSACTIONS") return REPORT_TXN_FIELDS.map((f) => f.key);
+  if (target === "REPORT_EXPOSURE") return REPORT_EXPOSURE_FIELDS.map((f) => f.key);
+  if (target === "DOCUMENT") return DOC_FIELDS.map((f) => f.key);
   return [];
 }
 export function validateTemplateFormula(formula: string, target: string) { return validateExpression(formula, templateFieldKeys(target)); }

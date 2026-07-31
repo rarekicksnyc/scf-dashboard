@@ -91,6 +91,7 @@ interface Store {
   kpiTiles: KpiTile[];
   watchRules: WatchRule[];
   templateFields: TemplateFieldDef[]; // custom report/template columns
+  hiddenReportColumns: Record<string, string[]>; // target → hidden built-in column keys
   coverage: CoverageAssignment[]; // user ↔ seller/obligor coverage
   notifications: NotificationEvent[]; // stored notification events (exceptions)
   rev: number; // global change counter — bumped on every audited action (live sync)
@@ -143,6 +144,7 @@ function seedStore(): Store {
     kpiTiles: [],
     watchRules: [],
     templateFields: [],
+    hiddenReportColumns: {},
     coverage: [],
     notifications: [],
     rev: 0,
@@ -190,7 +192,7 @@ export function runMigrations(): void {
     store.migrations!.push(id);
   };
 
-  // Product Managers (alongside Administrators) may manage roles and users.
+  // Portfolio Managers (alongside Administrators) may manage roles and users.
   once("pm-manage-roles-2026-07", () => {
     const pm = store.rolePermissions.PRODUCT_MANAGER ?? [];
     if (!pm.includes("MANAGE_ROLES")) {
@@ -214,7 +216,7 @@ export function runMigrations(): void {
     for (const b of store.batches) materializeBatchBookings(b, "system:migration");
   });
 
-  // Creator Mode (governed platform extensions) is available to Product Manager
+  // Creator Mode (governed platform extensions) is available to Portfolio Manager
   // and Administrator. Grant it in persisted state; future Roles & Access edits win.
   once("creator-mode-pm-admin-2026-07", () => {
     for (const role of ["PRODUCT_MANAGER", "ADMIN"] as Role[]) {
@@ -223,7 +225,7 @@ export function runMigrations(): void {
     }
   });
 
-  // Reports are restricted to Administrator and Product Manager. Strip
+  // Reports are restricted to Administrator and Portfolio Manager. Strip
   // VIEW_REPORTS from every other role in persisted state (once); future changes
   // via Roles & Access are respected.
   once("reports-admin-pm-only-2026-07", () => {
@@ -1165,6 +1167,14 @@ export function removeTemplateField(id: string): boolean {
   if (i < 0) return false;
   arr.splice(i, 1);
   return true;
+}
+
+// Hidden built-in report columns (per target). Empty = all built-ins shown.
+export function getHiddenReportColumns(target: string): string[] {
+  return (store.hiddenReportColumns ??= {})[target] ?? [];
+}
+export function setHiddenReportColumns(target: string, keys: string[]): void {
+  (store.hiddenReportColumns ??= {})[target] = [...new Set(keys)];
 }
 
 // ---------------------------------------------------------------------------

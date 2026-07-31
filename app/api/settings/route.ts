@@ -3,7 +3,7 @@ import { getSettings, updateSettings, addAudit } from "@/lib/data/store";
 import { getCurrentUser, roleHas } from "@/lib/auth";
 
 // Desk-wide settings (currently the booking / funding-team recipients). Gated by
-// CHANGE_LIMIT (Product Manager & Administrator).
+// CHANGE_LIMIT (Portfolio Manager & Administrator).
 export async function GET() {
   return NextResponse.json({ settings: getSettings() });
 }

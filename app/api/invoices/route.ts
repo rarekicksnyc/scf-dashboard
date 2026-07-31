@@ -16,7 +16,7 @@ function invoiceNumber(): string {
 //  - additional-interest: auto-built from a past-due receivable (same discount
 //    math, original margin + base rate).
 //  - ad-hoc: a client-requested invoice from a filled line-item table.
-// Gated by CHANGE_LIMIT (Product Manager & Administrator).
+// Gated by CHANGE_LIMIT (Portfolio Manager & Administrator).
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!roleHas(user.role, "CHANGE_LIMIT")) {

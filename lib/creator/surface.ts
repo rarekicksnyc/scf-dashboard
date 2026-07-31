@@ -32,6 +32,42 @@ export const REPORT_TXN_FIELDS: FieldSpec[] = [
   { key: "tenor_days", label: "Tenor (days)" },
 ];
 
+// Per-row surface for the Exposure report.
+export const REPORT_EXPOSURE_FIELDS: FieldSpec[] = [
+  { key: "approved", label: "Approved limit" },
+  { key: "outstanding", label: "Outstanding" },
+  { key: "reserved", label: "Reserved" },
+  { key: "available", label: "Available" },
+  { key: "utilization_pct", label: "Utilisation (0–1)" },
+];
+
+// Per-deal surface for DOCUMENT custom-field tokens ({{cf_*}} in file templates).
+export const DOC_FIELDS: FieldSpec[] = [
+  { key: "coverage", label: "Coverage (funded)" },
+  { key: "amount", label: "Invoice / committed amount" },
+  { key: "advance_rate", label: "Advance rate (0–1)" },
+  { key: "pricing_bps", label: "Margin (bps)" },
+  { key: "base_rate", label: "Base rate (%)" },
+  { key: "tenor_days", label: "Tenor (days)" },
+  { key: "investor_amount", label: "Investor participation" },
+  { key: "skim_bps", label: "Skim (bps)" },
+];
+
+// The built-in columns each report exposes, so the builder can offer show/hide.
+export const REPORT_BUILTIN_COLUMNS: Record<string, { key: string; label: string }[]> = {
+  REPORT_TRANSACTIONS: [
+    { key: "invoice", label: "Invoice" }, { key: "seller", label: "Seller" }, { key: "obligor", label: "Obligor" },
+    { key: "amount", label: "Amount" }, { key: "adv", label: "Adv %" }, { key: "coverage", label: "Coverage" },
+    { key: "revenue", label: "Revenue" }, { key: "booked", label: "Booked" }, { key: "value", label: "Value date" },
+    { key: "maturity", label: "Maturity" }, { key: "batch", label: "Batch" },
+  ],
+  REPORT_EXPOSURE: [
+    { key: "name", label: "Entity" }, { key: "kind", label: "Type" }, { key: "cdl", label: "CDL" },
+    { key: "approved", label: "Approved" }, { key: "outstanding", label: "Outstanding" }, { key: "reserved", label: "Reserved" },
+    { key: "available", label: "Available" }, { key: "utilizationPct", label: "Utilisation" },
+  ],
+};
+
 // --- Book-level aggregates (KPI tiles) -------------------------------------
 export const KPI_FIELDS: FieldSpec[] = [
   { key: "total_revenue", label: "Total revenue (margin + skim)" },

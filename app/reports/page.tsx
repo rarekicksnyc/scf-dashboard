@@ -1,5 +1,5 @@
 import { REPORTS } from "@/lib/reports";
-import { getBatches, allSellers, allObligors, getSeller, getObligor, listTemplateFields } from "@/lib/data/store";
+import { getBatches, allSellers, allObligors, getSeller, getObligor, listTemplateFields, getHiddenReportColumns } from "@/lib/data/store";
 import { fundedDeals } from "@/lib/deals";
 import { entityExposures } from "@/lib/exposure";
 import { currentUserCan } from "@/lib/auth";
@@ -42,9 +42,10 @@ export default async function ReportsPage() {
         sellers={allSellers().map((s) => ({ id: s.id, name: s.name }))}
         obligors={allObligors().map((o) => ({ id: o.id, name: o.name }))}
         templateFields={listTemplateFields("REPORT_TRANSACTIONS")}
+        hiddenColumns={getHiddenReportColumns("REPORT_TRANSACTIONS")}
       />
 
-      <ExposureSummary rows={entityExposures()} />
+      <ExposureSummary rows={entityExposures()} templateFields={listTemplateFields("REPORT_EXPOSURE")} hiddenColumns={getHiddenReportColumns("REPORT_EXPOSURE")} />
 
       <div className="panel">
         <h2>Standard reports</h2>

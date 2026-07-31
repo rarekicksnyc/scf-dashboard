@@ -18,7 +18,7 @@ import type { WorkoutRoute } from "@/lib/types";
 // Post-booking lifecycle actions on a live receivable — recording collections,
 // declaring default, filing / deciding insurance claims, and settling investor
 // participations. One dispatching route keeps the whole lifecycle in one place.
-// Gated by CHANGE_LIMIT (Product Manager & Administrator), like every manage
+// Gated by CHANGE_LIMIT (Portfolio Manager & Administrator), like every manage
 // action. Each action audits what happened.
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

@@ -12,7 +12,7 @@ import { getCurrentUser, roleHas } from "@/lib/auth";
 import type { ParentCompanyGuarantee } from "@/lib/types";
 
 // Parent Company Guarantee register. POST adds, PATCH edits (by id), DELETE
-// removes. All gated by CHANGE_LIMIT (Product Manager & Administrator) and audited.
+// removes. All gated by CHANGE_LIMIT (Portfolio Manager & Administrator) and audited.
 
 function readFields(b: Record<string, unknown>): Partial<Omit<ParentCompanyGuarantee, "id">> {
   const patch: Partial<Omit<ParentCompanyGuarantee, "id">> = {};

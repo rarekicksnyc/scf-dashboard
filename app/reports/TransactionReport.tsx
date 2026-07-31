@@ -49,12 +49,16 @@ export default function TransactionReport({
   sellers,
   obligors,
   templateFields = [],
+  hiddenColumns = [],
 }: {
   deals: TxnRow[];
   sellers: Opt[];
   obligors: Opt[];
   templateFields?: TemplateFieldDef[];
+  hiddenColumns?: string[];
 }) {
+  const hidden = new Set(hiddenColumns);
+  const show = (k: string) => !hidden.has(k);
   const [sellerId, setSellerId] = useState("");
   const [obligorId, setObligorId] = useState("");
   const [from, setFrom] = useState("");
@@ -164,37 +168,37 @@ export default function TransactionReport({
           <table>
             <thead>
               <tr>
-                <th>Invoice</th>
-                <th>Seller</th>
-                <th>Obligor</th>
-                <th className="num">Amount</th>
-                <th className="num">Adv %</th>
-                <th className="num">Coverage</th>
-                <th className="num">Revenue</th>
-                <th>Booked</th>
-                <th>Value date</th>
-                <th>Maturity</th>
-                <th>Batch</th>
+                {show("invoice") && <th>Invoice</th>}
+                {show("seller") && <th>Seller</th>}
+                {show("obligor") && <th>Obligor</th>}
+                {show("amount") && <th className="num">Amount</th>}
+                {show("adv") && <th className="num">Adv %</th>}
+                {show("coverage") && <th className="num">Coverage</th>}
+                {show("revenue") && <th className="num">Revenue</th>}
+                {show("booked") && <th>Booked</th>}
+                {show("value") && <th>Value date</th>}
+                {show("maturity") && <th>Maturity</th>}
+                {show("batch") && <th>Batch</th>}
                 {templateFields.map((f) => <th key={f.id} className={f.kind === "formula" && f.format !== "text" ? "num" : ""}>{f.label}</th>)}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={11 + templateFields.length} className="muted" style={{ padding: 16 }}>No transactions match the filters.</td></tr>
+                <tr><td colSpan={["invoice", "seller", "obligor", "amount", "adv", "coverage", "revenue", "booked", "value", "maturity", "batch"].filter(show).length + templateFields.length} className="muted" style={{ padding: 16 }}>No transactions match the filters.</td></tr>
               ) : (
                 filtered.map((d, i) => (
                   <tr key={`${d.batchId}-${d.invoiceNumber}-${i}`}>
-                    <td>{d.invoiceNumber}</td>
-                    <td>{d.sellerName}</td>
-                    <td>{d.obligorName}</td>
-                    <td className="num">{mm(d.amount)}</td>
-                    <td className="num">{(d.advanceRate * 100).toFixed(0)}%</td>
-                    <td className="num">{mm(d.coverage)}</td>
-                    <td className="num">{mm(d.revenue)}</td>
-                    <td>{dateShort(d.bookedDate)}</td>
-                    <td>{dateShort(d.valueDate)}</td>
-                    <td>{dateShort(d.maturityDate)}</td>
-                    <td>{d.batchId}</td>
+                    {show("invoice") && <td>{d.invoiceNumber}</td>}
+                    {show("seller") && <td>{d.sellerName}</td>}
+                    {show("obligor") && <td>{d.obligorName}</td>}
+                    {show("amount") && <td className="num">{mm(d.amount)}</td>}
+                    {show("adv") && <td className="num">{(d.advanceRate * 100).toFixed(0)}%</td>}
+                    {show("coverage") && <td className="num">{mm(d.coverage)}</td>}
+                    {show("revenue") && <td className="num">{mm(d.revenue)}</td>}
+                    {show("booked") && <td>{dateShort(d.bookedDate)}</td>}
+                    {show("value") && <td>{dateShort(d.valueDate)}</td>}
+                    {show("maturity") && <td>{dateShort(d.maturityDate)}</td>}
+                    {show("batch") && <td>{d.batchId}</td>}
                     {templateFields.map((f) => <td key={f.id} className={f.kind === "formula" && f.format !== "text" ? "num" : ""}>{cellValue(f, d)}</td>)}
                   </tr>
                 ))

@@ -48,7 +48,7 @@ const SCREENS: [string, string][] = [
   ["Exceptions", "The maker-checker queue for batch breaches — a checker approves or rejects."],
   ["Enforceability", "Country register and any entity domiciled outside an eligible country."],
   ["Reports", "Exportable transaction and exposure reports — Portfolio Manager and Administrator roles only."],
-  ["Creator mode", "Governed, no-code platform extension (Portfolio Manager and Administrator): add custom fields and reference registers, build KPI tiles from a safe formula, set advisory watch rules over the book, and add custom columns (formula/text/dropdown) to the Transaction report. Every change is validated, audited, and reversible; nothing here changes the ledger or a control."],
+  ["Creator mode", "Governed, no-code platform extension (Portfolio Manager and Administrator): add custom fields and reference registers, build KPI tiles from a safe formula, set advisory watch rules, add custom columns to the Transaction and Exposure reports (formula/text/dropdown), hide built-in report columns, and add file-template fields exposed as {{cf_key}} tokens. Every change is validated, audited, and reversible; nothing here changes the ledger or a control."],
   ["Audit log", "Every action, who did it, and when."],
   ["Roles & access", "The role to permission map and user management."],
 ];

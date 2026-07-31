@@ -1,9 +1,9 @@
 import { currentUserCan } from "@/lib/auth";
 import {
-  listCustomFields, listCustomRegisters, listKpiTiles, listWatchRules, listTemplateFields, recordRev,
+  listCustomFields, listCustomRegisters, listKpiTiles, listWatchRules, listTemplateFields, getHiddenReportColumns, recordRev,
 } from "@/lib/data/store";
 import { computeKpis, evaluateWatchRule } from "@/lib/creator/run";
-import { KPI_FIELDS, DEAL_FIELDS, SELLER_FIELDS, OBLIGOR_FIELDS, REPORT_TXN_FIELDS } from "@/lib/creator/surface";
+import { KPI_FIELDS, DEAL_FIELDS, SELLER_FIELDS, OBLIGOR_FIELDS, REPORT_TXN_FIELDS, REPORT_EXPOSURE_FIELDS, DOC_FIELDS, REPORT_BUILTIN_COLUMNS } from "@/lib/creator/surface";
 import CreatorConsole from "./CreatorConsole";
 
 export const dynamic = "force-dynamic";
@@ -49,7 +49,11 @@ export default async function CreatorPage() {
           SELLER: SELLER_FIELDS,
           OBLIGOR: OBLIGOR_FIELDS,
           REPORT_TRANSACTIONS: REPORT_TXN_FIELDS,
+          REPORT_EXPOSURE: REPORT_EXPOSURE_FIELDS,
+          DOCUMENT: DOC_FIELDS,
         }}
+        builtinColumns={REPORT_BUILTIN_COLUMNS}
+        hiddenColumns={{ REPORT_TRANSACTIONS: getHiddenReportColumns("REPORT_TRANSACTIONS"), REPORT_EXPOSURE: getHiddenReportColumns("REPORT_EXPOSURE") }}
       />
     </>
   );

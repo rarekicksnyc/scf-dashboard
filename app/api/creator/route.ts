@@ -6,6 +6,7 @@ import {
   addKpiTile, updateKpiTile, removeKpiTile,
   addWatchRule, updateWatchRule, removeWatchRule,
   addTemplateField, updateTemplateField, removeTemplateField, listTemplateFields,
+  setHiddenReportColumns,
   recordUnchanged, recordRev, bumpRecordRev, addAudit,
 } from "@/lib/data/store";
 import { validateKpiFormula, validateWatchExpression, validateTemplateFormula } from "@/lib/creator/run";
@@ -20,7 +21,7 @@ const FIELD_TYPES = new Set(["text", "number", "date", "select", "boolean"]);
 const KPI_FORMATS = new Set(["currency", "number", "percent", "bps"]);
 const SCOPES = new Set(["DEAL", "SELLER", "OBLIGOR"]);
 const SEVERITIES = new Set(["INFO", "WARN"]);
-const TARGETS = new Set(["REPORT_TRANSACTIONS"]);
+const TARGETS = new Set(["REPORT_TRANSACTIONS", "REPORT_EXPOSURE", "DOCUMENT"]);
 const FIELD_KINDS = new Set(["formula", "text", "dropdown"]);
 const FIELD_FORMATS = new Set(["text", "currency", "number", "percent", "bps"]);
 const KEY_RE = /^[a-z][a-z0-9_]*$/;
@@ -136,6 +137,15 @@ export async function PATCH(request: Request) {
   const b = await request.json().catch(() => ({}));
   const resource = b.resource as string;
   const id = String(b.id ?? "");
+
+  if (resource === "reportColumns") {
+    const target = b.target as string;
+    if (!TARGETS.has(target)) return NextResponse.json({ error: "Invalid target." }, { status: 400 });
+    const hidden = Array.isArray(b.hidden) ? b.hidden.map(String) : [];
+    setHiddenReportColumns(target, hidden);
+    audit(g.user, "CREATOR_REPORTCOLUMNS", target, `Set hidden columns on ${target}: [${hidden.join(", ")}].`);
+    return NextResponse.json({ ok: true });
+  }
 
   if (resource === "fieldValues") {
     const entityType = b.entityType as CustomFieldEntity;

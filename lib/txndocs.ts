@@ -1,9 +1,43 @@
 import * as XLSX from "xlsx";
-import { getDocTemplate, interpolateSofr } from "@/lib/data/store";
+import { getDocTemplate, interpolateSofr, listTemplateFields } from "@/lib/data/store";
 import { fillTemplate, buildDocSet, pricingTokens, investorTokens, scheduleAFromSpec, requestDocHtml, wordDocument, type DocTokens } from "@/lib/docgen";
 import { usd, daysBetween } from "@/lib/format";
+import { evaluateExpression, toNumber } from "@/lib/creator/expr";
 import type { TransactionWorkflow, DocTemplateType } from "@/lib/types";
 import type { EmlAttachment } from "@/lib/email";
+
+// Creator-Mode DOCUMENT fields → {{cf_<key>}} tokens usable in any file template.
+// Formula fields evaluate the safe evaluator over the deal surface; text/dropdown
+// resolve to their value/default. Prefixed cf_ so they never collide with built-ins.
+function documentCustomTokens(wf: TransactionWorkflow): DocTokens {
+  const defs = listTemplateFields("DOCUMENT");
+  if (defs.length === 0) return {};
+  const ctx = {
+    coverage: wf.coverage,
+    amount: wf.amount,
+    advance_rate: wf.advanceRate,
+    pricing_bps: wf.pricingBps,
+    base_rate: wf.baseRate ?? 0,
+    tenor_days: daysBetween(wf.valueDate, wf.maturityDate),
+    investor_amount: wf.investorAmount ?? 0,
+    skim_bps: wf.skimBps ?? 0,
+  };
+  const out: DocTokens = {};
+  for (const f of defs) {
+    let v = "";
+    if (f.kind === "text") v = f.text ?? "";
+    else if (f.kind === "dropdown") v = f.options?.[0] ?? "";
+    else {
+      const { value, error } = evaluateExpression(f.formula ?? "", ctx);
+      if (error === undefined && value !== undefined) {
+        const n = toNumber(value);
+        v = f.format === "currency" ? usd(n) : f.format === "percent" ? `${(n * 100).toFixed(1)}%` : f.format === "bps" ? `${Math.round(n)} bps` : f.format === "text" ? String(value) : n.toLocaleString("en-US", { maximumFractionDigits: 2 });
+      }
+    }
+    out[`cf_${f.key}`] = v;
+  }
+  return out;
+}
 
 // Server-side generation of a workflow's documents and email drafts. Mirrors the
 // client DocsSection token building so preview and export/email stay identical.
@@ -36,6 +70,7 @@ export function workflowTokens(wf: TransactionWorkflow): DocTokens {
     primary_amount: isUtrc ? usd(wf.amount) : usd(wf.coverage),
     document_name: isUtrc ? "Commitment Request" : "Purchase Request",
     ...pricingTokens({ coverage: wf.coverage, pricingBps: wf.pricingBps, baseRatePct: wf.baseRate ?? 0, tenorDays }),
+    ...documentCustomTokens(wf),
   };
 }
 
