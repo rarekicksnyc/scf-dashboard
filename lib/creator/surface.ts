@@ -21,6 +21,17 @@ import type { WatchScope } from "@/lib/types";
 
 export interface FieldSpec { key: string; label: string; help?: string }
 
+// The per-row surface for the Transaction report — the fields a custom report
+// column formula may reference. Kept here (single source) so the builder,
+// validation, and the client renderer all agree.
+export const REPORT_TXN_FIELDS: FieldSpec[] = [
+  { key: "amount", label: "Invoice / face amount" },
+  { key: "coverage", label: "Coverage (funded)" },
+  { key: "advance_rate", label: "Advance rate (0–1)" },
+  { key: "revenue", label: "Revenue (margin)" },
+  { key: "tenor_days", label: "Tenor (days)" },
+];
+
 // --- Book-level aggregates (KPI tiles) -------------------------------------
 export const KPI_FIELDS: FieldSpec[] = [
   { key: "total_revenue", label: "Total revenue (margin + skim)" },

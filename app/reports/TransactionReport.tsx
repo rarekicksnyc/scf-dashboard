@@ -1,10 +1,30 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { mm, dateShort } from "@/lib/format";
+import { mm, dateShort, daysBetween, usd } from "@/lib/format";
 import { inputCompact as input, fieldLabel as field } from "@/lib/ui";
+import { evaluateExpression, toNumber } from "@/lib/creator/expr";
+import type { TemplateFieldDef } from "@/lib/types";
 
 interface Opt { id: string; name: string }
+
+// A custom report column's value for one row. Formula fields evaluate the same
+// pure, safe evaluator used everywhere else — client-side, no round-trip.
+function cellValue(f: TemplateFieldDef, d: TxnRow): string {
+  if (f.kind === "text") return f.text ?? "";
+  if (f.kind === "dropdown") return f.options?.[0] ?? "";
+  const ctx = { amount: d.amount, coverage: d.coverage, advance_rate: d.advanceRate, revenue: d.revenue, tenor_days: daysBetween(d.valueDate, d.maturityDate) };
+  const { value, error } = evaluateExpression(f.formula ?? "", ctx);
+  if (error !== undefined || value === undefined) return "—";
+  const n = toNumber(value);
+  switch (f.format) {
+    case "currency": return usd(n);
+    case "percent": return `${(n * 100).toFixed(1)}%`;
+    case "bps": return `${Math.round(n)} bps`;
+    case "text": return String(value);
+    default: return n.toLocaleString("en-US", { maximumFractionDigits: 2 });
+  }
+}
 export interface TxnRow {
   invoiceNumber: string;
   sellerId: string;
@@ -28,10 +48,12 @@ export default function TransactionReport({
   deals,
   sellers,
   obligors,
+  templateFields = [],
 }: {
   deals: TxnRow[];
   sellers: Opt[];
   obligors: Opt[];
+  templateFields?: TemplateFieldDef[];
 }) {
   const [sellerId, setSellerId] = useState("");
   const [obligorId, setObligorId] = useState("");
@@ -69,14 +91,14 @@ export default function TransactionReport({
   };
 
   function downloadCsv() {
-    const header = ["invoice_number", "seller_id", "seller", "obligor_id", "obligor", "amount", "advance_rate", "coverage_amount", "revenue", "booked_date", "value_date", "maturity_date", "batch"];
+    const header = ["invoice_number", "seller_id", "seller", "obligor_id", "obligor", "amount", "advance_rate", "coverage_amount", "revenue", "booked_date", "value_date", "maturity_date", "batch", ...templateFields.map((f) => f.key)];
     const esc = (v: string | number) => {
       const s = String(v);
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const lines = [header.join(",")];
     for (const d of filtered) {
-      lines.push([d.invoiceNumber, d.sellerId, d.sellerName, d.obligorId, d.obligorName, d.amount, d.advanceRate, Math.round(d.coverage), Math.round(d.revenue), d.bookedDate.slice(0, 10), d.valueDate, d.maturityDate, d.batchId].map(esc).join(","));
+      lines.push([d.invoiceNumber, d.sellerId, d.sellerName, d.obligorId, d.obligorName, d.amount, d.advanceRate, Math.round(d.coverage), Math.round(d.revenue), d.bookedDate.slice(0, 10), d.valueDate, d.maturityDate, d.batchId, ...templateFields.map((f) => cellValue(f, d))].map(esc).join(","));
     }
     const blob = new Blob([lines.join("\n")], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -153,11 +175,12 @@ export default function TransactionReport({
                 <th>Value date</th>
                 <th>Maturity</th>
                 <th>Batch</th>
+                {templateFields.map((f) => <th key={f.id} className={f.kind === "formula" && f.format !== "text" ? "num" : ""}>{f.label}</th>)}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={11} className="muted" style={{ padding: 16 }}>No transactions match the filters.</td></tr>
+                <tr><td colSpan={11 + templateFields.length} className="muted" style={{ padding: 16 }}>No transactions match the filters.</td></tr>
               ) : (
                 filtered.map((d, i) => (
                   <tr key={`${d.batchId}-${d.invoiceNumber}-${i}`}>
@@ -172,6 +195,7 @@ export default function TransactionReport({
                     <td>{dateShort(d.valueDate)}</td>
                     <td>{dateShort(d.maturityDate)}</td>
                     <td>{d.batchId}</td>
+                    {templateFields.map((f) => <td key={f.id} className={f.kind === "formula" && f.format !== "text" ? "num" : ""}>{cellValue(f, d)}</td>)}
                   </tr>
                 ))
               )}

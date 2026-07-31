@@ -5,10 +5,11 @@ import {
   addCustomRegister, updateCustomRegister, removeCustomRegister,
   addKpiTile, updateKpiTile, removeKpiTile,
   addWatchRule, updateWatchRule, removeWatchRule,
+  addTemplateField, updateTemplateField, removeTemplateField, listTemplateFields,
   recordUnchanged, recordRev, bumpRecordRev, addAudit,
 } from "@/lib/data/store";
-import { validateKpiFormula, validateWatchExpression } from "@/lib/creator/run";
-import type { CustomFieldType, CustomFieldEntity, KpiFormat, WatchScope, WatchSeverity } from "@/lib/types";
+import { validateKpiFormula, validateWatchExpression, validateTemplateFormula } from "@/lib/creator/run";
+import type { CustomFieldType, CustomFieldEntity, KpiFormat, WatchScope, WatchSeverity, TemplateTarget, TemplateFieldKind, TemplateFieldFormat } from "@/lib/types";
 
 // One dispatching route for every Creator-Mode extension (keeps the surface small
 // for the bank-team handoff). Every mutation is gated to CREATOR_MODE, audited,
@@ -19,6 +20,9 @@ const FIELD_TYPES = new Set(["text", "number", "date", "select", "boolean"]);
 const KPI_FORMATS = new Set(["currency", "number", "percent", "bps"]);
 const SCOPES = new Set(["DEAL", "SELLER", "OBLIGOR"]);
 const SEVERITIES = new Set(["INFO", "WARN"]);
+const TARGETS = new Set(["REPORT_TRANSACTIONS"]);
+const FIELD_KINDS = new Set(["formula", "text", "dropdown"]);
+const FIELD_FORMATS = new Set(["text", "currency", "number", "percent", "bps"]);
 const KEY_RE = /^[a-z][a-z0-9_]*$/;
 
 async function requireCreator() {
@@ -94,6 +98,35 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, rule });
   }
 
+  if (resource === "templateField") {
+    const target = b.target as TemplateTarget;
+    const key = String(b.key ?? "").trim();
+    const kind = b.kind as TemplateFieldKind;
+    const label = String(b.label ?? "").trim();
+    if (!TARGETS.has(target)) return NextResponse.json({ error: "Invalid target." }, { status: 400 });
+    if (!KEY_RE.test(key)) return NextResponse.json({ error: "Key must be lower_snake_case starting with a letter." }, { status: 400 });
+    if (!FIELD_KINDS.has(kind)) return NextResponse.json({ error: "Invalid field kind." }, { status: 400 });
+    if (!label) return NextResponse.json({ error: "A field needs a label." }, { status: 400 });
+    if (listTemplateFields(target).some((f) => f.key === key)) return NextResponse.json({ error: `A field "${key}" already exists on this target.` }, { status: 409 });
+    const patch: { formula?: string; text?: string; options?: string[]; format?: TemplateFieldFormat } = {};
+    if (kind === "formula") {
+      const formula = String(b.formula ?? "").trim();
+      const v = validateTemplateFormula(formula, target);
+      if (!v.ok) return NextResponse.json({ error: v.error ?? "Invalid formula." }, { status: 400 });
+      patch.formula = formula;
+      patch.format = FIELD_FORMATS.has(b.format) ? (b.format as TemplateFieldFormat) : "number";
+    } else if (kind === "text") {
+      patch.text = String(b.text ?? "");
+    } else {
+      const options = Array.isArray(b.options) ? b.options.map(String).map((s: string) => s.trim()).filter(Boolean) : [];
+      if (options.length === 0) return NextResponse.json({ error: "A dropdown needs at least one option." }, { status: 400 });
+      patch.options = options;
+    }
+    const field = addTemplateField({ target, key, label, kind, ...patch });
+    audit(g.user, "CREATOR_TEMPLATEFIELD_ADD", field.id, `Added ${kind} field ${key} to ${target}.`);
+    return NextResponse.json({ ok: true, field });
+  }
+
   return NextResponse.json({ error: "Unknown resource." }, { status: 400 });
 }
 
@@ -161,6 +194,20 @@ export async function PATCH(request: Request) {
     audit(g.user, "CREATOR_WATCHRULE_EDIT", id, `Edited watch rule "${rule.label}".`);
     return NextResponse.json({ ok: true, rule, rev: bumpRecordRev(key) });
   }
+  if (resource === "templateField") {
+    const existing = listTemplateFields().find((f) => f.id === id);
+    if (!existing) return NextResponse.json({ error: "Field not found." }, { status: 404 });
+    if (b.formula != null) { const v = validateTemplateFormula(String(b.formula), existing.target); if (!v.ok) return NextResponse.json({ error: v.error }, { status: 400 }); }
+    const field = updateTemplateField(id, {
+      label: b.label != null ? String(b.label) : undefined,
+      formula: b.formula != null ? String(b.formula) : undefined,
+      text: b.text != null ? String(b.text) : undefined,
+      options: Array.isArray(b.options) ? b.options.map(String).filter(Boolean) : undefined,
+      format: FIELD_FORMATS.has(b.format) ? (b.format as TemplateFieldFormat) : undefined,
+    });
+    audit(g.user, "CREATOR_TEMPLATEFIELD_EDIT", id, `Edited field ${existing.key}.`);
+    return NextResponse.json({ ok: true, field, rev: bumpRecordRev(key) });
+  }
   return NextResponse.json({ error: "Unknown resource." }, { status: 400 });
 }
 
@@ -170,7 +217,7 @@ export async function DELETE(request: Request) {
   const b = await request.json().catch(() => ({}));
   const resource = b.resource as string;
   const id = String(b.id ?? "");
-  const remove = resource === "field" ? removeCustomField : resource === "register" ? removeCustomRegister : resource === "kpi" ? removeKpiTile : resource === "watchRule" ? removeWatchRule : null;
+  const remove = resource === "field" ? removeCustomField : resource === "register" ? removeCustomRegister : resource === "kpi" ? removeKpiTile : resource === "watchRule" ? removeWatchRule : resource === "templateField" ? removeTemplateField : null;
   if (!remove) return NextResponse.json({ error: "Unknown resource." }, { status: 400 });
   if (!remove(id)) return NextResponse.json({ error: "Not found." }, { status: 404 });
   audit(g.user, "CREATOR_DELETE", id, `Removed ${resource} ${id}.`);

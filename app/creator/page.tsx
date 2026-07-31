@@ -1,9 +1,9 @@
 import { currentUserCan } from "@/lib/auth";
 import {
-  listCustomFields, listCustomRegisters, listKpiTiles, listWatchRules, recordRev,
+  listCustomFields, listCustomRegisters, listKpiTiles, listWatchRules, listTemplateFields, recordRev,
 } from "@/lib/data/store";
 import { computeKpis, evaluateWatchRule } from "@/lib/creator/run";
-import { KPI_FIELDS, DEAL_FIELDS, SELLER_FIELDS, OBLIGOR_FIELDS } from "@/lib/creator/surface";
+import { KPI_FIELDS, DEAL_FIELDS, SELLER_FIELDS, OBLIGOR_FIELDS, REPORT_TXN_FIELDS } from "@/lib/creator/surface";
 import CreatorConsole from "./CreatorConsole";
 
 export const dynamic = "force-dynamic";
@@ -42,11 +42,13 @@ export default async function CreatorPage() {
         registers={registers.map((r) => ({ ...r, rev: rev("register", r.id) }))}
         kpis={kpis.map((t) => ({ tile: { ...t, rev: rev("kpi", t.id) }, result: computeKpis([t])[0] }))}
         rules={rules.map((r) => ({ rule: { ...r, rev: rev("watchRule", r.id) }, result: evaluateWatchRule(r) }))}
+        templateFields={listTemplateFields()}
         catalog={{
           kpi: KPI_FIELDS,
           DEAL: DEAL_FIELDS,
           SELLER: SELLER_FIELDS,
           OBLIGOR: OBLIGOR_FIELDS,
+          REPORT_TRANSACTIONS: REPORT_TXN_FIELDS,
         }}
       />
     </>

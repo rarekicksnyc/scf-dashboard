@@ -274,6 +274,26 @@ export interface KpiTile {
   updatedAt?: string;
 }
 
+// A custom field added to a report (or, later, a file template) via Creator Mode.
+// Unified across targets; formula fields compute per row through the safe
+// evaluator over that target's row surface.
+export type TemplateTarget = "REPORT_TRANSACTIONS";
+export type TemplateFieldKind = "formula" | "text" | "dropdown";
+export type TemplateFieldFormat = "text" | "currency" | "number" | "percent" | "bps";
+
+export interface TemplateFieldDef {
+  id: string;
+  target: TemplateTarget;
+  key: string; // column/token key
+  label: string; // column header
+  kind: TemplateFieldKind;
+  formula?: string; // kind = formula
+  text?: string; // kind = text (constant)
+  options?: string[]; // kind = dropdown (first is the default)
+  format?: TemplateFieldFormat; // how a formula/number result renders
+  updatedAt?: string;
+}
+
 export type WatchScope = "DEAL" | "SELLER" | "OBLIGOR";
 export type WatchSeverity = "INFO" | "WARN";
 

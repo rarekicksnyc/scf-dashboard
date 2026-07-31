@@ -1,5 +1,5 @@
 import { REPORTS } from "@/lib/reports";
-import { getBatches, allSellers, allObligors, getSeller, getObligor } from "@/lib/data/store";
+import { getBatches, allSellers, allObligors, getSeller, getObligor, listTemplateFields } from "@/lib/data/store";
 import { fundedDeals } from "@/lib/deals";
 import { entityExposures } from "@/lib/exposure";
 import { currentUserCan } from "@/lib/auth";
@@ -41,6 +41,7 @@ export default async function ReportsPage() {
         deals={txnRows}
         sellers={allSellers().map((s) => ({ id: s.id, name: s.name }))}
         obligors={allObligors().map((o) => ({ id: o.id, name: o.name }))}
+        templateFields={listTemplateFields("REPORT_TRANSACTIONS")}
       />
 
       <ExposureSummary rows={entityExposures()} />

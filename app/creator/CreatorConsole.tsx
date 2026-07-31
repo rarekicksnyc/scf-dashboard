@@ -3,7 +3,7 @@
 import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
 import { inputBase as input, fieldLabel as field } from "@/lib/ui";
-import type { CustomFieldDef, CustomRegister, KpiTile, WatchRule, CustomFieldType, KpiFormat, WatchScope, WatchSeverity } from "@/lib/types";
+import type { CustomFieldDef, CustomRegister, KpiTile, WatchRule, TemplateFieldDef, CustomFieldType, KpiFormat, WatchScope, WatchSeverity, TemplateFieldKind, TemplateFieldFormat } from "@/lib/types";
 import type { KpiResult, WatchResult } from "@/lib/creator/run";
 
 interface FieldSpec { key: string; label: string }
@@ -14,7 +14,8 @@ interface Props {
   registers: WithRev<CustomRegister>[];
   kpis: { tile: WithRev<KpiTile>; result: KpiResult }[];
   rules: { rule: WithRev<WatchRule>; result: WatchResult }[];
-  catalog: { kpi: FieldSpec[]; DEAL: FieldSpec[]; SELLER: FieldSpec[]; OBLIGOR: FieldSpec[] };
+  templateFields: TemplateFieldDef[];
+  catalog: { kpi: FieldSpec[]; DEAL: FieldSpec[]; SELLER: FieldSpec[]; OBLIGOR: FieldSpec[]; REPORT_TRANSACTIONS: FieldSpec[] };
 }
 
 async function api(method: "POST" | "PATCH" | "DELETE", body: object): Promise<{ ok: boolean; error?: string }> {
@@ -24,7 +25,9 @@ async function api(method: "POST" | "PATCH" | "DELETE", body: object): Promise<{
   return { ok: false, error: j.error ?? "Request failed." };
 }
 
-const TABS = ["Custom fields", "Registers", "KPI tiles", "Watch rules"] as const;
+const TABS = ["Custom fields", "Registers", "KPI tiles", "Watch rules", "Report fields"] as const;
+
+const TARGET_LABEL: Record<string, string> = { REPORT_TRANSACTIONS: "Transaction report" };
 
 export default function CreatorConsole(props: Props) {
   const [tab, setTab] = useState<(typeof TABS)[number]>("Custom fields");
@@ -39,7 +42,78 @@ export default function CreatorConsole(props: Props) {
       {tab === "Registers" && <RegistersPanel registers={props.registers} />}
       {tab === "KPI tiles" && <KpisPanel kpis={props.kpis} catalog={props.catalog.kpi} />}
       {tab === "Watch rules" && <WatchPanel rules={props.rules} catalog={props.catalog} />}
+      {tab === "Report fields" && <ReportFieldsPanel fields={props.templateFields} catalog={props.catalog.REPORT_TRANSACTIONS} />}
     </>
+  );
+}
+
+// --- Report / template fields ----------------------------------------------
+function ReportFieldsPanel({ fields, catalog }: { fields: TemplateFieldDef[]; catalog: FieldSpec[] }) {
+  const router = useRouter();
+  const [target] = useState<"REPORT_TRANSACTIONS">("REPORT_TRANSACTIONS");
+  const [key, setKey] = useState("");
+  const [label, setLabel] = useState("");
+  const [kind, setKind] = useState<TemplateFieldKind>("formula");
+  const [formula, setFormula] = useState("");
+  const [format, setFormat] = useState<TemplateFieldFormat>("number");
+  const [text, setText] = useState("");
+  const [options, setOptions] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function create() {
+    setBusy(true); setErr(null);
+    const body: Record<string, unknown> = { resource: "templateField", target, key: key.trim(), label: label.trim(), kind };
+    if (kind === "formula") { body.formula = formula.trim(); body.format = format; }
+    else if (kind === "text") body.text = text;
+    else body.options = options.split(",").map((s) => s.trim()).filter(Boolean);
+    const r = await api("POST", body);
+    setBusy(false);
+    if (!r.ok) { setErr(r.error!); return; }
+    setKey(""); setLabel(""); setFormula(""); setText(""); setOptions(""); router.refresh();
+  }
+  async function del(id: string) { if (!confirm("Remove this report field?")) return; await api("DELETE", { resource: "templateField", id }); router.refresh(); }
+
+  return (
+    <div className="panel">
+      <h2>Report fields</h2>
+      <div style={{ padding: 16 }}>
+        <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>Add a column to the Transaction report: a formula computed per row, a fixed text value, or a dropdown default. Columns show on-screen and in the CSV export.</p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <label style={field}>Report<select style={input} value={target} disabled><option value="REPORT_TRANSACTIONS">Transaction report</option></select></label>
+          <label style={field}>Key<input style={input} value={key} onChange={(e) => setKey(e.target.value)} placeholder="net_yield_bps" /></label>
+          <label style={field}>Header<input style={input} value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Net yield" /></label>
+          <label style={field}>Kind<select style={input} value={kind} onChange={(e) => setKind(e.target.value as TemplateFieldKind)}><option value="formula">Formula</option><option value="text">Text</option><option value="dropdown">Dropdown</option></select></label>
+          {kind === "formula" && <>
+            <label style={{ ...field, flex: 1, minWidth: 220 }}>Formula<input style={input} value={formula} onChange={(e) => setFormula(e.target.value)} placeholder="revenue / coverage * 10000" /></label>
+            <label style={field}>Format<select style={input} value={format} onChange={(e) => setFormat(e.target.value as TemplateFieldFormat)}><option value="number">Number</option><option value="currency">Currency</option><option value="percent">Percent</option><option value="bps">Bps</option><option value="text">Text</option></select></label>
+          </>}
+          {kind === "text" && <label style={{ ...field, flex: 1, minWidth: 220 }}>Text<input style={input} value={text} onChange={(e) => setText(e.target.value)} placeholder="Reviewed" /></label>}
+          {kind === "dropdown" && <label style={{ ...field, flex: 1, minWidth: 220 }}>Options (comma-separated)<input style={input} value={options} onChange={(e) => setOptions(e.target.value)} placeholder="Low, Medium, High" /></label>}
+          <button className="btn" type="button" disabled={busy || !key.trim() || !label.trim()} onClick={create}>Add column</button>
+        </div>
+        {kind === "formula" && <FieldChips fields={catalog} onPick={(k) => setFormula((f) => (f ? `${f} ${k}` : k))} />}
+        <Err msg={err} />
+        <div className="table-scroll" style={{ marginTop: 14 }}>
+          <table>
+            <thead><tr><th>Report</th><th>Key</th><th>Header</th><th>Kind</th><th>Definition</th><th></th></tr></thead>
+            <tbody>
+              {fields.length === 0 ? <tr><td colSpan={6} className="muted" style={{ padding: 14 }}>No custom report columns yet.</td></tr> :
+                fields.map((f) => (
+                  <tr key={f.id}>
+                    <td>{TARGET_LABEL[f.target] ?? f.target}</td>
+                    <td><code style={{ fontSize: 12 }}>{f.key}</code></td>
+                    <td>{f.label}</td>
+                    <td>{f.kind}</td>
+                    <td className="muted"><code style={{ fontSize: 12 }}>{f.kind === "formula" ? f.formula : f.kind === "text" ? f.text : (f.options ?? []).join(", ")}</code></td>
+                    <td><button className="btn secondary" style={{ padding: "4px 9px", fontSize: 12, borderColor: "var(--red)", color: "var(--red)" }} type="button" onClick={() => del(f.id)}>Remove</button></td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   );
 }
 

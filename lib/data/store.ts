@@ -36,7 +36,7 @@ import type {
   AuthorizedSignatory,
 } from "@/lib/types";
 import type { WorkoutRoute, InvoiceResult } from "@/lib/types";
-import type { CustomFieldDef, CustomRegister, KpiTile, WatchRule, CoverageAssignment, NotificationEvent } from "@/lib/types";
+import type { CustomFieldDef, CustomRegister, KpiTile, WatchRule, CoverageAssignment, NotificationEvent, TemplateFieldDef } from "@/lib/types";
 import { DEFAULT_TEMPLATES } from "@/lib/data/templates";
 import { toLimitView, computeConsumed } from "@/lib/engine/availability";
 import { daysBetween, limitActiveOn } from "@/lib/format";
@@ -90,6 +90,7 @@ interface Store {
   customRegisters: CustomRegister[];
   kpiTiles: KpiTile[];
   watchRules: WatchRule[];
+  templateFields: TemplateFieldDef[]; // custom report/template columns
   coverage: CoverageAssignment[]; // user ↔ seller/obligor coverage
   notifications: NotificationEvent[]; // stored notification events (exceptions)
   rev: number; // global change counter — bumped on every audited action (live sync)
@@ -141,6 +142,7 @@ function seedStore(): Store {
     customRegisters: [],
     kpiTiles: [],
     watchRules: [],
+    templateFields: [],
     coverage: [],
     notifications: [],
     rev: 0,
@@ -1129,6 +1131,36 @@ export function updateWatchRule(id: string, patch: Partial<Omit<WatchRule, "id">
 }
 export function removeWatchRule(id: string): boolean {
   const arr = (store.watchRules ??= []);
+  const i = arr.findIndex((x) => x.id === id);
+  if (i < 0) return false;
+  arr.splice(i, 1);
+  return true;
+}
+
+// --- Template / report fields --------------------------------------------
+export function listTemplateFields(target?: TemplateFieldDef["target"]): TemplateFieldDef[] {
+  const all = (store.templateFields ??= []);
+  return target ? all.filter((f) => f.target === target) : all;
+}
+export function addTemplateField(def: Omit<TemplateFieldDef, "id" | "updatedAt">): TemplateFieldDef {
+  const f: TemplateFieldDef = { ...def, id: nextId("TFLD"), updatedAt: new Date().toISOString() };
+  (store.templateFields ??= []).push(f);
+  return f;
+}
+export function updateTemplateField(id: string, patch: Partial<Omit<TemplateFieldDef, "id" | "target" | "key">>): TemplateFieldDef | undefined {
+  const f = (store.templateFields ??= []).find((x) => x.id === id);
+  if (!f) return undefined;
+  if (patch.label !== undefined) f.label = patch.label;
+  if (patch.kind !== undefined) f.kind = patch.kind;
+  if (patch.formula !== undefined) f.formula = patch.formula;
+  if (patch.text !== undefined) f.text = patch.text;
+  if (patch.options !== undefined) f.options = patch.options;
+  if (patch.format !== undefined) f.format = patch.format;
+  f.updatedAt = new Date().toISOString();
+  return f;
+}
+export function removeTemplateField(id: string): boolean {
+  const arr = (store.templateFields ??= []);
   const i = arr.findIndex((x) => x.id === id);
   if (i < 0) return false;
   arr.splice(i, 1);

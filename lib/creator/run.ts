@@ -1,5 +1,5 @@
 import { evaluateExpression, toBool, toNumber, validateExpression } from "@/lib/creator/expr";
-import { kpiContext, watchSurface, KPI_FIELDS, watchFields, type WatchItem } from "@/lib/creator/surface";
+import { kpiContext, watchSurface, KPI_FIELDS, watchFields, REPORT_TXN_FIELDS, type WatchItem } from "@/lib/creator/surface";
 import { usd } from "@/lib/format";
 import type { KpiTile, WatchRule, KpiFormat, WatchScope } from "@/lib/types";
 
@@ -11,6 +11,13 @@ export function watchFieldKeys(scope: WatchScope): string[] { return watchFields
 
 export function validateKpiFormula(formula: string) { return validateExpression(formula, kpiFieldKeys()); }
 export function validateWatchExpression(expression: string, scope: WatchScope) { return validateExpression(expression, watchFieldKeys(scope)); }
+
+// Report/template field surfaces, keyed by target. Today: the Transaction report.
+export function templateFieldKeys(target: string): string[] {
+  if (target === "REPORT_TRANSACTIONS") return REPORT_TXN_FIELDS.map((f) => f.key);
+  return [];
+}
+export function validateTemplateFormula(formula: string, target: string) { return validateExpression(formula, templateFieldKeys(target)); }
 
 export function formatKpi(v: number, fmt: KpiFormat): string {
   if (fmt === "currency") return usd(v);
