@@ -1,4 +1,4 @@
-import { store, resetExposure, findLimit } from "@/lib/data/store";
+import { store, resetExposure, findLimit, getObligor } from "@/lib/data/store";
 import { runBatch } from "@/lib/engine";
 import type { Invoice } from "@/lib/types";
 
@@ -8,12 +8,16 @@ const ok = (n: string, c: boolean, extra = "") => { console.log((c ? "  ok  " : 
 // Clean slate so the working snapshot starts from full approved limits.
 resetExposure();
 
-const seller = store.sellers.find((s) => findLimit("SELLER", s.id) && !findLimit("ASR", s.id))
-  ?? store.sellers.find((s) => findLimit("SELLER", s.id))!;
+// Pick a seller/obligor pair on the seller's ASR approved list (so the batch ASR
+// sublimit + approved-list gate is satisfied) with an ACTIVE obligor, and cap by
+// EVERY binding limit — seller line, obligor line, ASR limit, and the ASR sublimit.
+const pair = store.sellerObligorLimits.find((x) => !x.approval && findLimit("SELLER", x.sellerId) && findLimit("OBLIGOR", x.obligorId) && getObligor(x.obligorId)?.status === "ACTIVE")!;
+const seller = store.sellers.find((s) => s.id === pair.sellerId)!;
+const obligor = getObligor(pair.obligorId)!;
 const sLimit = findLimit("SELLER", seller.id)!;
-const obligor = store.obligors.find((o) => findLimit("OBLIGOR", o.id))!;
 const oLimit = findLimit("OBLIGOR", obligor.id)!;
-const cap = Math.min(sLimit.approvedLimit, oLimit.approvedLimit);
+const asrLimit = findLimit("ASR", seller.id);
+const cap = Math.min(sLimit.approvedLimit, oLimit.approvedLimit, pair.approvedLimit, asrLimit?.approvedLimit ?? Infinity);
 
 function inv(n: string, face: number, advance: number): Invoice {
   return {

@@ -141,7 +141,7 @@ export function checkReservation(input: ReservationInput, window?: DateWindow): 
     });
   }
 
-  const sellerLimit = findLimit("SELLER", input.sellerId);
+  const sellerLimit = findLimit("SELLER", input.sellerId, window?.from);
   if (sellerLimit) {
     const v = viewLimit(sellerLimit, window);
     checks.push(
@@ -156,7 +156,7 @@ export function checkReservation(input: ReservationInput, window?: DateWindow): 
     );
   }
 
-  const obligorLimit = findLimit("OBLIGOR", input.obligorId);
+  const obligorLimit = findLimit("OBLIGOR", input.obligorId, window?.from);
   if (obligorLimit) {
     const v = viewLimit(obligorLimit, window);
     checks.push(

@@ -39,7 +39,7 @@ import type { WorkoutRoute, InvoiceResult } from "@/lib/types";
 import type { CustomFieldDef, CustomRegister, KpiTile, WatchRule, CoverageAssignment, NotificationEvent, TemplateFieldDef, LimitApproval, LimitPendingEdit } from "@/lib/types";
 import { DEFAULT_TEMPLATES } from "@/lib/data/templates";
 import { toLimitView, computeConsumed } from "@/lib/engine/availability";
-import { daysBetween, limitActiveOn } from "@/lib/format";
+import { daysBetween, limitActiveOn, limitNotYetEffective } from "@/lib/format";
 import { DEFAULT_MARGIN_BPS } from "@/lib/config";
 import {
   bookedInWindow,
@@ -440,6 +440,13 @@ export function advanceWorkflow(
   return wf;
 }
 
+// A fingerprint of the exposure-relevant parameters a checker actually sanctioned.
+// If the deal's window or amount changes after approval (e.g. a different
+// settlementBasis reshapes [funding, maturity]), the approval no longer applies.
+export function workflowExceptionFingerprint(wf: TransactionWorkflow): string {
+  return `${wf.valueDate}|${wf.maturityDate}|${Math.round(wf.coverage)}|${Math.round(wf.amount)}`;
+}
+
 // Four-eyes on a single-deal booking exception. The maker records the breach
 // reason; a fresh request always clears any prior approval (so a changed deal
 // is re-approved). The checker (a different user) approves before booking.
@@ -452,6 +459,7 @@ export function requestWorkflowException(id: string, reason: string, makerId: st
   wf.exceptionApprovedBy = undefined;
   wf.exceptionApprovedByName = undefined;
   wf.exceptionApprovedAt = undefined;
+  wf.exceptionApprovedFingerprint = undefined;
   wf.timeline.push({ at: new Date().toISOString(), by: makerName, event: `Exception approval requested: ${reason}` });
   // Alert co-covering reviewers (four-eyes) — everyone covering this seller/obligor
   // who can approve, except the maker.
@@ -467,6 +475,7 @@ export function approveWorkflowException(id: string, checkerId: string, checkerN
   wf.exceptionApprovedBy = checkerId;
   wf.exceptionApprovedByName = checkerName;
   wf.exceptionApprovedAt = new Date().toISOString();
+  wf.exceptionApprovedFingerprint = workflowExceptionFingerprint(wf); // sanction THIS window/amount only
   wf.timeline.push({ at: wf.exceptionApprovedAt, by: checkerName, event: `Booking exception approved by checker.` });
   return { ok: true };
 }
@@ -615,6 +624,12 @@ export function markReceivableDefault(
 ): BookedTransaction | undefined {
   const t = getBookedTransaction(id);
   if (!t) return undefined;
+  // A fully-repaid receivable is closed — it cannot be declared in default (that
+  // would mislabel a settled deal as DEFAULTED and, on write-off, overwrite the
+  // real collection date). Guard on actual collections, not settledAt (a prior
+  // write-off sets settledAt without a real full collection).
+  const collected = (t.collections ?? []).reduce((a, c) => a + c.amount, 0);
+  if (collected >= t.amount) return undefined;
   t.defaultedAt = today();
   t.defaultReason = input.reason;
   t.workout = input.workout;
@@ -644,6 +659,10 @@ export function clearReceivableDefault(id: string): BookedTransaction | undefine
 export function fileInsuranceClaim(id: string): BookedTransaction | undefined {
   const t = getBookedTransaction(id);
   if (!t) return undefined;
+  // Idempotent: never overwrite a claim that is already FILED or PAID (that would
+  // reset a paid claim back to FILED and let it be paid again). Only a DENIED
+  // claim may be re-filed (e.g. appealed).
+  if (t.insuranceClaim && t.insuranceClaim.status !== "DENIED") return t;
   const first = t.insurerAllocations?.[0];
   if (!first) return undefined;
   const frac = outstandingFraction(t);
@@ -669,6 +688,10 @@ export function decideInsuranceClaim(
 ): BookedTransaction | undefined {
   const t = getBookedTransaction(id);
   if (!t?.insuranceClaim) return undefined;
+  // Only a FILED claim can be decided. Deciding an already-PAID/DENIED claim is a
+  // no-op — otherwise a second PAID would book the insured amount AGAIN, recovering
+  // principal beyond the insured allocation (double-recovery).
+  if (t.insuranceClaim.status !== "FILED") return t;
   t.insuranceClaim.status = status;
   t.insuranceClaim.decidedAt = today();
   if (reference) t.insuranceClaim.reference = reference;
@@ -1404,7 +1427,11 @@ export function getUtilization(limitId: string): Utilization {
 function governingLimit(cands: Limit[], asOf: string): Limit | undefined {
   if (cands.length <= 1) return cands[0];
   const active = cands.filter((l) => limitActiveOn(l, asOf));
-  const pool = active.length ? active : cands;
+  // Prefer a limit active on the date; then one already in effect (lapsed/open) so
+  // a renewal GAP resolves to the expired limit (the engine flags it) rather than a
+  // not-yet-effective one that would silently grant capacity before it takes effect.
+  const effectiveAlready = cands.filter((l) => !limitNotYetEffective(l.effectiveDate, asOf));
+  const pool = active.length ? active : effectiveAlready.length ? effectiveAlready : cands;
   return pool.slice().sort((a, b) => Date.parse(b.effectiveDate || "1970-01-01") - Date.parse(a.effectiveDate || "1970-01-01"))[0];
 }
 
@@ -1738,10 +1765,12 @@ export function getExceptionsForBatch(batchId: string): ExceptionItem[] {
 // Invoice numbers whose exception a checker has APPROVED — passed to the engine
 // on re-run so the override consumes capacity and the invoice funds.
 export function getApprovedOverrides(batchId: string): Set<string> {
+  // Key on the full seller|obligor|invoice tuple (not the invoice number alone),
+  // so approving one exception can never auto-fund a different obligor's breach.
   return new Set(
     store.exceptions
       .filter((e) => e.batchId === batchId && e.status === "APPROVED")
-      .map((e) => e.invoiceNumber),
+      .map((e) => `${e.sellerId}|${e.obligorId}|${e.invoiceNumber}`),
   );
 }
 
@@ -2031,9 +2060,13 @@ export interface NewLimitInput {
 }
 
 export function addLimit(input: NewLimitInput): Limit {
-  const seq = store.limits.filter((l) => l.type === input.type).length + 1;
+  // Mint the id from the store-wide monotonic counter (never the live count),
+  // so an id freed by a delete is never handed out again — no stale reference
+  // can ever resolve to a different limit. Seed ids (LMT-<type>-NNN, 3-pad) stay
+  // as-is; new ids are 5-pad and can never string-collide with them.
+  store.seq += 1;
   const limit: Limit = {
-    id: `LMT-${input.type}-${String(seq).padStart(3, "0")}`,
+    id: `LMT-${input.type}-${String(store.seq).padStart(5, "0")}`,
     type: input.type,
     cdl: input.cdl,
     entityType: input.entityType,
@@ -2118,11 +2151,22 @@ export function sublimitApproved(s: SellerObligorLimit): boolean {
   return !s.approval || s.approval.status === "APPROVED";
 }
 export function listPendingSublimits(): SellerObligorLimit[] {
-  return store.sellerObligorLimits.filter((s) => s.approval?.status === "PENDING");
+  // A record is pending if its first approval is PENDING OR it carries a staged
+  // edit to an already-live sublimit (four-eyes on the change).
+  return store.sellerObligorLimits.filter((s) => s.approval?.status === "PENDING" || s.pendingEdit);
 }
 export function approveSublimit(sellerId: string, obligorId: string, approverId: string, approverName: string): { ok: boolean; error?: string } {
   const s = store.sellerObligorLimits.find((x) => x.sellerId === sellerId && x.obligorId === obligorId);
-  if (!s || !s.approval) return { ok: false, error: "Sublimit approval not found." };
+  if (!s) return { ok: false, error: "Sublimit approval not found." };
+  // A staged edit to a live sublimit: the approver commits the parked value.
+  if (s.pendingEdit) {
+    if (s.pendingEdit.requestedBy === approverId) return { ok: false, error: "You requested this sublimit change — a different user must approve it (four-eyes)." };
+    if (s.pendingEdit.approvedLimit != null) s.approvedLimit = s.pendingEdit.approvedLimit;
+    if (s.pendingEdit.maxTenorDays != null) s.maxTenorDays = s.pendingEdit.maxTenorDays;
+    s.pendingEdit = undefined;
+    return { ok: true };
+  }
+  if (!s.approval) return { ok: false, error: "Sublimit approval not found." };
   if (s.approval.status === "APPROVED") return { ok: false, error: "Already approved." };
   if (s.approval.requestedBy === approverId) return { ok: false, error: "You requested this sublimit — a different user must approve it (four-eyes)." };
   s.approval.status = "APPROVED";
@@ -2133,9 +2177,17 @@ export function approveSublimit(sellerId: string, obligorId: string, approverId:
 }
 export function rejectSublimit(sellerId: string, obligorId: string, rejecterId: string): { ok: boolean; error?: string } {
   const i = store.sellerObligorLimits.findIndex((x) => x.sellerId === sellerId && x.obligorId === obligorId);
-  if (i < 0 || !store.sellerObligorLimits[i].approval) return { ok: false, error: "Sublimit approval not found." };
-  if (store.sellerObligorLimits[i].approval!.status === "APPROVED") return { ok: false, error: "Already approved — cannot reject." };
-  if (store.sellerObligorLimits[i].approval!.requestedBy === rejecterId) return { ok: false, error: "A different user must action this request (four-eyes)." };
+  if (i < 0) return { ok: false, error: "Sublimit approval not found." };
+  const s = store.sellerObligorLimits[i];
+  // Rejecting a staged edit discards ONLY the change — the live sublimit stays.
+  if (s.pendingEdit) {
+    if (s.pendingEdit.requestedBy === rejecterId) return { ok: false, error: "A different user must action this request (four-eyes)." };
+    s.pendingEdit = undefined;
+    return { ok: true };
+  }
+  if (!s.approval) return { ok: false, error: "Sublimit approval not found." };
+  if (s.approval.status === "APPROVED") return { ok: false, error: "Already approved — cannot reject." };
+  if (s.approval.requestedBy === rejecterId) return { ok: false, error: "A different user must action this request (four-eyes)." };
   store.sellerObligorLimits.splice(i, 1);
   return { ok: true };
 }
@@ -2146,6 +2198,7 @@ export function addSeller(input: {
   creditLimit: number;
   maxTenorDays: number;
   expiryDate: string;
+  approval?: { reference: string; requestedBy: string; requestedByName: string };
 }): Seller {
   const id = `SELLER${String(store.sellers.length + 1).padStart(3, "0")}`;
   const seller: Seller = {
@@ -2178,6 +2231,7 @@ export function addSeller(input: {
     approvedLimit: input.creditLimit,
     maxTenorDays: input.maxTenorDays,
     expiryDate: input.expiryDate,
+    approval: input.approval,
   });
   return seller;
 }
@@ -2189,6 +2243,7 @@ export function addObligor(input: {
   masterLimit: number;
   maxTenorDays: number;
   expiryDate: string;
+  approval?: { reference: string; requestedBy: string; requestedByName: string };
 }): Obligor {
   const id = `OBL${String(store.obligors.length + 1).padStart(3, "0")}`;
   const obligor: Obligor = {
@@ -2215,6 +2270,7 @@ export function addObligor(input: {
     approvedLimit: input.masterLimit,
     maxTenorDays: input.maxTenorDays,
     expiryDate: input.expiryDate,
+    approval: input.approval,
   });
   return obligor;
 }
@@ -2233,9 +2289,25 @@ export function addSellerObligorLimit(
     (x) => x.sellerId === sellerId && x.obligorId === obligorId,
   );
   if (existing) {
-    existing.approvedLimit = approvedLimit;
-    existing.maxTenorDays = maxTenorDays;
-    if (approval) existing.approval = approval;
+    const isLive = !existing.approval || existing.approval.status === "APPROVED";
+    if (isLive && approvalInput) {
+      // Four-eyes staged edit: a LIVE sublimit's approved value stays live and
+      // keeps granting capacity; the change is parked in pendingEdit until a
+      // second user approves it. Never overwrite the live value in place.
+      existing.pendingEdit = {
+        approvedLimit,
+        maxTenorDays,
+        reference: approvalInput.reference,
+        requestedBy: approvalInput.requestedBy,
+        requestedByName: approvalInput.requestedByName,
+        requestedAt: new Date().toISOString(),
+      };
+    } else {
+      // Not yet live (still pending its first approval) — safe to update in place.
+      existing.approvedLimit = approvedLimit;
+      existing.maxTenorDays = maxTenorDays;
+      if (approval) existing.approval = approval;
+    }
   } else {
     store.sellerObligorLimits.push({ sellerId, obligorId, approvedLimit, maxTenorDays, approval });
   }

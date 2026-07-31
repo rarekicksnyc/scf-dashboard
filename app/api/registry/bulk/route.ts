@@ -63,16 +63,19 @@ export async function POST(request: Request) {
       const tenor = Number(r.max_tenor_days) || 90;
       const expiry = r.expiry_date || "2026-12-31";
       const requireCdl = () => { if (!/^\d{8}$/.test(cdl)) throw new Error("cdl must be an 8-digit code"); };
+      // Four-eyes: bulk-loaded limits are minted PENDING and grant no capacity
+      // until a second user approves each in the limit-approvals queue.
+      const approval = { reference: (r.reference || `BULK row ${rowNo}`).toString().trim(), requestedBy: user.id, requestedByName: user.name };
       let rowAdds = 1; // rows that fan out (ASR → all sellers) count each link
 
       if (rt === "SELLER") {
         if (!name) throw new Error("name is required");
         requireCdl();
-        addSeller({ name, cdl, creditLimit: amount, maxTenorDays: tenor, expiryDate: expiry });
+        addSeller({ name, cdl, creditLimit: amount, maxTenorDays: tenor, expiryDate: expiry, approval });
       } else if (rt === "OBLIGOR") {
         if (!name) throw new Error("name is required");
         requireCdl();
-        addObligor({ name, cdl, country: r.country || "US", masterLimit: amount, maxTenorDays: tenor, expiryDate: expiry });
+        addObligor({ name, cdl, country: r.country || "US", masterLimit: amount, maxTenorDays: tenor, expiryDate: expiry, approval });
       } else if (rt === "LIMIT") {
         requireCdl();
         const lt = (r.limit_type || "").toUpperCase() as LimitType;
@@ -80,7 +83,7 @@ export async function POST(request: Request) {
         const entityType: EntityType = isSeller ? "SELLER" : "OBLIGOR";
         const ent = findEntity(isSeller ? allSellers() : allObligors(), name, cdl);
         if (!ent) throw new Error(`no ${entityType.toLowerCase()} found for '${name || cdl}' — add it first`);
-        addLimit({ type: lt, cdl, entityType, entityId: ent.id, approvedLimit: amount, maxTenorDays: tenor, expiryDate: expiry });
+        addLimit({ type: lt, cdl, entityType, entityId: ent.id, approvedLimit: amount, maxTenorDays: tenor, expiryDate: expiry, approval });
       } else if (rt === "ASR_SUBLIMIT" || rt === "FACILITY_OBLIGOR") {
         // Add an obligor to a seller's ASR (facility). Links an existing obligor
         // or creates one inline, then records the sublimit + group expiry. Set
@@ -104,7 +107,7 @@ export async function POST(request: Request) {
         if (!obligor) {
           if (!obName || !/^\d{8}$/.test(obCdl)) throw new Error("obligor not found — to create it, give obligor_name and an 8-digit obligor_cdl");
           if (!groupExpiry) throw new Error("group_expiry is required when creating a new obligor");
-          const created = addObligor({ name: obName, cdl: obCdl, country: r.country || "US", masterLimit: Number((r.master_limit || "").replace(/[$,]/g, "")) || 0, maxTenorDays: tenor, expiryDate: groupExpiry });
+          const created = addObligor({ name: obName, cdl: obCdl, country: r.country || "US", masterLimit: Number((r.master_limit || "").replace(/[$,]/g, "")) || 0, maxTenorDays: tenor, expiryDate: groupExpiry, approval });
           obligor = { id: created.id, name: created.name, cdl: created.cdl };
         } else if (groupExpiry) {
           updateObligor(obligor.id, { expiryDate: groupExpiry });

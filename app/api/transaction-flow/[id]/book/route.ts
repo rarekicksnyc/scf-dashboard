@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getTransactionWorkflow, bookTransactionFromWorkflow, advanceWorkflow, requestWorkflowException, addAudit } from "@/lib/data/store";
+import { getTransactionWorkflow, bookTransactionFromWorkflow, advanceWorkflow, requestWorkflowException, workflowExceptionFingerprint, addAudit } from "@/lib/data/store";
 import { getCurrentUser, roleHas } from "@/lib/auth";
 import { evaluateWorkflow } from "@/lib/workflowEligibility";
 import { addBusinessDays, daysBetween } from "@/lib/format";
@@ -36,8 +36,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (Number.isNaN(n) || n < 0 || n > 3) {
       return NextResponse.json({ error: "Settlement basis must be T+0, T+1, T+2, or T+3." }, { status: 400 });
     }
-    const tenor = daysBetween(wf.valueDate, wf.maturityDate); // calendar-day tenor to preserve
-    if (tenor <= 0) return NextResponse.json({ error: "This transaction has no positive tenor to book." }, { status: 422 });
+    const endDate = wf.productType === "UTRC" ? (wf.finalDemandDate || wf.maturityDate) : wf.maturityDate;
+    const tenor = daysBetween(wf.valueDate, endDate); // calendar-day tenor to preserve
+    if (!Number.isFinite(tenor) || tenor <= 0) return NextResponse.json({ error: "This transaction has no valid positive tenor to book." }, { status: 422 });
     const executionDate = new Date().toISOString().slice(0, 10);
     const fundingDate = addBusinessDays(executionDate, n);
     const maturity = new Date(Date.parse(fundingDate) + tenor * 86_400_000).toISOString().slice(0, 10);
@@ -49,7 +50,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   // Governance: re-run eligibility at booking (against the funding date).
   const evalr = evaluateWorkflow(wf);
-  const approved = Boolean(wf.exceptionApprovedBy);
+  // A prior approval only counts if the deal still matches what the checker
+  // sanctioned — changing the settlement basis reshapes the window and voids it.
+  const approved = Boolean(wf.exceptionApprovedBy) && wf.exceptionApprovedFingerprint === workflowExceptionFingerprint(wf);
   if (!evalr.clears && !approved) {
     // A breach needs a checker's approval. Record (or update) the exception
     // request with the maker's reason and wait for a second user to approve.

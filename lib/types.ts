@@ -380,6 +380,7 @@ export interface SellerObligorLimit {
   approvedLimit: number; // obligor sublimit UNDER this seller's ASR
   maxTenorDays: number; // approved tenor for this seller/obligor pair
   approval?: LimitApproval; // four-eyes; while PENDING the sublimit grants no capacity
+  pendingEdit?: LimitPendingEdit; // staged change to a LIVE sublimit; old value stays live until approved
 }
 
 // ---------------------------------------------------------------------------
@@ -582,6 +583,7 @@ export interface TransactionWorkflow {
   exceptionApprovedBy?: string; // checker user id (must differ from the maker)
   exceptionApprovedByName?: string;
   exceptionApprovedAt?: string;
+  exceptionApprovedFingerprint?: string; // snapshot of the approved deal window/amount
   // Booking
   executionDate?: string; // when docs were executed (set when booked on a T+n basis)
   settlementBasis?: number; // 0/1/2/3 — funding is n business days after execution

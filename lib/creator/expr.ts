@@ -156,8 +156,13 @@ function ev(n: Node, ctx: Context): Value {
     case "str": return n.v;
     case "bool": return n.v;
     case "id": {
-      if (!(n.name in ctx)) throw new ExprError(`Unknown field "${n.name}".`);
-      return ctx[n.name];
+      // hasOwnProperty (not `in`) so inherited members — constructor, __proto__,
+      // toString, hasOwnProperty — are NOT reachable as fields (prototype-chain
+      // leak). And the value must be a real primitive Value, never a function.
+      if (!Object.prototype.hasOwnProperty.call(ctx, n.name)) throw new ExprError(`Unknown field "${n.name}".`);
+      const v = ctx[n.name];
+      if (typeof v !== "number" && typeof v !== "boolean" && typeof v !== "string") throw new ExprError(`Unknown field "${n.name}".`);
+      return v;
     }
     case "un": return n.op === "!" ? !toBool(ev(n.e, ctx)) : -toNumber(ev(n.e, ctx));
     case "call": {
@@ -202,6 +207,17 @@ function idsOf(n: Node, out: Set<string>): void {
   }
 }
 
+// Collect every FUNCTION name called (so the validator can reject typos at save
+// time instead of letting them fail only at eval time).
+function callNamesOf(n: Node, out: Set<string>): void {
+  switch (n.t) {
+    case "un": callNamesOf(n.e, out); break;
+    case "bin": callNamesOf(n.l, out); callNamesOf(n.r, out); break;
+    case "call": out.add(n.name.toLowerCase()); n.args.forEach((a) => callNamesOf(a, out)); break;
+    default: break;
+  }
+}
+
 // --- Public API ------------------------------------------------------------
 export function parseExpression(src: string): { ast?: Node; error?: string } {
   if (typeof src !== "string") return { error: "Expression must be text." };
@@ -221,6 +237,12 @@ export function evaluateExpression(src: string, ctx: Context): { value?: Value; 
 export function validateExpression(src: string, allowedKeys: string[]): { ok: boolean; error?: string } {
   const { ast, error } = parseExpression(src);
   if (!ast) return { ok: false, error };
+  // Reject unknown function names at save time (not just at eval time).
+  const calls = new Set<string>();
+  callNamesOf(ast, calls);
+  for (const c of calls) {
+    if (!Object.prototype.hasOwnProperty.call(FUNCTIONS, c)) return { ok: false, error: `Unknown function "${c}".` };
+  }
   const ids = new Set<string>();
   idsOf(ast, ids);
   const allowed = new Set(allowedKeys);

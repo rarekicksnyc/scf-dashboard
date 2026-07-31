@@ -108,7 +108,8 @@ export function parseRowObjects(rows: Record<string, unknown>[]): ParsedUpload {
     const issue = get(["issue_date", "issuedate", "invoice_date"]);
 
     // Schedule A / UTRC pricing fields (optional).
-    const coverage = Number(get(["coverage_amount", "coverage", "commitment_amount"]).replace(/[$,]/g, "")) || undefined;
+    const coverageRaw = Number(get(["coverage_amount", "coverage", "commitment_amount"]).replace(/[$,]/g, ""));
+    const coverage = coverageRaw > 0 ? coverageRaw : undefined; // ignore non-positive coverage; the engine also hard-rejects it
     let adv = Number(get(["advance_rate", "advancerate", "applicable_purchase_percentage", "purchase_percentage"]).replace(/%/g, ""));
     if (adv > 1.5) adv = adv / 100; // percent → decimal
     const marginRaw = Number(get(["margin", "margin_rate", "pricing", "applicable_margin_rate"]).replace(/[%bps]/gi, ""));

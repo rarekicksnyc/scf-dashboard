@@ -77,6 +77,11 @@ export function accruedRevenue(deals: RevDeal[], asOf: string): { contracted: nu
     const frac = d.tenorDays > 0 ? Math.max(0, Math.min(1, elapsed / d.tenorDays)) : (elapsed >= 0 ? 1 : 0);
     accrued += income * frac;
   }
+  // Keep accrued within the [0, contracted] band so a negative-income deal (a rate
+  // swap or a client COF below SOFR) can never push accrued past contracted,
+  // unearned below zero, or earned% outside 0..100 (the accrual bar reads it).
+  const lo = Math.min(0, contracted), hi = Math.max(0, contracted);
+  accrued = Math.max(lo, Math.min(hi, accrued));
   return { contracted, accrued, unearned: contracted - accrued };
 }
 

@@ -16,7 +16,7 @@ import {
 } from "@/lib/data/store";
 import { priceDeal } from "@/lib/pricing";
 import { obligorEntityFindings } from "@/lib/engine/obligorEntity";
-import { mm2 as mm, daysBetween, expired, limitLapsed } from "@/lib/format";
+import { mm2 as mm, daysBetween, expired, limitLapsed, limitNotYetEffective } from "@/lib/format";
 import { ADVANCE_RATE_CAP, ADVANCE_RATE_MIN, ADVANCE_RATE_MAX } from "@/lib/config";
 import type {
   DiscountTransaction,
@@ -116,6 +116,12 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
     }
   };
 
+  // The funded amount that draws every limit must be positive — a negative or
+  // zero amount would pass all capacity checks and bypass four-eyes.
+  if (!(advanceAmount > 0)) {
+    add("TRANSACTION", "Funded amount", "> 0", mm(advanceAmount), "RED", "Funded amount must be positive.");
+  }
+
   // ---------------- SELLER FACILITY ----------------
   if (!seller) {
     add("SELLER", "Seller eligible", "Known & eligible seller", txn.sellerId, "RED",
@@ -137,9 +143,11 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
       const v = viewLimit(sl, window);
       // Seller line consumes the funded amount NET of any RRL portion.
       capacity("SELLER", "Seller credit limit", v.available, v.approvedLimit, v.consumed, sellerBooking);
-      add("SELLER", "Credit limit expiry", sl.expiryDate, txn.valueDate,
-        limitLapsed(sl.expiryDate, txn.valueDate) ? "RED" : "GREEN",
-        limitLapsed(sl.expiryDate, txn.valueDate) ? "Credit limit lapsed as of the value date." : "Credit limit valid through the value date.");
+      add("SELLER", "Credit limit validity", sl.expiryDate, txn.valueDate,
+        limitLapsed(sl.expiryDate, txn.valueDate) || limitNotYetEffective(sl.effectiveDate, txn.valueDate) ? "RED" : "GREEN",
+        limitLapsed(sl.expiryDate, txn.valueDate) ? "Credit limit lapsed as of the value date."
+          : limitNotYetEffective(sl.effectiveDate, txn.valueDate) ? `Credit limit not yet effective (effective ${sl.effectiveDate}).`
+          : "Credit limit valid through the value date.");
       add("SELLER", "Seller max tenor", `${sl.maxTenorDays}d`, `${tenorDays}d`,
         tenorDays > sl.maxTenorDays ? "RED" : "GREEN",
         tenorDays > sl.maxTenorDays ? `Tenor exceeds seller max by ${tenorDays - sl.maxTenorDays}d.` : "Within seller max tenor.");
@@ -258,6 +266,11 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
     if (ol) {
       const v = viewLimit(ol, window);
       capacity("OBLIGOR", "Obligor master limit", v.available, v.approvedLimit, v.consumed, advanceAmount);
+      add("OBLIGOR", "Obligor limit expiry", ol.expiryDate, txn.valueDate,
+        limitLapsed(ol.expiryDate, txn.valueDate) || limitNotYetEffective(ol.effectiveDate, txn.valueDate) ? "RED" : "GREEN",
+        limitLapsed(ol.expiryDate, txn.valueDate) ? "Obligor credit limit lapsed as of the value date."
+          : limitNotYetEffective(ol.effectiveDate, txn.valueDate) ? `Obligor credit limit not yet effective (effective ${ol.effectiveDate}).`
+          : "Obligor credit limit valid through the value date.");
       add("OBLIGOR", "Obligor max tenor", `${ol.maxTenorDays}d`, `${tenorDays}d`,
         tenorDays > ol.maxTenorDays ? "RED" : "GREEN",
         tenorDays > ol.maxTenorDays ? `Tenor exceeds obligor max by ${tenorDays - ol.maxTenorDays}d.` : "Within obligor max tenor.");
@@ -287,6 +300,18 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
 
   // ---------------- ASR APPROVED OBLIGOR SUBLIMIT ----------------
   if (seller && obligor) {
+    // Seller-level ASR limit — the facility's aggregate ASR ceiling. Must be
+    // checked here (the batch engine already does) or a deal can overdraw it.
+    const asrLimit = findLimit("ASR", seller.id, txn.valueDate);
+    if (asrLimit) {
+      const av = viewLimit(asrLimit, window);
+      capacity("ASR", "ASR limit", av.available, av.approvedLimit, av.consumed, advanceAmount);
+      add("ASR", "ASR limit validity", asrLimit.expiryDate, txn.valueDate,
+        limitLapsed(asrLimit.expiryDate, txn.valueDate) || limitNotYetEffective(asrLimit.effectiveDate, txn.valueDate) ? "RED" : "GREEN",
+        limitLapsed(asrLimit.expiryDate, txn.valueDate) ? "ASR limit lapsed as of the value date."
+          : limitNotYetEffective(asrLimit.effectiveDate, txn.valueDate) ? `ASR limit not yet effective (effective ${asrLimit.effectiveDate}).`
+          : "ASR limit valid through the value date.");
+    }
     const sol = sellerObligorLimit(seller.id, obligor.id);
     if (!sol) {
       add("ASR", "ASR approved obligor", `${seller.name} ASR approved list`, obligor.name, "RED",

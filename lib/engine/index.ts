@@ -19,6 +19,8 @@ import {
   activeInvestors,
   activePolicies,
   viewLimit,
+  sellerObligorLimit,
+  sellerObligorUsage,
 } from "@/lib/data/store";
 import {
   makeWorking,
@@ -170,10 +172,13 @@ interface WorkingSet {
 // reservation outside the batch's active period does not, matching the
 // interactive engine. Investor/insurance capacity is not reservation-driven.
 function buildWorkingSet(seller: Seller, window?: DateWindow): WorkingSet {
-  const sellerLimit = findLimit("SELLER", seller.id);
-  const asrLimit = findLimit("ASR", seller.id);
+  // Pick each governing limit for the batch window's value date, so selection and
+  // time-phased consumption both key off the same date (parity with the
+  // interactive engine, which uses txn.valueDate = window.from).
+  const sellerLimit = findLimit("SELLER", seller.id, window?.from);
+  const asrLimit = findLimit("ASR", seller.id, window?.from);
   // Swingline is per-entity now — the seller's own swingline (if it has one).
-  const swinglineLimit = findLimit("SWINGLINE", seller.id);
+  const swinglineLimit = findLimit("SWINGLINE", seller.id, window?.from);
 
   const investors: InvestorSlot[] = activeInvestors()
     .map((master) => {
@@ -203,7 +208,7 @@ function buildWorkingSet(seller: Seller, window?: DateWindow): WorkingSet {
 
 function workingObligor(ws: WorkingSet, obligorId: string): WorkingLimit | undefined {
   if (ws.obligors.has(obligorId)) return ws.obligors.get(obligorId);
-  const limit = findLimit("OBLIGOR", obligorId);
+  const limit = findLimit("OBLIGOR", obligorId, ws.window?.from);
   const w = limit ? makeWorking(viewLimit(limit, ws.window)) : undefined;
   if (w) ws.obligors.set(obligorId, w);
   return w;
@@ -253,6 +258,12 @@ export function runBatch(
     // consumption below uses coverage, not face. This keeps the batch engine in
     // agreement with the interactive engine and the booked ledger.
     const coverage = invoice.coverageAmount ?? amount * (invoice.advanceRate ?? 1);
+
+    // The funded amount that draws the limits must be positive — a negative or
+    // zero coverage would trivially pass every capacity check and bypass four-eyes.
+    if (!(coverage > 0)) {
+      checks.push({ checkName: "INVOICE_DATA_CHECK", status: "FAIL", severity: "RED", message: `Coverage/funded amount must be positive (got ${Math.round(coverage)}).` });
+    }
 
     if (docCheck) checks.push(docCheck);
 
@@ -397,6 +408,26 @@ export function runBatch(
     const asrCheck = capacityCheck("ASR_LIMIT_CHECK", ws.asr, coverage, true);
     if (asrCheck) checks.push(asrCheck);
 
+    // Per-obligor ASR sublimit + approved-list gate (parity with the interactive
+    // engine): funds only obligors on the seller's ASR approved list, within the
+    // pair sublimit; a pending (four-eyes) sublimit grants no capacity.
+    if (seller && getObligor(invoice.obligorId)) {
+      const sol = sellerObligorLimit(seller.id, invoice.obligorId);
+      const win: DateWindow | undefined = invoice.requestedDiscountDate && invoice.dueDate ? { from: invoice.requestedDiscountDate, to: invoice.dueDate } : undefined;
+      if (!sol) {
+        checks.push({ checkName: "ASR_SUBLIMIT_CHECK", status: "FAIL", severity: "RED", message: `Obligor '${invoice.obligorId}' is not on ${seller.name}'s ASR approved list.` });
+      } else if (sol.approval?.status === "PENDING") {
+        checks.push({ checkName: "ASR_SUBLIMIT_CHECK", status: "EXCEPTION", severity: "ORANGE", message: "ASR sublimit is pending four-eyes approval — grants no capacity until approved." });
+      } else {
+        const avail = sol.approvedLimit - sellerObligorUsage(seller.id, invoice.obligorId, win);
+        if (coverage > avail) {
+          checks.push({ checkName: "ASR_SUBLIMIT_CHECK", status: "EXCEPTION", severity: "ORANGE", message: `ASR sublimit: draws ${Math.round(coverage)} but only ${Math.round(Math.max(avail, 0))} available — exceeds by ${Math.round(coverage - avail)}.` });
+        } else {
+          checks.push({ checkName: "ASR_SUBLIMIT_CHECK", status: "PASS", severity: "GREEN", message: "Within the ASR sublimit." });
+        }
+      }
+    }
+
     const obligorWorking = workingObligor(ws, invoice.obligorId);
     const obligorCheck = capacityCheck(
       "OBLIGOR_LIMIT_CHECK",
@@ -448,7 +479,7 @@ export function runBatch(
     // Checker-approved override: an EXCEPTION_REQUIRED invoice whose breach a
     // checker approved is upgraded to EXCEPTION_APPROVED and funds (recording a
     // temporary excess against the breached limit).
-    if (status === "EXCEPTION_REQUIRED" && overrides.has(invoice.invoiceNumber)) {
+    if (status === "EXCEPTION_REQUIRED" && overrides.has(`${invoice.sellerId}|${invoice.obligorId}|${invoice.invoiceNumber}`)) {
       status = "EXCEPTION_APPROVED";
     }
     const funded =

@@ -4,7 +4,7 @@ import {
   addCustomField, updateCustomField, removeCustomField, listCustomFields, setCustomFieldValues,
   addCustomRegister, updateCustomRegister, removeCustomRegister,
   addKpiTile, updateKpiTile, removeKpiTile,
-  addWatchRule, updateWatchRule, removeWatchRule,
+  addWatchRule, updateWatchRule, removeWatchRule, listWatchRules,
   addTemplateField, updateTemplateField, removeTemplateField, listTemplateFields,
   setHiddenReportColumns,
   recordUnchanged, recordRev, bumpRecordRev, addAudit,
@@ -191,7 +191,18 @@ export async function PATCH(request: Request) {
   }
   if (resource === "watchRule") {
     const scope = SCOPES.has(b.scope) ? (b.scope as WatchScope) : undefined;
-    if (b.expression != null && scope) { const v = validateWatchExpression(String(b.expression), scope); if (!v.ok) return NextResponse.json({ error: v.error }, { status: 400 }); }
+    // Always re-validate the EFFECTIVE expression against the EFFECTIVE scope
+    // whenever either one changes — otherwise editing the expression alone (no
+    // scope in the body), or narrowing the scope under an existing expression,
+    // slips an unvalidated rule through.
+    const existingRule = listWatchRules().find((r) => r.id === id);
+    if (!existingRule) return NextResponse.json({ error: "Rule not found." }, { status: 404 });
+    const effExpr = b.expression != null ? String(b.expression) : existingRule.expression;
+    const effScope = scope ?? existingRule.scope;
+    if ((b.expression != null || scope) && effScope) {
+      const v = validateWatchExpression(effExpr, effScope);
+      if (!v.ok) return NextResponse.json({ error: v.error ?? "Invalid expression." }, { status: 400 });
+    }
     const rule = updateWatchRule(id, {
       label: b.label != null ? String(b.label) : undefined,
       scope,

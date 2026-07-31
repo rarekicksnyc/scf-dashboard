@@ -24,7 +24,7 @@ export default function RevenuePage() {
   const monthly = revenueByMonth(deals);
   const pipeline = pipelineRevenue();
   const accrual = accruedRevenue(deals, today);
-  const accruedPct = accrual.contracted > 0 ? (accrual.accrued / accrual.contracted) * 100 : 0;
+  const accruedPct = accrual.contracted > 0 ? Math.max(0, Math.min(100, (accrual.accrued / accrual.contracted) * 100)) : 0;
   const fyStart = fiscalYearStart(today);
   const fytdEarned = earnedBetween(deals, fyStart, today);
   const explorerDeals: ExplorerDeal[] = deals.map((d) => ({

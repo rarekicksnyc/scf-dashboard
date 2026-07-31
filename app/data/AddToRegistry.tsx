@@ -152,6 +152,11 @@ export default function AddToRegistry({
         reference: f.reference.trim(),
       };
     } else if (mode === "SELLER" || mode === "OBLIGOR") {
+      if (!f.reference.trim()) {
+        setMsg({ ok: false, text: `A GCARS / credit-approval reference is required to add a ${mode === "SELLER" ? "seller" : "obligor"}.` });
+        setBusy(false);
+        return;
+      }
       body = {
         kind: mode,
         name: f.name,
@@ -160,6 +165,7 @@ export default function AddToRegistry({
         approvedLimit: Number(f.approvedLimit),
         maxTenorDays: Number(f.maxTenorDays),
         expiryDate: f.expiryDate,
+        reference: f.reference.trim(),
       };
     } else if (mode === "SELLER_ENTITY" || mode === "OBLIGOR_ENTITY") {
       body = {
@@ -381,7 +387,7 @@ export default function AddToRegistry({
                   <input style={input} type="date" value={f.expiryDate} onChange={(e) => set("expiryDate", e.target.value)} />
                 </label>
               )}
-              {(mode === "LIMIT" || mode === "ASR_SUBLIMIT") && (
+              {(mode === "LIMIT" || mode === "ASR_SUBLIMIT" || mode === "SELLER" || mode === "OBLIGOR") && (
                 <label style={{ ...field, gridColumn: "span 2" }}>GCARS / approval reference
                   <input style={input} value={f.reference} onChange={(e) => set("reference", e.target.value)} placeholder="e.g. GCARS-2026-04821" />
                   <span className="muted" style={{ fontSize: 11 }}>Required. Created pending a second approver; grants no capacity until approved.</span>

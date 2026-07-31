@@ -52,10 +52,13 @@ function mirrorView(sub: LimitView, parent: LimitView, adjustmentNet = 0): Limit
 
 export function sellerExposure(asOf?: string): ExposureRow[] {
   return allSellers().map((s) => {
-    const main = findLimit("SELLER", s.id);
+    // Select the governing limit for the SAME date the consumption is windowed to,
+    // so at a renewal boundary the row's approvedLimit and its consumption both
+    // come from the limit that governs that window (single-source of truth).
+    const main = findLimit("SELLER", s.id, asOf);
     const swl = entitySwingline("SELLER", s.id);
-    const rrl = findLimit("RRL", s.id);
-    const rrlSwl = findLimit("RRL_SWINGLINE", s.id);
+    const rrl = findLimit("RRL", s.id, asOf);
+    const rrlSwl = findLimit("RRL_SWINGLINE", s.id, asOf);
     const mainView = main ? viewLimit(main, asOf) : undefined;
     const rrlView = rrl ? viewLimit(rrl, asOf) : undefined;
     return {
@@ -74,7 +77,8 @@ export function sellerExposure(asOf?: string): ExposureRow[] {
 
 export function obligorExposure(asOf?: string): ExposureRow[] {
   return allObligors().map((o) => {
-    const main = findLimit("OBLIGOR", o.id);
+    // Governing limit picked for the same window the consumption is measured on.
+    const main = findLimit("OBLIGOR", o.id, asOf);
     const swl = entitySwingline("OBLIGOR", o.id);
     const mainView = main ? viewLimit(main, asOf) : undefined;
     return {

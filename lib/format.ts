@@ -62,6 +62,13 @@ export function limitLapsed(expiryISO: string | undefined, asOf: string): boolea
   return Date.parse(expiryISO) <= Date.parse(asOf);
 }
 
+// A limit whose effectiveDate is still in the FUTURE relative to the date — it
+// has not taken effect yet and must grant no capacity (symmetric to limitLapsed).
+export function limitNotYetEffective(effectiveISO: string | undefined, asOf: string): boolean {
+  if (!effectiveISO) return false;
+  return Date.parse(effectiveISO) > Date.parse(asOf);
+}
+
 // A limit is active on a date when effectiveDate <= date < expiryDate (expiry
 // exclusive). Missing dates are open-ended on that side.
 export function limitActiveOn(l: { effectiveDate?: string; expiryDate?: string }, asOf: string): boolean {

@@ -63,18 +63,27 @@ export async function POST(request: Request) {
       if (!b.name || !isCdl(b.cdl)) {
         return NextResponse.json({ error: "Seller needs a name and an 8-digit CDL." }, { status: 422 });
       }
+      // Four-eyes: the seller's master credit limit is minted PENDING and grants
+      // no capacity until a second user approves it in the limit-approvals queue.
+      const reference = typeof b.reference === "string" ? b.reference.trim() : "";
+      if (!reference) return NextResponse.json({ error: "A GCARS / credit-approval reference is required to add a seller." }, { status: 422 });
       created = addSeller({
         name: b.name,
         cdl: b.cdl,
         creditLimit: Number(b.approvedLimit) || 0,
         maxTenorDays: Number(b.maxTenorDays) || 90,
         expiryDate: b.expiryDate || "2026-12-31",
+        approval: { reference, requestedBy: user.id, requestedByName: user.name },
       });
-      audit = `Added seller ${b.name} (${b.cdl}) with credit limit ${Number(b.approvedLimit).toLocaleString()}.`;
+      audit = `Added seller ${b.name} (${b.cdl}); credit limit ${Number(b.approvedLimit).toLocaleString()} pending four-eyes approval (ref ${reference}).`;
     } else if (b.kind === "OBLIGOR") {
       if (!b.name || !isCdl(b.cdl)) {
         return NextResponse.json({ error: "Obligor needs a name and an 8-digit CDL." }, { status: 422 });
       }
+      // Four-eyes: the obligor's master limit is minted PENDING and grants no
+      // capacity until a second user approves it in the limit-approvals queue.
+      const reference = typeof b.reference === "string" ? b.reference.trim() : "";
+      if (!reference) return NextResponse.json({ error: "A GCARS / credit-approval reference is required to add an obligor." }, { status: 422 });
       created = addObligor({
         name: b.name,
         cdl: b.cdl,
@@ -82,8 +91,9 @@ export async function POST(request: Request) {
         masterLimit: Number(b.approvedLimit) || 0,
         maxTenorDays: Number(b.maxTenorDays) || 90,
         expiryDate: b.expiryDate || "2026-12-31",
+        approval: { reference, requestedBy: user.id, requestedByName: user.name },
       });
-      audit = `Added obligor ${b.name} (${b.cdl}) with master limit ${Number(b.approvedLimit).toLocaleString()}.`;
+      audit = `Added obligor ${b.name} (${b.cdl}); master limit ${Number(b.approvedLimit).toLocaleString()} pending four-eyes approval (ref ${reference}).`;
     } else if (b.kind === "ASR_SUBLIMIT") {
       if (!getSeller(b.sellerId) || !getObligor(b.obligorId)) {
         return NextResponse.json({ error: "Unknown seller or obligor." }, { status: 422 });

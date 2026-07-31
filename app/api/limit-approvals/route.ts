@@ -18,10 +18,14 @@ export async function GET() {
       reference: l.approval?.reference, requestedByName: l.approval?.requestedByName,
     })),
     ...listPendingSublimits().map((s) => ({
-      id: `SOL:${s.sellerId}:${s.obligorId}`, kind: "SUBLIMIT", type: "ASR sublimit",
+      id: `SOL:${s.sellerId}:${s.obligorId}`, kind: s.pendingEdit ? "SUBLIMIT_EDIT" : "SUBLIMIT", type: s.pendingEdit ? "ASR sublimit (edit)" : "ASR sublimit",
       entityName: `${getObligor(s.obligorId)?.name ?? s.obligorId} · under ${getSeller(s.sellerId)?.name ?? s.sellerId}`,
-      approvedLimit: s.approvedLimit, maxTenorDays: s.maxTenorDays, expiryDate: "—",
-      reference: s.approval?.reference, requestedByName: s.approval?.requestedByName,
+      approvedLimit: s.pendingEdit ? (s.pendingEdit.approvedLimit ?? s.approvedLimit) : s.approvedLimit,
+      maxTenorDays: s.pendingEdit ? (s.pendingEdit.maxTenorDays ?? s.maxTenorDays) : s.maxTenorDays,
+      expiryDate: "—",
+      reference: s.pendingEdit ? s.pendingEdit.reference : s.approval?.reference,
+      requestedByName: s.pendingEdit ? s.pendingEdit.requestedByName : s.approval?.requestedByName,
+      note: s.pendingEdit ? `was ${s.approvedLimit.toLocaleString()} / ${s.maxTenorDays}d` : undefined,
     })),
     ...listPendingLimitEdits().map((l) => ({
       id: l.id, kind: "LIMIT_EDIT", type: `${l.type} (edit)`,

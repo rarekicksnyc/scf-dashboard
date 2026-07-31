@@ -56,6 +56,7 @@ export async function POST(request: Request) {
       masterLimit: Number(b.masterLimit) || 0,
       maxTenorDays,
       expiryDate: groupExpiry, // sets both the master-limit expiry and the group expiry
+      approval: { reference, requestedBy: user.id, requestedByName: user.name }, // master limit pending four-eyes
     });
     obligorId = created.id;
     obligorName = created.name;
