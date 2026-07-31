@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, roleHas } from "@/lib/auth";
-import { listPendingLimits, approveLimit, rejectLimit, listPendingSublimits, approveSublimit, rejectSublimit, getSeller, getObligor, addAudit } from "@/lib/data/store";
+import { listPendingLimits, approveLimit, rejectLimit, listPendingSublimits, approveSublimit, rejectSublimit, listPendingLimitEdits, approveLimitEdit, rejectLimitEdit, getLimitById, getSeller, getObligor, addAudit } from "@/lib/data/store";
 
 // Four-eyes queue for new limits. A limit created via the register is PENDING and
 // grants no capacity until a DIFFERENT authorized user approves it here, recording
@@ -23,6 +23,15 @@ export async function GET() {
       approvedLimit: s.approvedLimit, maxTenorDays: s.maxTenorDays, expiryDate: "—",
       reference: s.approval?.reference, requestedByName: s.approval?.requestedByName,
     })),
+    ...listPendingLimitEdits().map((l) => ({
+      id: l.id, kind: "LIMIT_EDIT", type: `${l.type} (edit)`,
+      entityName: l.entityType === "SELLER" ? getSeller(l.entityId)?.name : l.entityType === "OBLIGOR" ? getObligor(l.entityId)?.name : l.entityId,
+      approvedLimit: l.pendingEdit!.approvedLimit ?? l.approvedLimit,
+      maxTenorDays: l.pendingEdit!.maxTenorDays ?? l.maxTenorDays,
+      expiryDate: l.pendingEdit!.expiryDate ?? l.expiryDate,
+      reference: l.pendingEdit!.reference, requestedByName: l.pendingEdit!.requestedByName,
+      note: `was ${l.approvedLimit.toLocaleString()} / ${l.maxTenorDays}d / ${l.expiryDate}`,
+    })),
   ];
   return NextResponse.json({ pending });
 }
@@ -36,17 +45,21 @@ export async function POST(request: Request) {
   const id = String(b.id ?? "");
   const isSublimit = id.startsWith("SOL:");
   const [, sellerId, obligorId] = isSublimit ? id.split(":") : ["", "", ""];
+  // A LIVE limit with a staged edit is an EDIT approval; a not-yet-live pending
+  // limit is a NEW approval. They are mutually exclusive on one record.
+  const isEdit = !isSublimit && Boolean(getLimitById(id)?.pendingEdit);
+  const kindLabel = isSublimit ? "ASR sublimit" : isEdit ? "limit change" : "limit";
 
   if (b.action === "approve") {
-    const r = isSublimit ? approveSublimit(sellerId, obligorId, user.id, user.name) : approveLimit(id, user.id, user.name);
+    const r = isSublimit ? approveSublimit(sellerId, obligorId, user.id, user.name) : isEdit ? approveLimitEdit(id, user.id, user.name) : approveLimit(id, user.id, user.name);
     if (!r.ok) return NextResponse.json({ error: r.error }, { status: 409 });
-    addAudit({ actorUserId: user.id, actorName: user.name, action: isSublimit ? "SUBLIMIT_APPROVE" : "LIMIT_APPROVE", entityType: isSublimit ? "ASR_SUBLIMIT" : "LIMIT", entityId: id, detail: `Approved ${isSublimit ? "ASR sublimit" : "limit"} ${id}.` });
+    addAudit({ actorUserId: user.id, actorName: user.name, action: "LIMIT_APPROVE", entityType: isSublimit ? "ASR_SUBLIMIT" : "LIMIT", entityId: id, detail: `Approved ${kindLabel} ${id}.` });
     return NextResponse.json({ ok: true });
   }
   if (b.action === "reject") {
-    const r = isSublimit ? rejectSublimit(sellerId, obligorId, user.id) : rejectLimit(id, user.id);
+    const r = isSublimit ? rejectSublimit(sellerId, obligorId, user.id) : isEdit ? rejectLimitEdit(id, user.id) : rejectLimit(id, user.id);
     if (!r.ok) return NextResponse.json({ error: r.error }, { status: 409 });
-    addAudit({ actorUserId: user.id, actorName: user.name, action: isSublimit ? "SUBLIMIT_REJECT" : "LIMIT_REJECT", entityType: isSublimit ? "ASR_SUBLIMIT" : "LIMIT", entityId: id, detail: `Rejected pending ${isSublimit ? "ASR sublimit" : "limit"} ${id}.` });
+    addAudit({ actorUserId: user.id, actorName: user.name, action: "LIMIT_REJECT", entityType: isSublimit ? "ASR_SUBLIMIT" : "LIMIT", entityId: id, detail: `Rejected pending ${kindLabel} ${id}.` });
     return NextResponse.json({ ok: true });
   }
   return NextResponse.json({ error: "Expected action approve|reject." }, { status: 400 });

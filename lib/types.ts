@@ -401,6 +401,19 @@ export interface LimitApproval {
   approvedAt?: string;
 }
 
+// A staged change to a LIVE limit awaiting four-eyes. The limit keeps serving its
+// current values until a second user approves the edit; on approval the staged
+// fields are applied, on rejection they are discarded.
+export interface LimitPendingEdit {
+  approvedLimit?: number;
+  maxTenorDays?: number;
+  expiryDate?: string;
+  reference: string;
+  requestedBy: string;
+  requestedByName: string;
+  requestedAt: string;
+}
+
 export interface Limit {
   id: string;
   type: LimitType;
@@ -421,6 +434,8 @@ export interface Limit {
   coveragePercent?: number;
   // Four-eyes approval state. Absent = a legacy/seeded limit (treated as approved).
   approval?: LimitApproval;
+  // A staged edit to a live limit, awaiting a second approver (old values stay live).
+  pendingEdit?: LimitPendingEdit;
 }
 
 export interface Utilization {

@@ -7,7 +7,7 @@ import { mm } from "@/lib/format";
 interface Pending {
   id: string; kind: string; type: string; entityName?: string;
   approvedLimit: number; maxTenorDays: number; expiryDate: string;
-  reference?: string; requestedByName?: string;
+  reference?: string; requestedByName?: string; note?: string;
 }
 
 // Four-eyes queue for new limits. A limit created via Data management is PENDING
@@ -46,8 +46,8 @@ export default function LimitApprovals({ canApprove }: { canApprove: boolean }) 
               <tr><td colSpan={canApprove ? 8 : 7} className="muted" style={{ padding: 14 }}>No limits awaiting approval.</td></tr>
             ) : pending.map((p) => (
               <tr key={p.id}>
-                <td>{p.type}</td>
-                <td>{p.entityName ?? p.entityId}</td>
+                <td>{p.type}{p.kind === "LIMIT_EDIT" && <span className="badge orange" style={{ marginLeft: 6, fontSize: 10 }}>change</span>}{p.note && <div className="muted" style={{ fontSize: 11 }}>{p.note}</div>}</td>
+                <td>{p.entityName ?? p.id}</td>
                 <td className="num">{mm(p.approvedLimit)}</td>
                 <td className="num">{p.maxTenorDays}d</td>
                 <td>{p.expiryDate}</td>

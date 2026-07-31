@@ -36,7 +36,7 @@ import type {
   AuthorizedSignatory,
 } from "@/lib/types";
 import type { WorkoutRoute, InvoiceResult } from "@/lib/types";
-import type { CustomFieldDef, CustomRegister, KpiTile, WatchRule, CoverageAssignment, NotificationEvent, TemplateFieldDef, LimitApproval } from "@/lib/types";
+import type { CustomFieldDef, CustomRegister, KpiTile, WatchRule, CoverageAssignment, NotificationEvent, TemplateFieldDef, LimitApproval, LimitPendingEdit } from "@/lib/types";
 import { DEFAULT_TEMPLATES } from "@/lib/data/templates";
 import { toLimitView, computeConsumed } from "@/lib/engine/availability";
 import { daysBetween, limitActiveOn } from "@/lib/format";
@@ -2026,6 +2026,38 @@ export function rejectLimit(id: string, rejecterId: string): { ok: boolean; erro
   if (store.limits[i].approval!.status === "APPROVED") return { ok: false, error: "Already approved — cannot reject." };
   if (store.limits[i].approval!.requestedBy === rejecterId) return { ok: false, error: "A different user must action this request (four-eyes)." };
   store.limits.splice(i, 1); // a rejected new limit is removed
+  return { ok: true };
+}
+
+// --- Staged limit edits (four-eyes on changes to a LIVE limit) ------------
+export function getLimitById(id: string): Limit | undefined {
+  return store.limits.find((l) => l.id === id);
+}
+export function stageLimitEdit(id: string, patch: Pick<LimitPendingEdit, "approvedLimit" | "maxTenorDays" | "expiryDate">, input: { reference: string; requestedBy: string; requestedByName: string }): Limit | undefined {
+  const l = getLimitById(id);
+  if (!l) return undefined;
+  l.pendingEdit = { ...patch, reference: input.reference, requestedBy: input.requestedBy, requestedByName: input.requestedByName, requestedAt: new Date().toISOString() };
+  return l;
+}
+export function listPendingLimitEdits(): Limit[] {
+  return store.limits.filter((l) => l.pendingEdit);
+}
+export function approveLimitEdit(id: string, approverId: string, approverName: string): { ok: boolean; error?: string } {
+  const l = getLimitById(id);
+  if (!l?.pendingEdit) return { ok: false, error: "No pending edit." };
+  if (l.pendingEdit.requestedBy === approverId) return { ok: false, error: "You requested this change — a different user must approve it (four-eyes)." };
+  if (l.pendingEdit.approvedLimit != null) l.approvedLimit = l.pendingEdit.approvedLimit;
+  if (l.pendingEdit.maxTenorDays != null) l.maxTenorDays = l.pendingEdit.maxTenorDays;
+  if (l.pendingEdit.expiryDate != null) l.expiryDate = l.pendingEdit.expiryDate;
+  void approverName;
+  l.pendingEdit = undefined;
+  return { ok: true };
+}
+export function rejectLimitEdit(id: string, rejecterId: string): { ok: boolean; error?: string } {
+  const l = getLimitById(id);
+  if (!l?.pendingEdit) return { ok: false, error: "No pending edit." };
+  if (l.pendingEdit.requestedBy === rejecterId) return { ok: false, error: "A different user must action this change (four-eyes)." };
+  l.pendingEdit = undefined;
   return { ok: true };
 }
 

@@ -25,14 +25,21 @@ export default function EditLimitRow({
   const [tenor, setTenor] = useState(String(view.limit.maxTenorDays));
   const [expiry, setExpiry] = useState(view.limit.expiryDate);
   const [status, setStatus] = useState(view.limit.status);
+  const [reference, setReference] = useState("");
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [pending, setPending] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
 
+  // A change to amount/tenor/expiry needs four-eyes; status/CDL apply immediately.
+  const staged = Number(approved) !== view.approvedLimit || Number(tenor) !== view.limit.maxTenorDays || expiry !== view.limit.expiryDate;
+
   async function save() {
+    if (staged && !reference.trim()) { setErr("A GCARS reference is required to change amount, tenor, or expiry."); return; }
     setBusy(true);
     setSaved(false);
+    setPending(false);
     setErr(null);
     setConflict(false);
     const res = await fetch(`/api/limits/${view.limit.id}`, {
@@ -44,6 +51,7 @@ export default function EditLimitRow({
         maxTenorDays: Number(tenor),
         expiryDate: expiry,
         status,
+        reference: reference.trim() || undefined,
         rev, // edit-conflict guard: the version this row was loaded at
       }),
     });
@@ -57,7 +65,9 @@ export default function EditLimitRow({
       setErr((await res.json()).error ?? "Failed");
       return;
     }
-    setSaved(true);
+    const data = await res.json().catch(() => ({}));
+    if (data.pending) { setPending(true); setReference(""); }
+    else setSaved(true);
     router.refresh();
   }
 
@@ -116,14 +126,19 @@ export default function EditLimitRow({
         </select>
       </td>
       <td>
+        {staged && (
+          <input style={{ ...cell, minWidth: 130, marginBottom: 4 }} value={reference} onChange={(e) => setReference(e.target.value)} placeholder="GCARS ref (four-eyes)" title="Required to change amount/tenor/expiry" />
+        )}
         <div style={{ display: "flex", gap: 6 }}>
           <button className="btn" style={{ padding: "4px 10px", fontSize: 12 }} onClick={save} disabled={busy} type="button">
-            {busy ? "…" : saved ? "Saved ✓" : "Save"}
+            {busy ? "…" : pending ? "Pending ✓" : saved ? "Saved ✓" : staged ? "Submit" : "Save"}
           </button>
           <button className="btn secondary" style={{ padding: "4px 10px", fontSize: 12, borderColor: "var(--red)", color: "var(--red)" }} onClick={remove} disabled={busy} type="button">
             Delete
           </button>
         </div>
+        {pending && <div className="check-pill" style={{ marginTop: 3, background: "var(--brand-soft)", color: "var(--brand)" }}>Change submitted — pending a second approver (Exceptions → Limit approvals).</div>}
+        {view.limit.pendingEdit && !pending && <div className="check-pill" style={{ marginTop: 3, background: "var(--brand-soft)", color: "var(--brand)" }}>A change to this limit is awaiting approval.</div>}
         {err && <div className="check-pill red" style={{ marginTop: 3 }}>{err}</div>}
         {conflict && (
           <div className="check-pill red" style={{ marginTop: 3, lineHeight: 1.4 }}>
