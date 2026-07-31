@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getTransactionWorkflow, advanceWorkflow, isAuthorizedSigner, addAudit } from "@/lib/data/store";
+import { getTransactionWorkflow, advanceWorkflow, isAuthorizedSigner, notifyOpsDocsReady, addAudit } from "@/lib/data/store";
 import { getCurrentUser, roleHas } from "@/lib/auth";
 import { addDocument } from "@/lib/documents";
 
@@ -43,6 +43,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     patch: { executedDocId, signerName, signerTitle, signatureValid: authorized },
   });
   addAudit({ actorUserId: user.id, actorName: user.name, action: "TXN_FLOW_EXECUTE", entityType: "TRANSACTION_WORKFLOW", entityId: id, detail: `Executed ${wf.reference}; signer ${signerName} ${authorized ? "authorized" : "NOT authorized (flagged)"}.` });
+  // Signer verified on upload → notify loan ops the docs are ready to book.
+  if (authorized) notifyOpsDocsReady(wf);
 
   return NextResponse.json({ ok: true, authorized, workflow: getTransactionWorkflow(id) });
 }

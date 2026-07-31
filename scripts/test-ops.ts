@@ -1,0 +1,12 @@
+import { store, notifyOpsDocsReady, unreadNotificationCount, listNotificationsForUser } from "@/lib/data/store";
+import type { TransactionWorkflow } from "@/lib/types";
+let pass=0,fail=0; const ok=(n:string,c:boolean,x="")=>{c?(pass++,console.log("  ok  "+n)):(fail++,console.log("FAIL "+n+" "+x));};
+const opsUser = store.users.find(u=>u.role==="OPERATIONS")!;
+const before = unreadNotificationCount(opsUser.id);
+const wf = { id:"w", reference:"TF-OPS", sellerName:"S", obligorName:"O", sellerId:"s", obligorId:"o" } as unknown as TransactionWorkflow;
+const sent = notifyOpsDocsReady(wf);
+ok("notified >=1 Operations user", sent >= 1);
+ok("ops user unread incremented", unreadNotificationCount(opsUser.id) === before + 1);
+const ev = listNotificationsForUser(opsUser.id)[0];
+ok("event is EXECUTED_DOC + links to flow", ev.type==="EXECUTED_DOC" && ev.href==="/eligibility");
+console.log(`\n${pass} passed, ${fail} failed`); process.exit(fail?1:0);

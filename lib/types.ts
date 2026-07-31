@@ -322,7 +322,7 @@ export interface CoverageAssignment {
   entityId: string;
 }
 
-export type NotificationType = "EXCEPTION" | "MATURITY" | "RESERVATION" | "LIMIT_EXPIRY";
+export type NotificationType = "EXCEPTION" | "MATURITY" | "RESERVATION" | "LIMIT_EXPIRY" | "EXECUTED_DOC";
 
 // A stored notification event (currently only four-eyes exceptions). The live
 // digest items (maturities/reservations/limits due) are derived, not stored.

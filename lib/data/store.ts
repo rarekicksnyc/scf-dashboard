@@ -1234,6 +1234,27 @@ export function markAllNotificationsRead(userId: string): number {
   return count;
 }
 
+// Loan ops handoff: when a transaction's documents are executed AND the signer is
+// verified (ready to book), notify the operations team (loan ops) in-app. They can
+// then open/download the executed document and draft the loan-ops email. Notifies
+// every Operations user; any operator assigned via coverage is included.
+export function notifyOpsDocsReady(wf: TransactionWorkflow): number {
+  const ops = store.users.filter((u) => u.role === "OPERATIONS");
+  let sent = 0;
+  for (const u of ops) {
+    addNotification({
+      userId: u.id,
+      type: "EXECUTED_DOC",
+      title: "Executed documents ready to book",
+      body: `${wf.reference} (${wf.sellerName} / ${wf.obligorName}) has executed, signature-verified documents — ready for booking/funding.`,
+      ref: wf.reference,
+      href: "/eligibility",
+    });
+    sent++;
+  }
+  return sent;
+}
+
 // Four-eyes exception routing: notify every user who covers the deal's seller or
 // obligor, can approve exceptions, and is NOT the maker — so a second authorized
 // reviewer is alerted. Safe to call on every exception request (idempotent enough;

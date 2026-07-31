@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getTransactionWorkflow, advanceWorkflow, addAudit } from "@/lib/data/store";
+import { getTransactionWorkflow, advanceWorkflow, notifyOpsDocsReady, addAudit } from "@/lib/data/store";
 import { getCurrentUser, roleHas } from "@/lib/auth";
 
 // Human review of a flagged signature. Confirming valid moves it forward;
@@ -24,5 +24,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     patch: { signatureValid: valid, signatureReviewedBy: user.name },
   });
   addAudit({ actorUserId: user.id, actorName: user.name, action: "TXN_FLOW_SIGNATURE_REVIEW", entityType: "TRANSACTION_WORKFLOW", entityId: id, detail: `Signature ${valid ? "confirmed valid" : "rejected"} for ${wf.reference}.` });
+  // Flagged signature confirmed valid → notify loan ops the docs are ready to book.
+  if (valid) notifyOpsDocsReady(wf);
   return NextResponse.json({ ok: true, workflow: getTransactionWorkflow(id) });
 }
