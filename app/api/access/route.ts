@@ -6,6 +6,8 @@ import {
   addUser,
   deleteUser,
   updateUserName,
+  addRole,
+  removeRole,
   addAudit,
 } from "@/lib/data/store";
 import { getCurrentUser, roleHas } from "@/lib/auth";
@@ -105,6 +107,20 @@ export async function POST(request: Request) {
       action: "USER_RENAME", entityType: "USER", entityId: b.userId,
       detail: `Renamed user ${from} → ${name}.`,
     });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (b.kind === "ROLE_ADD") {
+    const r = addRole(String(b.label ?? ""));
+    if (!r.ok) return NextResponse.json({ error: r.error }, { status: 422 });
+    addAudit({ actorUserId: user.id, actorName: user.name, action: "ROLE_ADD", entityType: "ROLE", entityId: r.key!, detail: `Added role ${r.key} ("${String(b.label).trim()}").` });
+    return NextResponse.json({ ok: true, key: r.key });
+  }
+
+  if (b.kind === "ROLE_DELETE") {
+    const r = removeRole(String(b.role ?? ""));
+    if (!r.ok) return NextResponse.json({ error: r.error }, { status: 422 });
+    addAudit({ actorUserId: user.id, actorName: user.name, action: "ROLE_DELETE", entityType: "ROLE", entityId: String(b.role), detail: `Deleted role ${b.role}.` });
     return NextResponse.json({ ok: true });
   }
 

@@ -1,10 +1,11 @@
-import { listUsers, ROLE_LABEL } from "@/lib/auth";
+import { listUsers } from "@/lib/auth";
+import { roleLabelOf } from "@/lib/data/store";
 import LoginForm from "./LoginForm";
 
 export const dynamic = "force-dynamic";
 
 export default function LoginPage() {
-  const users = listUsers().map((u) => ({ id: u.id, name: u.name, role: ROLE_LABEL[u.role] }));
+  const users = listUsers().map((u) => ({ id: u.id, name: u.name, role: roleLabelOf(u.role) }));
   // Show the shared demo password ONLY while the built-in default is still in
   // effect. The moment a real DEMO_PASSWORD (or SSO) is configured, the hint
   // disappears on its own — so it helps the pilot team without leaking anything

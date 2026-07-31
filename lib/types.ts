@@ -963,7 +963,11 @@ export type Permission =
   | "MANAGE_ROLES"
   | "CREATOR_MODE"; // build/extend the platform via governed configuration (PM + Admin)
 
-export type Role =
+// Roles are dynamic — PM/Admin can add or remove custom roles at runtime, so a
+// Role is any string key. The seven built-ins below are always present; custom
+// roles are additive. Labels + permission sets live in the store.
+export type Role = string;
+export type BuiltinRole =
   | "OPERATIONS"
   | "CREDIT_OFFICER"
   | "PRODUCT_MANAGER"

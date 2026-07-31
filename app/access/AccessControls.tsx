@@ -6,12 +6,14 @@ import type { Role, Permission, User } from "@/lib/types";
 
 export function RolesMatrix({
   roles,
+  builtins,
   permissions,
   permissionLabel,
   roleLabel,
   map,
 }: {
   roles: Role[];
+  builtins: string[];
   permissions: Permission[];
   permissionLabel: Record<Permission, string>;
   roleLabel: Record<Role, string>;
@@ -20,51 +22,55 @@ export function RolesMatrix({
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [newRole, setNewRole] = useState("");
+  const builtinSet = new Set(builtins);
 
-  async function toggle(role: Role, perm: Permission, enabled: boolean) {
-    setBusy(true);
-    setErr(null);
-    const res = await fetch("/api/access", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ kind: "ROLE_PERM", role, permission: perm, enabled }),
-    });
-    if (!res.ok) setErr((await res.json()).error ?? "Failed.");
-    router.refresh();
+  async function post(body: object): Promise<boolean> {
+    setBusy(true); setErr(null);
+    const res = await fetch("/api/access", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     setBusy(false);
+    if (!res.ok) { setErr((await res.json().catch(() => ({}))).error ?? "Failed."); return false; }
+    router.refresh();
+    return true;
   }
+  const toggle = (role: Role, perm: Permission, enabled: boolean) => post({ kind: "ROLE_PERM", role, permission: perm, enabled });
+  async function addRole() { if (!newRole.trim()) return; if (await post({ kind: "ROLE_ADD", label: newRole.trim() })) setNewRole(""); }
+  async function deleteRole(role: Role) { if (!confirm(`Delete the "${roleLabel[role]}" role? (Only possible with no users assigned.)`)) return; post({ kind: "ROLE_DELETE", role }); }
 
   return (
     <div className="panel">
       <h2>Role permissions</h2>
       {err && <div className="notice err" style={{ margin: "12px 14px 0" }}>{err}</div>}
+      <div style={{ padding: "10px 14px 0", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <span className="muted" style={{ fontSize: 13 }}>Add a custom role:</span>
+        <input value={newRole} onChange={(e) => setNewRole(e.target.value)} placeholder="e.g. Loan Ops Lead" style={{ border: "1px solid var(--border)", borderRadius: 6, padding: "6px 8px", fontSize: 13, minWidth: 180 }} />
+        <button className="btn secondary" type="button" style={{ padding: "5px 10px", fontSize: 12 }} disabled={busy || !newRole.trim()} onClick={addRole}>Add role</button>
+        <span className="muted" style={{ fontSize: 11 }}>New roles start with no permissions — tick what they can do below.</span>
+      </div>
       <div className="table-scroll">
         <table>
           <thead>
             <tr>
               <th>Role</th>
-              {permissions.map((p) => (
-                <th key={p} style={{ textAlign: "center" }}>{permissionLabel[p]}</th>
-              ))}
+              {permissions.map((p) => (<th key={p} style={{ textAlign: "center" }}>{permissionLabel[p]}</th>))}
+              <th></th>
             </tr>
           </thead>
           <tbody>
             {roles.map((role) => (
               <tr key={role}>
-                <td style={{ fontWeight: 600 }}>{roleLabel[role]}</td>
+                <td style={{ fontWeight: 600 }}>{roleLabel[role]}{!builtinSet.has(role) && <span className="badge grey" style={{ marginLeft: 6, fontSize: 10 }}>custom</span>}</td>
                 {permissions.map((p) => {
-                  const on = map[role].includes(p);
+                  const on = (map[role] ?? []).includes(p);
                   return (
                     <td key={p} style={{ textAlign: "center" }}>
-                      <input
-                        type="checkbox"
-                        checked={on}
-                        disabled={busy}
-                        onChange={(e) => toggle(role, p, e.target.checked)}
-                      />
+                      <input type="checkbox" checked={on} disabled={busy} onChange={(e) => toggle(role, p, e.target.checked)} />
                     </td>
                   );
                 })}
+                <td style={{ textAlign: "center" }}>
+                  {!builtinSet.has(role) && <button type="button" className="btn secondary" style={{ padding: "3px 8px", fontSize: 12, borderColor: "var(--red)", color: "var(--red)" }} disabled={busy} onClick={() => deleteRole(role)}>Delete</button>}
+                </td>
               </tr>
             ))}
           </tbody>

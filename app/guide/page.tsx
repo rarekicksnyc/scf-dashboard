@@ -1,5 +1,5 @@
-import { rolePermissionMap } from "@/lib/data/store";
-import { ROLE_LABEL, ALL_ROLES, ALL_PERMISSIONS, PERMISSION_LABEL, getSessionUser } from "@/lib/auth";
+import { rolePermissionMap, listRoleKeys, roleLabelOf } from "@/lib/data/store";
+import { ALL_PERMISSIONS, PERMISSION_LABEL, getSessionUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -157,9 +157,9 @@ export default async function GuidePage() {
               </tr>
             </thead>
             <tbody>
-              {ALL_ROLES.map((role) => (
+              {listRoleKeys().map((role) => (
                 <tr key={role}>
-                  <td style={{ fontWeight: 600, whiteSpace: "nowrap" }}>{ROLE_LABEL[role]}</td>
+                  <td style={{ fontWeight: 600, whiteSpace: "nowrap" }}>{roleLabelOf(role)}</td>
                   {ALL_PERMISSIONS.map((p) => (
                     <td key={p} style={{ textAlign: "center" }}>
                       {(roleMap[role] ?? []).includes(p) ? <span style={{ color: "var(--green)" }}>●</span> : <span className="muted" style={{ opacity: 0.3 }}>—</span>}

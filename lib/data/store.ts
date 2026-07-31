@@ -77,6 +77,7 @@ interface Store {
   insuranceCountryLimits: InsuranceCountryLimit[];
   users: User[];
   rolePermissions: Record<Role, Permission[]>;
+  roleLabels: Record<string, string>; // display label per role key (built-in + custom)
   countries: Country[];
   rates: RateRow[];
   docTemplates: DocTemplate[];
@@ -131,6 +132,7 @@ function seedStore(): Store {
     insuranceCountryLimits: structuredClone(seed.insuranceCountryLimits),
     users: structuredClone(seed.users),
     rolePermissions: structuredClone(seed.rolePermissions),
+    roleLabels: { OPERATIONS: "Operations", CREDIT_OFFICER: "Credit Officer", PRODUCT_MANAGER: "Portfolio Manager", RELATIONSHIP_MANAGER: "Relationship Manager", RISK_MANAGER: "Risk Manager", ADMIN: "Administrator", VIEWER: "Viewer" },
     countries: structuredClone(seed.countries),
     rates: structuredClone(seed.rates),
     docTemplates: structuredClone(DEFAULT_TEMPLATES),
@@ -1843,6 +1845,34 @@ export function setRolePermission(
   if (enabled && !has) store.rolePermissions[role] = [...list, perm];
   if (!enabled && has)
     store.rolePermissions[role] = list.filter((p) => p !== perm);
+}
+
+// --- Dynamic roles (PM/Admin can add or remove custom roles) --------------
+const BUILTIN_ROLE_KEYS = new Set(["OPERATIONS", "CREDIT_OFFICER", "PRODUCT_MANAGER", "RELATIONSHIP_MANAGER", "RISK_MANAGER", "ADMIN", "VIEWER"]);
+export function isBuiltinRole(key: string): boolean { return BUILTIN_ROLE_KEYS.has(key); }
+export function listRoleKeys(): string[] { return Object.keys(store.rolePermissions); }
+export function roleLabelOf(key: string): string { return (store.roleLabels ??= {})[key] ?? key; }
+export function listRoles(): { key: string; label: string; builtin: boolean; users: number }[] {
+  return listRoleKeys().map((key) => ({ key, label: roleLabelOf(key), builtin: isBuiltinRole(key), users: store.users.filter((u) => u.role === key).length }));
+}
+export function addRole(label: string): { ok: boolean; error?: string; key?: string } {
+  const clean = label.trim();
+  if (!clean) return { ok: false, error: "A role name is required." };
+  const key = clean.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "");
+  if (!key) return { ok: false, error: "Invalid role name." };
+  if (store.rolePermissions[key]) return { ok: false, error: `A role "${key}" already exists.` };
+  store.rolePermissions[key] = [];
+  (store.roleLabels ??= {})[key] = clean;
+  return { ok: true, key };
+}
+export function removeRole(key: string): { ok: boolean; error?: string } {
+  if (isBuiltinRole(key)) return { ok: false, error: "Built-in roles cannot be deleted." };
+  if (!store.rolePermissions[key]) return { ok: false, error: "Role not found." };
+  const assigned = store.users.filter((u) => u.role === key).length;
+  if (assigned > 0) return { ok: false, error: `Reassign the ${assigned} user${assigned === 1 ? "" : "s"} on this role before deleting it.` };
+  delete store.rolePermissions[key];
+  delete (store.roleLabels ??= {})[key];
+  return { ok: true };
 }
 
 export function setUserRole(userId: string, role: Role): void {
