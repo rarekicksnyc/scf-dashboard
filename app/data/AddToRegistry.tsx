@@ -170,12 +170,18 @@ export default function AddToRegistry({
         country: f.country,
       };
     } else {
+      if (!f.reference.trim()) {
+        setMsg({ ok: false, text: "A GCARS / credit-approval reference is required to add an ASR sublimit." });
+        setBusy(false);
+        return;
+      }
       body = {
         kind: "ASR_SUBLIMIT",
         sellerId: f.sellerId,
         obligorId: f.obligorId,
         approvedLimit: Number(f.approvedLimit),
         maxTenorDays: Number(f.maxTenorDays),
+        reference: f.reference.trim(),
       };
     }
     const res = await fetch("/api/registry", {
@@ -375,10 +381,10 @@ export default function AddToRegistry({
                   <input style={input} type="date" value={f.expiryDate} onChange={(e) => set("expiryDate", e.target.value)} />
                 </label>
               )}
-              {mode === "LIMIT" && (
+              {(mode === "LIMIT" || mode === "ASR_SUBLIMIT") && (
                 <label style={{ ...field, gridColumn: "span 2" }}>GCARS / approval reference
                   <input style={input} value={f.reference} onChange={(e) => set("reference", e.target.value)} placeholder="e.g. GCARS-2026-04821" />
-                  <span className="muted" style={{ fontSize: 11 }}>Required. The limit is created pending a second approver and grants no capacity until approved.</span>
+                  <span className="muted" style={{ fontSize: 11 }}>Required. Created pending a second approver; grants no capacity until approved.</span>
                 </label>
               )}
             </>

@@ -37,6 +37,7 @@ export default function AddObligorToFacility({
     asrSublimit: "25000000",
     maxTenorDays: "150",
     groupExpiry: oneYearOut,
+    reference: "",
   });
   // The ASR sublimit is usually the LOWER of the seller line and the obligor line.
   // Suggest that and keep the field in sync until the user edits it themselves.
@@ -51,6 +52,7 @@ export default function AddObligorToFacility({
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((s) => ({ ...s, [k]: v }));
 
   async function submit() {
+    if (!f.reference.trim()) { setMsg({ ok: false, text: "A GCARS / approval reference is required to add an obligor sublimit." }); return; }
     setBusy(true);
     setMsg(null);
     const res = await fetch("/api/facility/add-obligor", {
@@ -68,6 +70,7 @@ export default function AddObligorToFacility({
         asrSublimit: Number(sublimitValue),
         maxTenorDays: Number(f.maxTenorDays),
         groupExpiry: f.groupExpiry,
+        reference: f.reference.trim(),
       }),
     });
     const data = await res.json().catch(() => ({}));
@@ -77,8 +80,8 @@ export default function AddObligorToFacility({
       return;
     }
     const skip = Array.isArray(data.skipped) && data.skipped.length ? ` (already on ${data.skipped.length})` : "";
-    setMsg({ ok: true, text: `Obligor added to ${data.linked} facility ASR list(s)${skip}.` });
-    setF((s) => ({ ...s, name: "", cdl: "" }));
+    setMsg({ ok: true, text: `Obligor submitted to ${data.linked} facility ASR list(s)${skip} — pending a second approver (Exceptions → Limit approvals) before it grants capacity.` });
+    setF((s) => ({ ...s, name: "", cdl: "", reference: "" }));
     router.refresh();
   }
 
@@ -147,9 +150,13 @@ export default function AddObligorToFacility({
         <label style={field}>Group approval expiry
           <input style={input} type="date" value={f.groupExpiry} onChange={(e) => set("groupExpiry", e.target.value)} />
         </label>
+        <label style={{ ...field, gridColumn: "span 2" }}>GCARS / approval reference
+          <input style={input} value={f.reference} onChange={(e) => set("reference", e.target.value)} placeholder="e.g. GCARS-2026-04821" />
+          <span className="muted" style={{ fontSize: 11 }}>Required. The sublimit is created pending a second approver and grants no capacity until approved.</span>
+        </label>
 
         <button className="btn" type="button" disabled={busy || (mode === "EXISTING" && !f.obligorId)} onClick={submit}>
-          {busy ? "Adding…" : "Add to facility"}
+          {busy ? "Adding…" : "Submit for approval"}
         </button>
       </div>
     </div>

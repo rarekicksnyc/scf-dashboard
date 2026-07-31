@@ -29,6 +29,10 @@ export async function POST(request: Request) {
   if (!(asrSublimit >= 0)) return NextResponse.json({ error: "ASR sublimit must be a number." }, { status: 422 });
   if (!(maxTenorDays > 0)) return NextResponse.json({ error: "Max tenor (days) is required." }, { status: 422 });
   const groupExpiry = typeof b.groupExpiry === "string" ? b.groupExpiry : "";
+  // Four-eyes: the ASR sublimit is created PENDING and grants no capacity until a
+  // second user approves it, recording this GCARS/approval reference.
+  const reference = typeof b.reference === "string" ? b.reference.trim() : "";
+  if (!reference) return NextResponse.json({ error: "A GCARS / credit-approval reference is required to add an obligor sublimit." }, { status: 422 });
 
   // Target sellers: one selected seller, or every seller.
   const targets = toAllSellers ? allSellers() : [getSeller(b.sellerId)].filter(Boolean);
@@ -68,7 +72,7 @@ export async function POST(request: Request) {
   const skipped: string[] = [];
   for (const s of targets) {
     if (sellerObligorLimit(s!.id, obligorId)) { skipped.push(s!.name); continue; }
-    addSellerObligorLimit(s!.id, obligorId, asrSublimit, maxTenorDays);
+    addSellerObligorLimit(s!.id, obligorId, asrSublimit, maxTenorDays, { reference, requestedBy: user.id, requestedByName: user.name });
     linked += 1;
   }
 

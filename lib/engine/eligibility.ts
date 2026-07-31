@@ -282,6 +282,9 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
     if (!sol) {
       add("ASR", "ASR approved obligor", `${seller.name} ASR approved list`, obligor.name, "RED",
         "Obligor is not on this seller's ASR approved list.");
+    } else if (sol.approval?.status === "PENDING") {
+      add("ASR", "ASR approved obligor", `${seller.name} ASR approved list`, obligor.name, "RED",
+        "ASR sublimit is pending four-eyes approval — it grants no capacity until a second user approves it.");
     } else {
       add("ASR", "ASR approved obligor", `${seller.name} ASR approved list`, obligor.name, "GREEN",
         "Obligor approved under seller ASR.");

@@ -377,6 +377,7 @@ export interface SellerObligorLimit {
   obligorId: string;
   approvedLimit: number; // obligor sublimit UNDER this seller's ASR
   maxTenorDays: number; // approved tenor for this seller/obligor pair
+  approval?: LimitApproval; // four-eyes; while PENDING the sublimit grants no capacity
 }
 
 // ---------------------------------------------------------------------------

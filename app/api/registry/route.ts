@@ -88,14 +88,17 @@ export async function POST(request: Request) {
       if (!getSeller(b.sellerId) || !getObligor(b.obligorId)) {
         return NextResponse.json({ error: "Unknown seller or obligor." }, { status: 422 });
       }
+      const reference = typeof b.reference === "string" ? b.reference.trim() : "";
+      if (!reference) return NextResponse.json({ error: "A GCARS / credit-approval reference is required to add an ASR sublimit." }, { status: 422 });
       addSellerObligorLimit(
         b.sellerId,
         b.obligorId,
         Number(b.approvedLimit) || 0,
         Number(b.maxTenorDays) || 90,
+        { reference, requestedBy: user.id, requestedByName: user.name },
       );
       created = { sellerId: b.sellerId, obligorId: b.obligorId };
-      audit = `Added ASR sublimit ${Number(b.approvedLimit).toLocaleString()} for ${b.obligorId} under ${b.sellerId}.`;
+      audit = `Requested ASR sublimit ${Number(b.approvedLimit).toLocaleString()} for ${b.obligorId} under ${b.sellerId} — pending four-eyes (ref ${reference}).`;
     } else if (b.kind === "SELLER_ENTITY") {
       if (!b.name || !isCdl(b.cdl)) return NextResponse.json({ error: "Entity needs a name and an 8-digit CDL." }, { status: 422 });
       if (!getSeller(b.groupId)) return NextResponse.json({ error: "Choose the seller group to add the entity under." }, { status: 422 });

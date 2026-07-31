@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, roleHas } from "@/lib/auth";
-import { listPendingLimits, approveLimit, rejectLimit, getSeller, getObligor, addAudit } from "@/lib/data/store";
+import { listPendingLimits, approveLimit, rejectLimit, listPendingSublimits, approveSublimit, rejectSublimit, getSeller, getObligor, addAudit } from "@/lib/data/store";
 
 // Four-eyes queue for new limits. A limit created via the register is PENDING and
 // grants no capacity until a DIFFERENT authorized user approves it here, recording
@@ -10,12 +10,20 @@ export async function GET() {
   if (!roleHas(user.role, "CHANGE_LIMIT") && !roleHas(user.role, "APPROVE_EXCEPTION")) {
     return NextResponse.json({ error: "Not permitted." }, { status: 403 });
   }
-  const pending = listPendingLimits().map((l) => ({
-    id: l.id, type: l.type, entityType: l.entityType, entityId: l.entityId,
-    entityName: l.entityType === "SELLER" ? getSeller(l.entityId)?.name : l.entityType === "OBLIGOR" ? getObligor(l.entityId)?.name : l.entityId,
-    approvedLimit: l.approvedLimit, maxTenorDays: l.maxTenorDays, expiryDate: l.expiryDate,
-    reference: l.approval?.reference, requestedBy: l.approval?.requestedBy, requestedByName: l.approval?.requestedByName, requestedAt: l.approval?.requestedAt,
-  }));
+  const pending = [
+    ...listPendingLimits().map((l) => ({
+      id: l.id, kind: "LIMIT", type: l.type,
+      entityName: l.entityType === "SELLER" ? getSeller(l.entityId)?.name : l.entityType === "OBLIGOR" ? getObligor(l.entityId)?.name : l.entityId,
+      approvedLimit: l.approvedLimit, maxTenorDays: l.maxTenorDays, expiryDate: l.expiryDate,
+      reference: l.approval?.reference, requestedByName: l.approval?.requestedByName,
+    })),
+    ...listPendingSublimits().map((s) => ({
+      id: `SOL:${s.sellerId}:${s.obligorId}`, kind: "SUBLIMIT", type: "ASR sublimit",
+      entityName: `${getObligor(s.obligorId)?.name ?? s.obligorId} · under ${getSeller(s.sellerId)?.name ?? s.sellerId}`,
+      approvedLimit: s.approvedLimit, maxTenorDays: s.maxTenorDays, expiryDate: "—",
+      reference: s.approval?.reference, requestedByName: s.approval?.requestedByName,
+    })),
+  ];
   return NextResponse.json({ pending });
 }
 
@@ -26,16 +34,19 @@ export async function POST(request: Request) {
   }
   const b = await request.json().catch(() => ({}));
   const id = String(b.id ?? "");
+  const isSublimit = id.startsWith("SOL:");
+  const [, sellerId, obligorId] = isSublimit ? id.split(":") : ["", "", ""];
+
   if (b.action === "approve") {
-    const r = approveLimit(id, user.id, user.name);
+    const r = isSublimit ? approveSublimit(sellerId, obligorId, user.id, user.name) : approveLimit(id, user.id, user.name);
     if (!r.ok) return NextResponse.json({ error: r.error }, { status: 409 });
-    addAudit({ actorUserId: user.id, actorName: user.name, action: "LIMIT_APPROVE", entityType: "LIMIT", entityId: id, detail: `Approved limit ${id} (ref ${r.limit?.approval?.reference}); maker ${r.limit?.approval?.requestedByName}.` });
+    addAudit({ actorUserId: user.id, actorName: user.name, action: isSublimit ? "SUBLIMIT_APPROVE" : "LIMIT_APPROVE", entityType: isSublimit ? "ASR_SUBLIMIT" : "LIMIT", entityId: id, detail: `Approved ${isSublimit ? "ASR sublimit" : "limit"} ${id}.` });
     return NextResponse.json({ ok: true });
   }
   if (b.action === "reject") {
-    const r = rejectLimit(id, user.id);
+    const r = isSublimit ? rejectSublimit(sellerId, obligorId, user.id) : rejectLimit(id, user.id);
     if (!r.ok) return NextResponse.json({ error: r.error }, { status: 409 });
-    addAudit({ actorUserId: user.id, actorName: user.name, action: "LIMIT_REJECT", entityType: "LIMIT", entityId: id, detail: `Rejected pending limit ${id}.` });
+    addAudit({ actorUserId: user.id, actorName: user.name, action: isSublimit ? "SUBLIMIT_REJECT" : "LIMIT_REJECT", entityType: isSublimit ? "ASR_SUBLIMIT" : "LIMIT", entityId: id, detail: `Rejected pending ${isSublimit ? "ASR sublimit" : "limit"} ${id}.` });
     return NextResponse.json({ ok: true });
   }
   return NextResponse.json({ error: "Expected action approve|reject." }, { status: 400 });

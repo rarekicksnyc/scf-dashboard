@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import { mm } from "@/lib/format";
 
 interface Pending {
-  id: string; type: string; entityType: string; entityId: string; entityName?: string;
+  id: string; kind: string; type: string; entityName?: string;
   approvedLimit: number; maxTenorDays: number; expiryDate: string;
-  reference?: string; requestedByName?: string; requestedAt?: string;
+  reference?: string; requestedByName?: string;
 }
 
 // Four-eyes queue for new limits. A limit created via Data management is PENDING

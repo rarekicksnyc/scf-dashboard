@@ -36,7 +36,7 @@ import type {
   AuthorizedSignatory,
 } from "@/lib/types";
 import type { WorkoutRoute, InvoiceResult } from "@/lib/types";
-import type { CustomFieldDef, CustomRegister, KpiTile, WatchRule, CoverageAssignment, NotificationEvent, TemplateFieldDef } from "@/lib/types";
+import type { CustomFieldDef, CustomRegister, KpiTile, WatchRule, CoverageAssignment, NotificationEvent, TemplateFieldDef, LimitApproval } from "@/lib/types";
 import { DEFAULT_TEMPLATES } from "@/lib/data/templates";
 import { toLimitView, computeConsumed } from "@/lib/engine/availability";
 import { daysBetween, limitActiveOn } from "@/lib/format";
@@ -2029,6 +2029,33 @@ export function rejectLimit(id: string, rejecterId: string): { ok: boolean; erro
   return { ok: true };
 }
 
+// ASR sublimits (per seller/obligor pair) carry the same four-eyes model.
+export function sublimitApproved(s: SellerObligorLimit): boolean {
+  return !s.approval || s.approval.status === "APPROVED";
+}
+export function listPendingSublimits(): SellerObligorLimit[] {
+  return store.sellerObligorLimits.filter((s) => s.approval?.status === "PENDING");
+}
+export function approveSublimit(sellerId: string, obligorId: string, approverId: string, approverName: string): { ok: boolean; error?: string } {
+  const s = store.sellerObligorLimits.find((x) => x.sellerId === sellerId && x.obligorId === obligorId);
+  if (!s || !s.approval) return { ok: false, error: "Sublimit approval not found." };
+  if (s.approval.status === "APPROVED") return { ok: false, error: "Already approved." };
+  if (s.approval.requestedBy === approverId) return { ok: false, error: "You requested this sublimit — a different user must approve it (four-eyes)." };
+  s.approval.status = "APPROVED";
+  s.approval.approvedBy = approverId;
+  s.approval.approvedByName = approverName;
+  s.approval.approvedAt = new Date().toISOString();
+  return { ok: true };
+}
+export function rejectSublimit(sellerId: string, obligorId: string, rejecterId: string): { ok: boolean; error?: string } {
+  const i = store.sellerObligorLimits.findIndex((x) => x.sellerId === sellerId && x.obligorId === obligorId);
+  if (i < 0 || !store.sellerObligorLimits[i].approval) return { ok: false, error: "Sublimit approval not found." };
+  if (store.sellerObligorLimits[i].approval!.status === "APPROVED") return { ok: false, error: "Already approved — cannot reject." };
+  if (store.sellerObligorLimits[i].approval!.requestedBy === rejecterId) return { ok: false, error: "A different user must action this request (four-eyes)." };
+  store.sellerObligorLimits.splice(i, 1);
+  return { ok: true };
+}
+
 export function addSeller(input: {
   name: string;
   cdl: string;
@@ -2113,15 +2140,20 @@ export function addSellerObligorLimit(
   obligorId: string,
   approvedLimit: number,
   maxTenorDays: number,
+  approvalInput?: { reference: string; requestedBy: string; requestedByName: string },
 ): void {
+  const approval: LimitApproval | undefined = approvalInput
+    ? { status: "PENDING", reference: approvalInput.reference, requestedBy: approvalInput.requestedBy, requestedByName: approvalInput.requestedByName, requestedAt: new Date().toISOString() }
+    : undefined;
   const existing = store.sellerObligorLimits.find(
     (x) => x.sellerId === sellerId && x.obligorId === obligorId,
   );
   if (existing) {
     existing.approvedLimit = approvedLimit;
     existing.maxTenorDays = maxTenorDays;
+    if (approval) existing.approval = approval;
   } else {
-    store.sellerObligorLimits.push({ sellerId, obligorId, approvedLimit, maxTenorDays });
+    store.sellerObligorLimits.push({ sellerId, obligorId, approvedLimit, maxTenorDays, approval });
   }
 }
 
