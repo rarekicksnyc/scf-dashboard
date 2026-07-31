@@ -1,0 +1,12 @@
+import { addSeller, addObligor, findLimit, limitApproved, listPendingLimits } from "./lib/data/store";
+const s = addSeller({ name: "X", cdl: "12345678", creditLimit: 999_000_000, maxTenorDays: 90, expiryDate: "2026-12-31" });
+const l = findLimit("SELLER", s.id);
+console.log("SELLER limit found:", !!l, "approvedLimit:", l?.approvedLimit, "status:", l?.status);
+console.log("approval:", l?.approval);
+console.log("limitApproved:", l ? limitApproved(l) : "n/a");
+const o = addObligor({ name: "Y", cdl: "87654321", country: "US", masterLimit: 500_000_000, maxTenorDays: 90, expiryDate: "2026-12-31" });
+const ol = findLimit("OBLIGOR", o.id);
+console.log("OBLIGOR limit found:", !!ol, "approvedLimit:", ol?.approvedLimit, "approval:", ol?.approval);
+const pend = listPendingLimits();
+console.log("pending queue ids:", pend.map(p=>p.id));
+console.log("seller limit in pending?", pend.some(p=>p.entityId===s.id));

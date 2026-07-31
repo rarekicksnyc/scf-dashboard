@@ -1195,7 +1195,8 @@ export function usersCoveringEntity(entityType: "SELLER" | "OBLIGOR", entityId: 
 }
 export function addCoverage(a: Omit<CoverageAssignment, "id">): CoverageAssignment | undefined {
   const arr = (store.coverage ??= []);
-  if (arr.some((c) => c.userId === a.userId && c.entityType === a.entityType && c.entityId === a.entityId)) return undefined; // dedupe
+  const existing = arr.find((c) => c.userId === a.userId && c.entityType === a.entityType && c.entityId === a.entityId);
+  if (existing) { existing.backup = a.backup; return existing; } // same pairing → just update primary/backup
   const rec: CoverageAssignment = { ...a, id: nextId("COV") };
   arr.push(rec);
   return rec;

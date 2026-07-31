@@ -19,10 +19,11 @@ export async function POST(request: Request) {
   if (!entityType || !b.entityId) return NextResponse.json({ error: "Expected entityType (SELLER|OBLIGOR) and entityId." }, { status: 400 });
   const name = entityType === "SELLER" ? getSeller(b.entityId)?.name : getObligor(b.entityId)?.name;
   if (!name) return NextResponse.json({ error: "Unknown entity." }, { status: 400 });
-  const rec = addCoverage({ userId: b.userId, entityType, entityId: b.entityId });
+  const backup = b.backup === true;
+  const rec = addCoverage({ userId: b.userId, entityType, entityId: b.entityId, backup });
   if (!rec) return NextResponse.json({ error: "That coverage already exists." }, { status: 409 });
   const who = storeGetUserById(b.userId)?.name ?? b.userId;
-  addAudit({ actorUserId: g.user.id, actorName: g.user.name, action: "COVERAGE_ADD", entityType: "COVERAGE", entityId: rec.id, detail: `Assigned ${who} to ${entityType.toLowerCase()} ${name}.` });
+  addAudit({ actorUserId: g.user.id, actorName: g.user.name, action: "COVERAGE_ADD", entityType: "COVERAGE", entityId: rec.id, detail: `Assigned ${who} as ${backup ? "backup" : "primary"} on ${entityType.toLowerCase()} ${name}.` });
   return NextResponse.json({ ok: true, coverage: rec });
 }
 

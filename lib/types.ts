@@ -320,6 +320,7 @@ export interface CoverageAssignment {
   userId: string;
   entityType: "SELLER" | "OBLIGOR";
   entityId: string;
+  backup?: boolean; // true = backup coverer (OOO cover); false/undefined = primary
 }
 
 export type NotificationType = "EXCEPTION" | "MATURITY" | "RESERVATION" | "LIMIT_EXPIRY" | "EXECUTED_DOC";

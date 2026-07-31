@@ -1,4 +1,4 @@
-import { store, addCoverage, usersCoveringEntity, coveredEntityIds, addNotification, listNotificationsForUser, unreadNotificationCount, markNotificationRead, notifyWorkflowException } from "@/lib/data/store";
+import { store, addCoverage, coverageForUser, usersCoveringEntity, coveredEntityIds, addNotification, listNotificationsForUser, unreadNotificationCount, markNotificationRead, notifyWorkflowException } from "@/lib/data/store";
 import { coverageDigest } from "@/lib/notifications";
 import type { TransactionWorkflow, User } from "@/lib/types";
 
@@ -19,7 +19,11 @@ addCoverage({ userId: ops.id, entityType: "OBLIGOR", entityId: oid });
 addCoverage({ userId: maker.id, entityType: "SELLER", entityId: sid });
 
 console.log("Coverage + notifications");
-ok("dedupe: adding same coverage twice returns undefined", addCoverage({ userId: maker.id, entityType: "OBLIGOR", entityId: oid }) === undefined);
+// Re-adding the same pairing updates primary/backup (idempotent) rather than duplicating.
+const covCountBefore = usersCoveringEntity("OBLIGOR", oid).length;
+addCoverage({ userId: maker.id, entityType: "OBLIGOR", entityId: oid, backup: true });
+ok("re-adding same pairing does not duplicate", usersCoveringEntity("OBLIGOR", oid).length === covCountBefore);
+ok("re-adding updates the backup flag", coverageForUser(maker.id).find((c) => c.entityType === "OBLIGOR" && c.entityId === oid)?.backup === true);
 ok("usersCoveringEntity lists all three", usersCoveringEntity("OBLIGOR", oid).length >= 3);
 ok("coveredEntityIds splits seller/obligor", coveredEntityIds(maker.id).sellers.has(sid) && coveredEntityIds(maker.id).obligors.has(oid));
 

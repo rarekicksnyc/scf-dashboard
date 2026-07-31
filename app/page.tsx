@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { limitViews, listKpiTiles } from "@/lib/data/store";
+import { limitViews, listKpiTiles, listBookedTransactions } from "@/lib/data/store";
 import { sellerExposure, obligorExposure } from "@/lib/exposure";
 import { buildExpirations, expiryCounts } from "@/lib/expirations";
+import { bookedInWindow, outstandingFraction } from "@/lib/receivables";
 import { computeKpis } from "@/lib/creator/run";
 import { expectedOutstandingByDate } from "@/lib/projection";
-import { mm } from "@/lib/format";
-import ExposureTabs from "./ExposureTabs";
+import ExposureTabs, { type PortfolioDeal } from "./ExposureTabs";
 import type { LimitType } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -36,21 +36,21 @@ export default async function PortfolioPage({
   const peakOutstanding = Math.max(0, ...Object.values(proj));
 
   const byType = (t: LimitType) => views.filter((v) => v.limit.type === t);
-  const sumApproved = (t: LimitType) =>
-    byType(t).reduce((a, v) => a + v.approvedLimit, 0);
-  const sumAvailable = (t: LimitType) =>
-    byType(t).reduce((a, v) => a + v.available, 0);
-  const sumConsumed = (t: LimitType) =>
-    byType(t).reduce((a, v) => a + v.consumed, 0);
-
-  const cards = [
-    { label: "Seller capacity", value: mm(sumAvailable("SELLER")), sub: `of ${mm(sumApproved("SELLER"))} approved` },
-    { label: "Obligor exposure", value: mm(sumConsumed("OBLIGOR")), sub: `${mm(sumAvailable("OBLIGOR"))} headroom` },
-    { label: "Swingline capacity", value: mm(sumAvailable("SWINGLINE")), sub: `of ${mm(sumApproved("SWINGLINE"))} approved` },
-    { label: "Investor capacity", value: mm(sumAvailable("INVESTOR")), sub: `of ${mm(sumApproved("INVESTOR"))} approved` },
-    { label: "Insurance capacity", value: mm(sumAvailable("INSURANCE")), sub: `of ${mm(sumApproved("INSURANCE"))} approved` },
-    { label: "Peak expected outstanding", value: mm(peakOutstanding), sub: "max concurrent funded principal, next 12 months" },
-  ];
+  const sumAvailable = (t: LimitType) => byType(t).reduce((a, v) => a + v.available, 0);
+  // Investor / insurance headroom is program-wide (per investor / policy), so it is
+  // passed as the shared headroom; the outstanding side is filtered per selection.
+  const investorAvail = sumAvailable("INVESTOR");
+  const insuranceAvail = sumAvailable("INSURANCE");
+  // Per-deal investor / insured exposure live on the as-of date, for the boxes to
+  // filter by the selected sellers/obligors (scaled by outstanding fraction).
+  const win = asOf ? { from: asOf, to: asOf } : undefined;
+  const deals: PortfolioDeal[] = listBookedTransactions()
+    .filter((t) => aggregate || bookedInWindow(t, win))
+    .map((t) => {
+      const frac = outstandingFraction(t);
+      const insured = (t.insurerAllocations ?? []).reduce((a, x) => a + x.amount, 0);
+      return { sellerId: t.sellerId, obligorId: t.obligorId, investor: Math.round((t.investorAmount ?? 0) * frac), insured: Math.round(insured * frac) };
+    });
 
   return (
     <>
@@ -73,18 +73,6 @@ export default async function PortfolioPage({
         </div>
       )}
 
-      <div className="cards">
-        {cards.map((c) => (
-          <div className="card" key={c.label}>
-            <div className="label">{c.label}</div>
-            <div className="value small">{c.value}</div>
-            <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-              {c.sub}
-            </div>
-          </div>
-        ))}
-      </div>
-
       {kpiTiles.length > 0 && (
         <div className="panel">
           <h2>Custom KPIs</h2>
@@ -99,7 +87,7 @@ export default async function PortfolioPage({
         </div>
       )}
 
-      <ExposureTabs sellers={sellers} obligors={obligors} asOf={asOf ?? ""} aggregate={aggregate} today={today} />
+      <ExposureTabs sellers={sellers} obligors={obligors} deals={deals} investorAvail={investorAvail} insuranceAvail={insuranceAvail} peak={peakOutstanding} asOf={asOf ?? ""} aggregate={aggregate} today={today} />
     </>
   );
 }
