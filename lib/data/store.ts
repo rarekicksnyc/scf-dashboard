@@ -1384,12 +1384,22 @@ function governingLimit(cands: Limit[], asOf: string): Limit | undefined {
   return pool.slice().sort((a, b) => Date.parse(b.effectiveDate || "1970-01-01") - Date.parse(a.effectiveDate || "1970-01-01"))[0];
 }
 
+// Four-eyes: a limit grants capacity only when approved (or legacy/unset). While a
+// new limit awaits its second approver it exists but counts for nothing.
+export function limitApproved(l: Limit): boolean {
+  return !l.approval || l.approval.status === "APPROVED";
+}
+// A limit the engine should count: active status AND approved.
+function limitLive(l: Limit): boolean {
+  return l.status === "ACTIVE" && limitApproved(l);
+}
+
 export function findLimit(
   type: LimitType,
   entityId: string,
   asOf?: string,
 ): Limit | undefined {
-  const cands = store.limits.filter((l) => l.type === type && l.entityId === entityId && l.status === "ACTIVE");
+  const cands = store.limits.filter((l) => l.type === type && l.entityId === entityId && limitLive(l));
   if (cands.length <= 1) return cands[0];
   return governingLimit(cands, asOf ?? new Date().toISOString().slice(0, 10));
 }
@@ -1400,7 +1410,7 @@ export function findLimit(
 function supersededLimitIds(asOf: string): Set<string> {
   const groups = new Map<string, Limit[]>();
   for (const l of store.limits) {
-    if (l.status !== "ACTIVE") continue;
+    if (!limitLive(l)) continue;
     const k = `${l.type}:${l.entityId}`;
     const arr = groups.get(k);
     if (arr) arr.push(l); else groups.set(k, [l]);
@@ -1601,7 +1611,9 @@ export function limitViews(asOf?: AsOf) {
   // never double-counted; a solo limit still shows even once lapsed.
   const date = typeof asOf === "string" ? asOf : new Date().toISOString().slice(0, 10);
   const suppressed = supersededLimitIds(date);
-  return store.limits.filter((l) => !suppressed.has(l.id)).map((l) => viewLimit(l, asOf));
+  // Pending (unapproved) limits grant no capacity, so they are excluded from the
+  // portfolio totals; they surface in the limit-approvals queue instead.
+  return store.limits.filter((l) => !suppressed.has(l.id) && limitApproved(l)).map((l) => viewLimit(l, asOf));
 }
 
 // Net standalone swingline ADJUSTMENTS for a target (REDUCTION draws down =
@@ -1961,6 +1973,9 @@ export interface NewLimitInput {
   maxTenorDays: number;
   expiryDate: string;
   currency?: Currency;
+  // When present, the limit is created PENDING four-eyes approval (grants no
+  // capacity until a different user approves it, recording this reference).
+  approval?: { reference: string; requestedBy: string; requestedByName: string };
 }
 
 export function addLimit(input: NewLimitInput): Limit {
@@ -1980,9 +1995,38 @@ export function addLimit(input: NewLimitInput): Limit {
     status: "ACTIVE",
     warnThreshold: 0.85,
     exceptionThreshold: 1.0,
+    // When a requester + reference are supplied, the limit is created PENDING and
+    // grants no capacity until a second user approves it (four-eyes).
+    approval: input.approval
+      ? { status: "PENDING", reference: input.approval.reference, requestedBy: input.approval.requestedBy, requestedByName: input.approval.requestedByName, requestedAt: new Date().toISOString() }
+      : undefined,
   };
   store.limits.push(limit);
   return limit;
+}
+
+// --- Limit approvals (four-eyes) -----------------------------------------
+export function listPendingLimits(): Limit[] {
+  return store.limits.filter((l) => l.approval?.status === "PENDING");
+}
+export function approveLimit(id: string, approverId: string, approverName: string): { ok: boolean; error?: string; limit?: Limit } {
+  const l = store.limits.find((x) => x.id === id);
+  if (!l || !l.approval) return { ok: false, error: "Limit approval not found." };
+  if (l.approval.status === "APPROVED") return { ok: false, error: "Already approved." };
+  if (l.approval.requestedBy === approverId) return { ok: false, error: "You requested this limit — a different user must approve it (four-eyes)." };
+  l.approval.status = "APPROVED";
+  l.approval.approvedBy = approverId;
+  l.approval.approvedByName = approverName;
+  l.approval.approvedAt = new Date().toISOString();
+  return { ok: true, limit: l };
+}
+export function rejectLimit(id: string, rejecterId: string): { ok: boolean; error?: string } {
+  const i = store.limits.findIndex((x) => x.id === id);
+  if (i < 0 || !store.limits[i].approval) return { ok: false, error: "Limit approval not found." };
+  if (store.limits[i].approval!.status === "APPROVED") return { ok: false, error: "Already approved — cannot reject." };
+  if (store.limits[i].approval!.requestedBy === rejecterId) return { ok: false, error: "A different user must action this request (four-eyes)." };
+  store.limits.splice(i, 1); // a rejected new limit is removed
+  return { ok: true };
 }
 
 export function addSeller(input: {
@@ -2130,7 +2174,7 @@ export function entitySwingline(
       l.type === "SWINGLINE" &&
       l.entityType === entityType &&
       l.entityId === entityId &&
-      l.status === "ACTIVE",
+      limitLive(l),
   );
 }
 

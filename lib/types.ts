@@ -386,6 +386,20 @@ export interface SellerObligorLimit {
 // drift out of sync. (Single source of truth.)
 // ---------------------------------------------------------------------------
 
+// Four-eyes governance on a new/changed limit. While PENDING the limit does not
+// grant capacity (the engine only counts live+approved limits); a second user
+// (not the requester) approves it, recording the GCARS/approval reference.
+export interface LimitApproval {
+  status: "PENDING" | "APPROVED";
+  reference: string; // GCARS / credit-approval reference
+  requestedBy: string;
+  requestedByName: string;
+  requestedAt: string;
+  approvedBy?: string;
+  approvedByName?: string;
+  approvedAt?: string;
+}
+
 export interface Limit {
   id: string;
   type: LimitType;
@@ -404,6 +418,8 @@ export interface Limit {
   exceptionThreshold: number; // e.g. 1.0 — above this, exception required not hard reject
   // Coverage percent applies to INSURANCE limits only (e.g. 0.90 = 90% covered).
   coveragePercent?: number;
+  // Four-eyes approval state. Absent = a legacy/seeded limit (treated as approved).
+  approval?: LimitApproval;
 }
 
 export interface Utilization {

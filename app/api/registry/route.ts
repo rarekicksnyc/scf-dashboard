@@ -42,6 +42,12 @@ export async function POST(request: Request) {
       if (!isCdl(b.cdl)) {
         return NextResponse.json({ error: "A CDL is required — an 8-digit customer code." }, { status: 422 });
       }
+      // Four-eyes: a new limit needs a GCARS/approval reference and does not grant
+      // capacity until a second user approves it in the limit-approvals queue.
+      const reference = typeof b.reference === "string" ? b.reference.trim() : "";
+      if (!reference) {
+        return NextResponse.json({ error: "A GCARS / credit-approval reference is required to add a limit." }, { status: 422 });
+      }
       created = addLimit({
         type: b.type,
         cdl: b.cdl,
@@ -50,8 +56,9 @@ export async function POST(request: Request) {
         approvedLimit: Number(b.approvedLimit),
         maxTenorDays: Number(b.maxTenorDays) || 90,
         expiryDate: b.expiryDate || "2026-12-31",
+        approval: { reference, requestedBy: user.id, requestedByName: user.name },
       });
-      audit = `Added ${b.type} limit ${Number(b.approvedLimit).toLocaleString()} (CDL ${b.cdl}) for ${b.entityId}.`;
+      audit = `Requested ${b.type} limit ${Number(b.approvedLimit).toLocaleString()} (CDL ${b.cdl}) for ${b.entityId} — pending four-eyes approval (ref ${reference}).`;
     } else if (b.kind === "SELLER") {
       if (!b.name || !isCdl(b.cdl)) {
         return NextResponse.json({ error: "Seller needs a name and an 8-digit CDL." }, { status: 422 });

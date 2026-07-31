@@ -50,6 +50,7 @@ export default function AddToRegistry({
     approvedLimit: "25000000",
     maxTenorDays: "150",
     expiryDate: oneYearOut,
+    reference: "",
   });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -134,6 +135,11 @@ export default function AddToRegistry({
         setBusy(false);
         return;
       }
+      if (!f.reference.trim()) {
+        setMsg({ ok: false, text: "A GCARS / credit-approval reference is required to add a limit." });
+        setBusy(false);
+        return;
+      }
       body = {
         kind: "LIMIT",
         type: limitType,
@@ -143,6 +149,7 @@ export default function AddToRegistry({
         approvedLimit: Number(f.approvedLimit),
         maxTenorDays: Number(f.maxTenorDays),
         expiryDate: f.expiryDate,
+        reference: f.reference.trim(),
       };
     } else if (mode === "SELLER" || mode === "OBLIGOR") {
       body = {
@@ -182,8 +189,8 @@ export default function AddToRegistry({
       setMsg({ ok: false, text: data.error ?? "Failed." });
       return;
     }
-    setMsg({ ok: true, text: "Added to the register." });
-    setF((s) => ({ ...s, name: "", cdl: "" })); // clear so a second submit isn't an accidental duplicate
+    setMsg({ ok: true, text: mode === "LIMIT" ? "Limit submitted for approval — a second user must approve it (Exceptions → Limit approvals) before it grants capacity." : "Added to the register." });
+    setF((s) => ({ ...s, name: "", cdl: "", reference: "" })); // clear so a second submit isn't an accidental duplicate
     router.refresh();
   }
 
@@ -367,12 +374,18 @@ export default function AddToRegistry({
                   <input style={input} type="date" value={f.expiryDate} onChange={(e) => set("expiryDate", e.target.value)} />
                 </label>
               )}
+              {mode === "LIMIT" && (
+                <label style={{ ...field, gridColumn: "span 2" }}>GCARS / approval reference
+                  <input style={input} value={f.reference} onChange={(e) => set("reference", e.target.value)} placeholder="e.g. GCARS-2026-04821" />
+                  <span className="muted" style={{ fontSize: 11 }}>Required. The limit is created pending a second approver and grants no capacity until approved.</span>
+                </label>
+              )}
             </>
           )}
         </div>
 
         <button className="btn" style={{ marginTop: 14 }} onClick={submit} disabled={busy} type="button">
-          {busy ? "Adding…" : "Add to register"}
+          {busy ? "Adding…" : mode === "LIMIT" ? "Submit limit for approval" : "Add to register"}
         </button>
         </>
         )}

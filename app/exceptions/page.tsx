@@ -3,6 +3,7 @@ import { getExceptions, getObligor } from "@/lib/data/store";
 import { getCurrentUser, getUserById, roleHas } from "@/lib/auth";
 import { mm } from "@/lib/format";
 import ExceptionDecision from "./ExceptionDecision";
+import LimitApprovals from "./LimitApprovals";
 import type { ExceptionStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +42,8 @@ export default async function ExceptionsPage() {
           Officer, Risk Manager, or Portfolio Manager role.
         </div>
       )}
+
+      <LimitApprovals canApprove={canApprove} />
 
       <div className="panel">
         <h2>Open exceptions ({open.length})</h2>
