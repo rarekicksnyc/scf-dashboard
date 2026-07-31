@@ -143,6 +143,15 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
       add("SELLER", "Seller max tenor", `${sl.maxTenorDays}d`, `${tenorDays}d`,
         tenorDays > sl.maxTenorDays ? "RED" : "GREEN",
         tenorDays > sl.maxTenorDays ? `Tenor exceeds seller max by ${tenorDays - sl.maxTenorDays}d.` : "Within seller max tenor.");
+      // Commingling / buffer days — checked against the facility's approved days.
+      // Only evaluated when both are present; over the approved days needs an
+      // exception (does not hard-block).
+      if (txn.bufferDays != null && seller.comminglingDays != null) {
+        const over = txn.bufferDays > seller.comminglingDays;
+        add("SELLER", "Commingling / buffer days", `${seller.comminglingDays}d approved`, `${txn.bufferDays}d`,
+          over ? "ORANGE" : "GREEN",
+          over ? `Buffer days exceed the approved commingling days by ${txn.bufferDays - seller.comminglingDays}d — exception required.` : "Within approved commingling days.");
+      }
     } else {
       add("SELLER", "Seller credit limit", "Active seller limit", "—", "RED", "No active seller credit limit.");
     }

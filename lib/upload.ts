@@ -129,6 +129,7 @@ export function parseRowObjects(rows: Record<string, unknown>[]): ParsedUpload {
       obligorPcg: pcg(get(["obligor_pcg", "obligorpcg", "obligor_parent_company_guarantee"])),
       coverageAmount: coverage,
       advanceRate: adv > 0 ? adv : undefined,
+      bufferDays: Number(get(["buffer_days", "bufferdays", "commingling_days"])) || undefined,
       marginBps: marginRaw > 0 ? Math.round(marginRaw * 100) : undefined, // 1.15 -> 115 bps
       productType,
     });

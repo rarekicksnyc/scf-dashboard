@@ -16,6 +16,7 @@ export interface SellerFacilityData {
   gcarsNumber: string;
   guarantor: string;
   minPricingBps: number;
+  comminglingDays?: number;
   rrlEnabled: boolean;
   status: string;
   contactEmail: string;
@@ -60,6 +61,7 @@ export default function EditSellerFacility({
     gcarsNumber: seller.gcarsNumber ?? "",
     guarantor: seller.guarantor ?? "",
     minPricingBps: String(seller.minPricingBps ?? 0),
+    comminglingDays: seller.comminglingDays != null ? String(seller.comminglingDays) : "",
     rrlEnabled: seller.rrlEnabled,
     status: seller.status,
     contactEmail: seller.contactEmail ?? "",
@@ -83,6 +85,7 @@ export default function EditSellerFacility({
         gcarsNumber: f.gcarsNumber,
         guarantor: f.guarantor,
         minPricingBps: Number(f.minPricingBps),
+        comminglingDays: f.comminglingDays === "" ? undefined : Number(f.comminglingDays),
         rrlEnabled: f.rrlEnabled,
         status: f.status,
         contactEmail: f.contactEmail,
@@ -152,6 +155,10 @@ export default function EditSellerFacility({
         </label>
         <label style={field}>Min pricing (bps)
           <input style={input} type="number" value={f.minPricingBps} onChange={(e) => set("minPricingBps", e.target.value)} />
+        </label>
+        <label style={field}>Approved commingling days
+          <input style={input} type="number" value={f.comminglingDays} onChange={(e) => set("comminglingDays", e.target.value)} placeholder="e.g. 5" />
+          <span className="muted" style={{ fontSize: 11 }}>Max buffer days per AR entry; over it needs an exception. Blank = not tracked.</span>
         </label>
         <label style={field}>Status
           <select style={input} value={f.status} onChange={(e) => set("status", e.target.value)}>

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
-import { listNotificationsForUser, unreadNotificationCount, markNotificationRead, markAllNotificationsRead } from "@/lib/data/store";
+import { getCurrentUser, roleHas } from "@/lib/auth";
+import { listNotificationsForUser, unreadNotificationCount, markNotificationRead, markAllNotificationsRead, listPendingLimits, listPendingSublimits, listPendingLimitEdits } from "@/lib/data/store";
 import { coverageDigest, digestCount } from "@/lib/notifications";
 
 // The bell feed for the current user: the live coverage digest (maturities,
@@ -12,7 +12,10 @@ export async function GET() {
   const digest = coverageDigest(user.id, today);
   const events = listNotificationsForUser(user.id);
   const unreadEvents = unreadNotificationCount(user.id);
-  return NextResponse.json({ digest, events, unreadEvents, badge: unreadEvents + digestCount(digest) });
+  // Four-eyes obligations: limits/sublimits/edits awaiting approval (approvers only).
+  const canApprove = roleHas(user.role, "APPROVE_EXCEPTION");
+  const approvals = canApprove ? listPendingLimits().length + listPendingSublimits().length + listPendingLimitEdits().length : 0;
+  return NextResponse.json({ digest, events, unreadEvents, approvals, badge: unreadEvents + digestCount(digest) + approvals });
 }
 
 export async function PATCH(request: Request) {

@@ -34,6 +34,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (typeof b.gcarsNumber === "string") patch.gcarsNumber = b.gcarsNumber.trim();
   if (typeof b.guarantor === "string") patch.guarantor = b.guarantor.trim();
   if (b.minPricingBps != null && Number(b.minPricingBps) >= 0) patch.minPricingBps = Number(b.minPricingBps);
+  if (b.comminglingDays != null && String(b.comminglingDays) !== "" && Number(b.comminglingDays) >= 0) patch.comminglingDays = Number(b.comminglingDays);
   if (typeof b.rrlEnabled === "boolean") patch.rrlEnabled = b.rrlEnabled;
   if (b.rrlLimit != null && Number(b.rrlLimit) >= 0) patch.rrlLimit = Number(b.rrlLimit);
   if (typeof b.rrlExpiry === "string") patch.rrlExpiry = b.rrlExpiry;

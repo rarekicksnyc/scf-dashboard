@@ -134,6 +134,7 @@ export default async function DataManagementPage({
               gcarsNumber: seller.gcarsNumber,
               guarantor: seller.guarantor,
               minPricingBps: seller.minPricingBps,
+              comminglingDays: seller.comminglingDays,
               rrlEnabled: seller.rrlEnabled,
               status: seller.status,
               contactEmail: seller.contactEmail ?? "",

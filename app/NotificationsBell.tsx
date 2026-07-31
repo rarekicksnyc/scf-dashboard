@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 interface DigestItem { id: string; label: string; sub?: string; href?: string }
 interface Digest { maturing: DigestItem[]; reservationsToday: DigestItem[]; limitsDue: DigestItem[] }
 interface Evt { id: string; type: string; title: string; body: string; href?: string; createdAt: string; readAt?: string }
-interface Feed { digest: Digest; events: Evt[]; unreadEvents: number; badge: number }
+interface Feed { digest: Digest; events: Evt[]; unreadEvents: number; approvals: number; badge: number }
 
 // The notification bell (top of the sidebar). Shows a coverage-routed feed: stored
 // alerts (exceptions, with read/unread) plus the live digest — transactions
@@ -59,6 +59,15 @@ export default function NotificationsBell() {
             {(feed?.unreadEvents ?? 0) > 0 && <button type="button" onClick={markAll} style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--brand)", cursor: "pointer", fontSize: 12 }}>Mark all read</button>}
           </div>
 
+          {(feed?.approvals ?? 0) > 0 && (
+            <Section title="Awaiting your approval">
+              <Row href="/exceptions">
+                <div style={{ fontWeight: 700, fontSize: 12.5 }}>{feed!.approvals} limit{feed!.approvals === 1 ? "" : "s"}/sublimit{feed!.approvals === 1 ? "" : "s"} need four-eyes approval</div>
+                <div className="muted" style={{ fontSize: 12 }}>Exceptions → Limit approvals</div>
+              </Row>
+            </Section>
+          )}
+
           {events.length > 0 && (
             <Section title="Alerts">
               {events.map((e) => (
@@ -74,7 +83,7 @@ export default function NotificationsBell() {
           <Section title={`Reservations today (${d?.reservationsToday.length ?? 0})`}>{list(d?.reservationsToday)}</Section>
           <Section title={`Limits due ≤ 30d (${d?.limitsDue.length ?? 0})`}>{list(d?.limitsDue)}</Section>
 
-          {total === 0 && events.length === 0 && <div className="muted" style={{ padding: 16, fontSize: 12 }}>Nothing in your coverage right now.</div>}
+          {total === 0 && events.length === 0 && (feed?.approvals ?? 0) === 0 && <div className="muted" style={{ padding: 16, fontSize: 12 }}>Nothing in your coverage right now.</div>}
         </div>
       )}
     </div>

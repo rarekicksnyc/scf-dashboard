@@ -292,7 +292,7 @@ export function updateSeller(
       Seller,
       | "name" | "cdl" | "asrRating" | "asrExpiry" | "borrowerRating" | "borrowerRatingExpiry"
       | "gcarsNumber" | "guarantor" | "minPricingBps" | "rrlEnabled" | "rrlLimit" | "rrlExpiry"
-      | "status" | "eligible" | "internalRating" | "contactEmail"
+      | "status" | "eligible" | "internalRating" | "contactEmail" | "comminglingDays"
     >
   >,
 ): Seller | undefined {

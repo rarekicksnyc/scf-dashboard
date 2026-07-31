@@ -280,6 +280,17 @@ export function runBatch(
       });
     }
 
+    // Commingling / buffer days vs the seller facility's approved days. Only when
+    // both are present; over the approved days needs an exception (does not block).
+    if (seller && invoice.bufferDays != null && seller.comminglingDays != null && invoice.bufferDays > seller.comminglingDays) {
+      checks.push({
+        checkName: "COMMINGLING_CHECK",
+        status: "EXCEPTION",
+        severity: "ORANGE",
+        message: `Buffer days ${invoice.bufferDays}d exceed the approved commingling days ${seller.comminglingDays}d — exception required.`,
+      });
+    }
+
     const obligor = getObligor(invoice.obligorId);
     if (!obligor) {
       checks.push({

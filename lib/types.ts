@@ -133,6 +133,7 @@ export interface Seller {
   guarantor: string; // guarantor name, or "None"
   gcarsNumber: string; // GCARS reference #
   minPricingBps: number; // minimum pricing threshold (bps)
+  comminglingDays?: number; // approved commingling / buffer days on this facility (max)
   // RRL — Risk Reimbursement Line: a separate credit limit only counted when
   // enabled. Not all sellers have one (toggle).
   rrlEnabled: boolean;
@@ -492,6 +493,7 @@ export interface Invoice {
   // Schedule A / UTRC pricing fields (optional; from the upload).
   coverageAmount?: number;
   advanceRate?: number; // 0.85 … 1.00
+  bufferDays?: number; // commingling / buffer days on this AR entry
   marginBps?: number;
   baseRate?: number; // percent
   baseRateType?: BaseRateType;
@@ -812,6 +814,7 @@ export interface DiscountTransaction {
   currency: Currency;
   invoiceType: InvoiceType;
   advanceRate: number; // 0.85 … 1.00, from the upload file
+  bufferDays?: number; // commingling / buffer days on this entry (checked vs seller facility approved days)
   valueDate: string;
   maturityDate: string;
   pricingBps: number; // margin, in bps

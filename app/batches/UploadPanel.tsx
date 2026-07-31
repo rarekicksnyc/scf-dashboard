@@ -22,8 +22,8 @@ export default function UploadPanel() {
 
   function downloadTemplate() {
     const csv =
-      "seller,obligor,invoice_number,invoice_amount,advance_rate,margin,value_date,due_date,currency\n" +
-      "SELLER001,OBL001,INV-1001,10000000,95,125,2026-08-15,2026-11-13,USD\n";
+      "seller,obligor,invoice_number,invoice_amount,advance_rate,margin,buffer_days,value_date,due_date,currency\n" +
+      "SELLER001,OBL001,INV-1001,10000000,95,125,5,2026-08-15,2026-11-13,USD\n";
     const blob = new Blob([csv], { type: "text/csv" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -105,7 +105,7 @@ export default function UploadPanel() {
         </div>
         <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
           Accepts CSV or Excel (.xlsx), one row per invoice (a single invoice is
-          fine). Recognized columns: seller, seller PCG, obligor, obligor PCG,
+          fine). Recognized columns: seller, seller PCG, obligor, obligor PCG, buffer_days (commingling),
           invoice amount, invoice number (optional), plus currency / dates if
           present. Seller and obligor match by id, name, or CDL.
         </div>
