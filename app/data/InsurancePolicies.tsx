@@ -11,6 +11,7 @@ export interface PolicyRow {
   insurerName: string;
   policyNumber: string;
   coveragePercent: number;
+  limitSize: number; // the policy's INSURANCE capacity limit
   minimumPremium: number;
   rev: number;
 }
@@ -27,13 +28,14 @@ export default function InsurancePolicies({ policies, canEdit }: { policies: Pol
             <th>Insurer</th>
             <th>Policy</th>
             <th className="num">Coverage</th>
+            <th className="num">Policy limit</th>
             <th className="num">Minimum premium (annual)</th>
             {canEdit && <th></th>}
           </tr>
         </thead>
         <tbody>
           {policies.length === 0 ? (
-            <tr><td colSpan={canEdit ? 5 : 4} className="muted" style={{ padding: 16 }}>No active insurance policies.</td></tr>
+            <tr><td colSpan={canEdit ? 6 : 5} className="muted" style={{ padding: 16 }}>No active insurance policies.</td></tr>
           ) : policies.map((p) => <Row key={p.id} p={p} canEdit={canEdit} />)}
         </tbody>
       </table>
@@ -69,6 +71,7 @@ function Row({ p, canEdit }: { p: PolicyRow; canEdit: boolean }) {
       <td style={{ fontWeight: 600 }}>{p.insurerName}</td>
       <td><code style={{ fontSize: 12 }}>{p.policyNumber}</code></td>
       <td className="num">{Math.round(p.coveragePercent * 100)}%</td>
+      <td className="num">{p.limitSize > 0 ? usd(p.limitSize) : "—"}</td>
       <td className="num">
         {canEdit ? (
           <NumberInput style={{ ...cell, maxWidth: 160, textAlign: "right" }} value={min} ariaLabel={`Minimum premium ${p.insurerName}`} onValue={setMin} />

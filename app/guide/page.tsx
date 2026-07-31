@@ -24,7 +24,7 @@ const FLOW: { step: string; detail: string }[] = [
   { step: "Additional interest & invoices", detail: "A past-due receivable shows indicative additional interest at the original all-in rate (margin + base). When the client confirms it will repay, accrue it all at once (it freezes at that date), then generate a MUFG additional-interest statement, or an ad-hoc client invoice, as a downloadable PDF." },
 ];
 
-const BATCH_FLOW = "Batches upload many invoices at once. Each is run through the same eligibility controls; funded invoices materialise into the one Receivables ledger, and any exception routes to the Exceptions screen for a checker to approve.";
+const BATCH_FLOW = "Batches upload many trade-receivable (AR) entries at once — these are the receivables in the transaction requests, not literal supplier invoices. Each is run through the same eligibility controls; funded entries materialise into the one Receivables ledger, and any exception routes to the Exceptions screen for a checker to approve.";
 
 const CONCURRENCY: [string, string][] = [
   ["One shared live book", "Everyone works on the same book on one server. The moment anyone books a deal, edits a limit, or records a collection, the change is saved for every user at once — there are no separate copies to reconcile."],
@@ -40,7 +40,7 @@ const SCREENS: [string, string][] = [
   ["Revenue", "Margin income plus skim (split into funding basis and margin skim), realized and pipeline, with accrual over tenor, a monthly view, and FYTD earned searchable by seller or obligor."],
   ["Reservations", "The forward book of future discounts and swingline movements."],
   ["Bookings", "The live book after funding — collections, overdue, default, claims, investor settlement, aging, concentration, and client invoicing."],
-  ["Batches", "Bulk invoice upload (CSV/Excel), a downloadable template, or build a batch by hand in an editable table — then eligibility results. A batch is single-seller."],
+  ["Batches", "Bulk AR/receivable upload (CSV/Excel) — the transaction-request entries, not literal invoices — a downloadable template, or build a batch by hand in an editable table, then eligibility results. A batch is single-seller."],
   ["Transaction Flow", "A single deal from eligibility check through documents, execution, signature check, and booking."],
   ["Documents", "Editable document, Schedule A, email, and invoice templates (a per-seller copy overrides the default)."],
   ["Rate sheet", "COF and SOFR curves, and the short-tenor SOFR interpolator."],
@@ -65,7 +65,9 @@ const GLOSSARY: [string, string][] = [
   ["Minimum premium / top-up", "Each policy must generate an annual minimum premium (on the insurer-rate side) over the fiscal year. If natural usage falls short, the shortfall is topped up at year end — remitted to the insurer, with no MUFG skim on the top-up. When a policy covers several sellers, the top-up is split across them pro-rata to the premium each generated. Tracked per policy (with a per-seller breakdown) on Revenue; set each policy's annual minimum in Data management. Investors have no equivalent top-up."],
   ["ASR", "Asset Securitization. Two related uses: the ASR rating (an internal seller risk grade) and the ASR limit — the per seller/obligor approved sublimit and max tenor, checked like any other limit."],
   ["RRL", "Risk Reimbursement Line — a portion of a DTR advance booked on a separate seller line."],
-  ["Swingline", "The current allocation of the global swingline limit across eligible branches and entities — a short-term core line drawn alongside the seller or obligor line for temporary funding."],
+  ["Swingline", "The current allocation of the global swingline limit across eligible branches and entities — a core line drawn alongside the seller or obligor line, supporting both fundings and commitments."],
+  ["Booked vs swingline booked", "On the portfolio, ‘booked’ is receivable/discount exposure consuming the seller or obligor credit line; ‘swingline booked’ is the separate swingline draws consuming the swingline line."],
+  ["Batch AR entries", "A batch uploads trade-receivable (AR) entries — the receivables in the transaction requests, not literal supplier invoices. A funded batch entry and a Transaction-Flow deal both land in the same one receivables ledger; only the entry path differs."],
   ["PCG", "Parent Company Guarantee — a guarantee that supports a seller or obligor."],
   ["Recourse", "Whether an unpaid receivable can be charged back to the seller (recourse) or is retained by the bank (non-recourse)."],
   ["Time-phasing", "A reservation or receivable only consumes a limit while its value-to-maturity window overlaps the date being checked. An unsettled receivable stays live past maturity."],

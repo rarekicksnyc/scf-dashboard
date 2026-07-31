@@ -291,6 +291,7 @@ export default async function DataManagementPage({
               insurerName: p.insurerName,
               policyNumber: p.policyNumber,
               coveragePercent: p.coveragePercent,
+              limitSize: findLimit("INSURANCE", p.id)?.approvedLimit ?? 0,
               minimumPremium: p.minimumPremium ?? 0,
               rev: recordRev(`policy:${p.id}`),
             }))}
