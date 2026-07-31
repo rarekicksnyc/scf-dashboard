@@ -3,6 +3,7 @@ import { limitViews, listKpiTiles } from "@/lib/data/store";
 import { sellerExposure, obligorExposure } from "@/lib/exposure";
 import { buildExpirations, expiryCounts } from "@/lib/expirations";
 import { computeKpis } from "@/lib/creator/run";
+import { expectedOutstandingByDate } from "@/lib/projection";
 import { mm } from "@/lib/format";
 import ExposureTabs from "./ExposureTabs";
 import type { LimitType } from "@/lib/types";
@@ -29,6 +30,10 @@ export default async function PortfolioPage({
   const exp = expiryCounts(buildExpirations(today));
   const expAlert = exp.expired + exp.within30 + exp.within60;
   const kpiTiles = computeKpis(listKpiTiles());
+  // Peak concurrent funded principal over the next year — the time-phased peak,
+  // unlike the aggregate view which sums all commitments regardless of date.
+  const proj = expectedOutstandingByDate(today, 365);
+  const peakOutstanding = Math.max(0, ...Object.values(proj));
 
   const byType = (t: LimitType) => views.filter((v) => v.limit.type === t);
   const sumApproved = (t: LimitType) =>
@@ -44,6 +49,7 @@ export default async function PortfolioPage({
     { label: "Swingline capacity", value: mm(sumAvailable("SWINGLINE")), sub: `of ${mm(sumApproved("SWINGLINE"))} approved` },
     { label: "Investor capacity", value: mm(sumAvailable("INVESTOR")), sub: `of ${mm(sumApproved("INVESTOR"))} approved` },
     { label: "Insurance capacity", value: mm(sumAvailable("INSURANCE")), sub: `of ${mm(sumApproved("INSURANCE"))} approved` },
+    { label: "Peak expected outstanding", value: mm(peakOutstanding), sub: "max concurrent funded principal, next 12 months" },
   ];
 
   return (

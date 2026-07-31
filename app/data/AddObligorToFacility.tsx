@@ -128,7 +128,7 @@ export default function AddObligorToFacility({
             <label style={field}>CDL (8-digit)
               <input style={input} value={f.cdl} onChange={(e) => set("cdl", e.target.value)} placeholder="e.g. 10048201" />
             </label>
-            <label style={field}>Country
+            <label style={field}>Country of domicile
               <input style={input} value={f.country} onChange={(e) => set("country", e.target.value)} />
             </label>
             <label style={field}>Master limit (USD)

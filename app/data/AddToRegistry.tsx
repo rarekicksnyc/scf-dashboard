@@ -314,8 +314,9 @@ export default function AddToRegistry({
                 <input style={input} value={f.cdl} onChange={(e) => set("cdl", e.target.value)} placeholder="e.g. 10048201" />
               </label>
               {mode === "OBLIGOR" && (
-                <label style={field}>Country
-                  <input style={input} value={f.country} onChange={(e) => set("country", e.target.value)} />
+                <label style={field}>Country of domicile
+                  <input style={input} value={f.country} onChange={(e) => set("country", e.target.value)} placeholder="e.g. US" />
+                  <span className="muted" style={{ fontSize: 11 }}>Checked on the Enforceability screen against the eligible-country register.</span>
                 </label>
               )}
             </>
