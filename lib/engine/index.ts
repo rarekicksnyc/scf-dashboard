@@ -21,6 +21,9 @@ import {
   viewLimit,
   sellerObligorLimit,
   sellerObligorUsage,
+  insuranceBuyerSublimit,
+  insuranceCountryLimit,
+  reservedInsurance,
 } from "@/lib/data/store";
 import {
   makeWorking,
@@ -36,7 +39,7 @@ import {
 } from "./allocation";
 import { priceDeal } from "@/lib/pricing";
 import { obligorEntityFindings } from "./obligorEntity";
-import { sellerDomicileFinding, obligorGroupDomicileFinding } from "./domicile";
+import { sellerDomicileFinding, obligorGroupDomicileFinding, effectiveObligorDomicile } from "./domicile";
 import { DEFAULT_MARGIN_BPS } from "@/lib/config";
 import { mm2 as fmt, daysBetween } from "@/lib/format";
 
@@ -158,11 +161,21 @@ function finalStatus(checks: CheckResult[]): EligibilityStatus {
   return "ELIGIBLE";
 }
 
+// A per-buyer or per-country insurance sublimit bucket under a policy. These are
+// NOT backed by a Limit record (they are sublimits of the policy's INSURANCE
+// limit), so they carry their own cap + running consumed. Seeded from reservations
+// held outside the batch, then incremented as insured invoices fund WITHIN the
+// batch — so cumulative draws to one buyer/country are enforced (parity with the
+// interactive engine, which checks these per deal).
+interface InsBucket { cap: number; consumed: number }
+
 interface WorkingSet {
   seller?: WorkingLimit;
   asr?: WorkingLimit;
   swingline?: WorkingLimit;
   obligors: Map<string, WorkingLimit>;
+  insBuyer: Map<string, InsBucket>; // key `${policyId}|${obligorId}`
+  insCountry: Map<string, InsBucket>; // key `${policyId}|${domicile}`
   alloc: AllocContext;
   window?: DateWindow; // batch's value-to-maturity span for time-phasing reservations
 }
@@ -205,9 +218,38 @@ function buildWorkingSet(seller: Seller, window?: DateWindow): WorkingSet {
     asr: asrLimit ? makeWorking(viewLimit(asrLimit, window)) : undefined,
     swingline: swinglineLimit ? makeWorking(viewLimit(swinglineLimit, window)) : undefined,
     obligors: new Map(),
+    insBuyer: new Map(),
+    insCountry: new Map(),
     alloc: { investors, policies },
     window,
   };
+}
+
+// Lazily seed a per-(policy,buyer) sublimit bucket. Returns undefined when the
+// buyer is NOT covered under the policy (no sublimit on file) — a RED, matching
+// the interactive engine. Consumed is seeded from reservations outside the batch.
+function workingInsBuyer(ws: WorkingSet, policyId: string, obligorId: string): InsBucket | undefined {
+  const key = `${policyId}|${obligorId}`;
+  const existing = ws.insBuyer.get(key);
+  if (existing) return existing;
+  const bsl = insuranceBuyerSublimit(policyId, obligorId);
+  if (!bsl) return undefined;
+  const bucket: InsBucket = { cap: bsl.sublimit, consumed: reservedInsurance(policyId, { obligorId }, ws.window) };
+  ws.insBuyer.set(key, bucket);
+  return bucket;
+}
+
+// Lazily seed a per-(policy,country) limit bucket, keyed off the booking entity's
+// domicile. Returns undefined when the country is not covered.
+function workingInsCountry(ws: WorkingSet, policyId: string, domicile: string): InsBucket | undefined {
+  const key = `${policyId}|${domicile}`;
+  const existing = ws.insCountry.get(key);
+  if (existing) return existing;
+  const cl = insuranceCountryLimit(policyId, domicile);
+  if (!cl) return undefined;
+  const bucket: InsBucket = { cap: cl.limit, consumed: reservedInsurance(policyId, { country: domicile }, ws.window) };
+  ws.insCountry.set(key, bucket);
+  return bucket;
 }
 
 function workingObligor(ws: WorkingSet, obligorId: string): WorkingLimit | undefined {
@@ -246,7 +288,7 @@ export function runBatch(
   const results: InvoiceResult[] = [];
   const ws: WorkingSet = seller
     ? buildWorkingSet(seller, batchWindow)
-    : { obligors: new Map(), alloc: { investors: [], policies: [] } };
+    : { obligors: new Map(), insBuyer: new Map(), insCountry: new Map(), alloc: { investors: [], policies: [] } };
 
   // Legal documentation is a seller/program-level condition — evaluated once
   // and applied to every invoice in the batch.
@@ -492,6 +534,33 @@ export function runBatch(
         false,
       );
       if (swinglineCheck) checks.push(swinglineCheck);
+
+      // Insurance buyer + country sublimit parity with the interactive engine:
+      // when the plan overlays insurance, the insured amount must fit within the
+      // buyer sublimit AND the country limit (keyed off the booking entity's
+      // domicile). Not-covered and over-sublimit are both RED (same as interactive),
+      // and the buckets carry cumulative consumption so several insured invoices to
+      // one buyer/country within a batch bind against the same sublimit.
+      if (funding.policyId && funding.insuredAmount > 0) {
+        const ins = funding.insuredAmount;
+        const buyer = workingInsBuyer(ws, funding.policyId, invoice.obligorId);
+        if (!buyer) {
+          checks.push({ checkName: "INSURANCE_BUYER_SUBLIMIT_CHECK", status: "FAIL", severity: "RED", message: `Buyer not covered under policy ${funding.policyId}.`, breachAmount: ins });
+        } else if (ins > buyer.cap - buyer.consumed) {
+          checks.push({ checkName: "INSURANCE_BUYER_SUBLIMIT_CHECK", status: "FAIL", severity: "RED", message: `Insured ${fmt(ins)} exceeds the buyer sublimit — only ${fmt(Math.max(buyer.cap - buyer.consumed, 0))} of ${fmt(buyer.cap)} available.`, breachAmount: ins - (buyer.cap - buyer.consumed) });
+        } else {
+          checks.push({ checkName: "INSURANCE_BUYER_SUBLIMIT_CHECK", status: "PASS", severity: "GREEN", message: `Within the buyer sublimit (${fmt(buyer.cap - buyer.consumed)} available).` });
+        }
+        const domicile = obligor ? effectiveObligorDomicile(obligor, invoice.obligorEntityId) : undefined;
+        const country = domicile ? workingInsCountry(ws, funding.policyId, domicile) : undefined;
+        if (domicile && !country) {
+          checks.push({ checkName: "INSURANCE_COUNTRY_LIMIT_CHECK", status: "FAIL", severity: "RED", message: `${domicile} not covered under policy ${funding.policyId}.`, breachAmount: ins });
+        } else if (country && ins > country.cap - country.consumed) {
+          checks.push({ checkName: "INSURANCE_COUNTRY_LIMIT_CHECK", status: "FAIL", severity: "RED", message: `Insured ${fmt(ins)} exceeds the ${domicile} country limit — only ${fmt(Math.max(country.cap - country.consumed, 0))} of ${fmt(country.cap)} available.`, breachAmount: ins - (country.cap - country.consumed) });
+        } else if (country) {
+          checks.push({ checkName: "INSURANCE_COUNTRY_LIMIT_CHECK", status: "PASS", severity: "GREEN", message: `Within the ${domicile} country limit (${fmt(country.cap - country.consumed)} available).` });
+        }
+      }
     }
 
     // --- Pricing (shared with the eligibility engine) ----------------------
@@ -540,6 +609,13 @@ export function runBatch(
             (s) => s.master.id === funding!.policyId,
           );
           if (pol) consume(pol.working, funding.insuredAmount);
+          // Draw down the buyer + country sublimit buckets too, so the next insured
+          // invoice to the same buyer/country in this batch sees reduced headroom.
+          const buyer = ws.insBuyer.get(`${funding.policyId}|${invoice.obligorId}`);
+          if (buyer) buyer.consumed += funding.insuredAmount;
+          const domicile = obligor ? effectiveObligorDomicile(obligor, invoice.obligorEntityId) : undefined;
+          const country = domicile ? ws.insCountry.get(`${funding.policyId}|${domicile}`) : undefined;
+          if (country) country.consumed += funding.insuredAmount;
         }
       }
     }
