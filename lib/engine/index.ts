@@ -36,6 +36,7 @@ import {
 } from "./allocation";
 import { priceDeal } from "@/lib/pricing";
 import { obligorEntityFindings } from "./obligorEntity";
+import { sellerDomicileFinding, obligorGroupDomicileFinding } from "./domicile";
 import { DEFAULT_MARGIN_BPS } from "@/lib/config";
 import { mm2 as fmt, daysBetween } from "@/lib/format";
 
@@ -350,6 +351,23 @@ export function runBatch(
           message: fnd.message,
         });
       }
+    }
+
+    // Domicile enforceability — same shared rules as the interactive engine
+    // (parity): seller jurisdiction, and the obligor GROUP jurisdiction when no
+    // specific legal entity is booked (the entity's own domicile is checked above).
+    const domFindings = [
+      seller ? sellerDomicileFinding(seller) : null,
+      obligorGroupDomicileFinding(invoice.obligorId, invoice.obligorEntityId),
+    ];
+    for (const fnd of domFindings) {
+      if (!fnd || fnd.severity === "GREY") continue;
+      checks.push({
+        checkName: fnd.key,
+        status: fnd.severity === "GREEN" ? "PASS" : fnd.severity === "ORANGE" ? "EXCEPTION" : "FAIL",
+        severity: fnd.severity,
+        message: fnd.message,
+      });
     }
 
     // Duplicate within the uploaded file.

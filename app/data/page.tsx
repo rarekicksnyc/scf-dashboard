@@ -64,7 +64,7 @@ export default async function DataManagementPage({
   const canEdit = await currentUserCan("CHANGE_LIMIT");
   const canBook = await currentUserCan("UPLOAD_BATCH");
   const rrlSwlSellers = sellers.filter((s) => findLimit("RRL_SWINGLINE", s.id)).map((s) => s.id);
-  const countries = allCountries().map((c) => ({ code: c.code, name: c.name }));
+  const countries = allCountries().map((c) => ({ code: c.code, name: c.name, eligible: c.eligible }));
   const policies = activePolicies().map((p) => ({ id: p.id, name: `${p.insurerName} · ${p.policyNumber}` }));
 
   const th = { fontSize: 11, textTransform: "uppercase" as const, letterSpacing: "0.03em" };
@@ -133,6 +133,7 @@ export default async function DataManagementPage({
               borrowerRatingExpiry: seller.borrowerRatingExpiry,
               gcarsNumber: seller.gcarsNumber,
               guarantor: seller.guarantor,
+              domicile: seller.domicile,
               minPricingBps: seller.minPricingBps,
               comminglingDays: seller.comminglingDays,
               rrlEnabled: seller.rrlEnabled,
@@ -155,6 +156,7 @@ export default async function DataManagementPage({
             ]}
             canEdit={canEdit}
             rev={recordRev(`seller:${seller.id}`)}
+            countries={countries}
           />
         )}
         <div className="table-scroll">

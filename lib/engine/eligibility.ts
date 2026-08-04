@@ -16,6 +16,7 @@ import {
 } from "@/lib/data/store";
 import { priceDeal } from "@/lib/pricing";
 import { obligorEntityFindings } from "@/lib/engine/obligorEntity";
+import { sellerDomicileFinding, obligorGroupDomicileFinding, effectiveObligorDomicile } from "@/lib/engine/domicile";
 import { mm2 as mm, daysBetween, expired, limitLapsed, limitNotYetEffective } from "@/lib/format";
 import { ADVANCE_RATE_CAP, ADVANCE_RATE_MIN, ADVANCE_RATE_MAX } from "@/lib/config";
 import type {
@@ -170,6 +171,7 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
     add("SELLER", "ASR rating", `${seller.asrRating} exp ${seller.asrExpiry || "—"}`, txn.valueDate,
       expired(seller.asrExpiry, txn.valueDate) ? "ORANGE" : "GREEN",
       expired(seller.asrExpiry, txn.valueDate) ? "ASR rating expired — refresh required." : "ASR rating current.");
+    { const f = sellerDomicileFinding(seller); add("SELLER", f.label, f.checkedAgainst, f.txnValue, f.severity, f.message); }
 
     // Seller swingline — its booking MIRRORS the seller credit line: whatever is
     // booked on the credit limit is booked on the swingline (same amount). So it
@@ -252,6 +254,10 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
     add("OBLIGOR", "Obligor group expiry", obligor.expiryDate || "— none —", txn.valueDate,
       !obligor.expiryDate ? "RED" : expired(obligor.expiryDate, txn.valueDate) ? "ORANGE" : "GREEN",
       !obligor.expiryDate ? "No obligor group expiry date on file — required, does not clear." : expired(obligor.expiryDate, txn.valueDate) ? "Obligor group approval expired as of the value date — renewal required." : "Obligor group approval current.");
+
+    // Obligor jurisdiction — the group's domicile when no specific legal entity is
+    // booked (a named entity's domicile is checked in the entity findings below).
+    { const f = obligorGroupDomicileFinding(obligor.id, txn.obligorEntityId); if (f) add("OBLIGOR", f.label, f.checkedAgainst, f.txnValue, f.severity, f.message); }
 
     add("OBLIGOR", "Obligor guarantee", obligor.hasGuarantee ? "Guarantee on file" : "None", obligor.hasGuarantee ? "Yes" : "No",
       obligor.hasGuarantee ? "GREEN" : "GREY",
@@ -437,11 +443,15 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
           const reserved = reservedInsurance(policy.id, { obligorId: obligor.id }, window);
           capacity("INSURANCE", `Buyer sublimit — ${tag}`, bsl.sublimit - reserved, bsl.sublimit, reserved, alloc.amount);
         }
-        const cl = insuranceCountryLimit(policy.id, obligor.country);
+        // Key the country limit off the BOOKING entity's domicile (the named legal
+        // entity when present, else the obligor group's country) — entities under
+        // one group can sit in different jurisdictions.
+        const bookingDomicile = effectiveObligorDomicile(obligor, txn.obligorEntityId);
+        const cl = insuranceCountryLimit(policy.id, bookingDomicile);
         if (!cl) {
-          add("INSURANCE", `Country limit — ${tag}`, `${obligor.country} covered`, obligor.country, "RED", "Country not covered under this policy.");
+          add("INSURANCE", `Country limit — ${tag}`, `${bookingDomicile} covered`, bookingDomicile, "RED", "Country not covered under this policy.");
         } else {
-          const reservedC = reservedInsurance(policy.id, { country: obligor.country }, window);
+          const reservedC = reservedInsurance(policy.id, { country: bookingDomicile }, window);
           capacity("INSURANCE", `Country limit — ${tag}`, cl.limit - reservedC, cl.limit, reservedC, alloc.amount);
         }
       }

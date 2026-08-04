@@ -294,7 +294,7 @@ export function updateSeller(
       Seller,
       | "name" | "cdl" | "asrRating" | "asrExpiry" | "borrowerRating" | "borrowerRatingExpiry"
       | "gcarsNumber" | "guarantor" | "minPricingBps" | "rrlEnabled" | "rrlLimit" | "rrlExpiry"
-      | "status" | "eligible" | "internalRating" | "contactEmail" | "comminglingDays"
+      | "status" | "eligible" | "internalRating" | "contactEmail" | "comminglingDays" | "domicile"
     >
   >,
 ): Seller | undefined {
@@ -2207,6 +2207,7 @@ export function addSeller(input: {
   creditLimit: number;
   maxTenorDays: number;
   expiryDate: string;
+  domicile?: string;
   approval?: { reference: string; requestedBy: string; requestedByName: string };
 }): Seller {
   const id = `SELLER${String(store.sellers.length + 1).padStart(3, "0")}`;
@@ -2225,6 +2226,7 @@ export function addSeller(input: {
     borrowerRatingExpiry: input.expiryDate,
     guarantor: "None",
     gcarsNumber: "",
+    domicile: input.domicile || "US",
     minPricingBps: 0,
     rrlEnabled: false,
     rrlLimit: 0,

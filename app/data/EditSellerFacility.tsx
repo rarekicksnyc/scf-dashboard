@@ -15,6 +15,7 @@ export interface SellerFacilityData {
   borrowerRatingExpiry: string;
   gcarsNumber: string;
   guarantor: string;
+  domicile?: string;
   minPricingBps: number;
   comminglingDays?: number;
   rrlEnabled: boolean;
@@ -45,11 +46,13 @@ export default function EditSellerFacility({
   limits,
   canEdit,
   rev,
+  countries,
 }: {
   seller: SellerFacilityData;
   limits: FacilityLimitLine[];
   canEdit: boolean;
   rev?: number;
+  countries?: { code: string; name: string; eligible: boolean }[];
 }) {
   const router = useRouter();
   const [f, setF] = useState({
@@ -60,6 +63,7 @@ export default function EditSellerFacility({
     borrowerRatingExpiry: seller.borrowerRatingExpiry ?? "",
     gcarsNumber: seller.gcarsNumber ?? "",
     guarantor: seller.guarantor ?? "",
+    domicile: seller.domicile ?? "US",
     minPricingBps: String(seller.minPricingBps ?? 0),
     comminglingDays: seller.comminglingDays != null ? String(seller.comminglingDays) : "",
     rrlEnabled: seller.rrlEnabled,
@@ -84,6 +88,7 @@ export default function EditSellerFacility({
         borrowerRatingExpiry: f.borrowerRatingExpiry,
         gcarsNumber: f.gcarsNumber,
         guarantor: f.guarantor,
+        domicile: f.domicile,
         minPricingBps: Number(f.minPricingBps),
         comminglingDays: f.comminglingDays === "" ? undefined : Number(f.comminglingDays),
         rrlEnabled: f.rrlEnabled,
@@ -120,6 +125,7 @@ export default function EditSellerFacility({
         {limits.map((l) => <div key={l.key}>{ro(l.key, lineDisplay(l))}</div>)}
         {ro("ASR rating", `${seller.asrRating} (exp ${seller.asrExpiry || "—"})`)}
         {ro("Borrower rating", `${seller.borrowerRating} (exp ${seller.borrowerRatingExpiry || "—"})`)}
+        {ro("Domicile", seller.domicile || "—")}
         {ro("GCARS #", seller.gcarsNumber || "—")}
       </div>
     );
@@ -149,6 +155,18 @@ export default function EditSellerFacility({
         </label>
         <label style={field}>Guarantor
           <input style={input} value={f.guarantor} onChange={(e) => set("guarantor", e.target.value)} placeholder="None" />
+        </label>
+        <label style={field}>Domicile (jurisdiction)
+          {countries && countries.length ? (
+            <select style={input} value={f.domicile} onChange={(e) => set("domicile", e.target.value)}>
+              {(countries.some((c) => c.code === f.domicile) ? countries : [{ code: f.domicile, name: f.domicile, eligible: false }, ...countries]).map((c) => (
+                <option key={c.code} value={c.code}>{c.code} — {c.name}{c.eligible ? "" : " (no enforceability opinion)"}</option>
+              ))}
+            </select>
+          ) : (
+            <input style={input} value={f.domicile} onChange={(e) => set("domicile", e.target.value)} placeholder="e.g. US" />
+          )}
+          <span className="muted" style={{ fontSize: 11 }}>Checked in eligibility for an enforceability opinion.</span>
         </label>
         <label style={field}>Client contact email(s)
           <input style={input} value={f.contactEmail} onChange={(e) => set("contactEmail", e.target.value)} placeholder="one or more, separated by commas" />

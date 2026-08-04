@@ -132,6 +132,7 @@ export interface Seller {
   borrowerRatingExpiry: string; // borrower rating expiry (ISO)
   guarantor: string; // guarantor name, or "None"
   gcarsNumber: string; // GCARS reference #
+  domicile?: string; // seller's jurisdiction of domicile — checked for an enforceability opinion
   minPricingBps: number; // minimum pricing threshold (bps)
   comminglingDays?: number; // approved commingling / buffer days on this facility (max)
   // RRL — Risk Reimbursement Line: a separate credit limit only counted when
