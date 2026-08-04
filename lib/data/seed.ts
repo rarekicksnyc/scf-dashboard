@@ -77,10 +77,13 @@ export const users: User[] = [
 
 export const rolePermissions: Record<Role, Permission[]> = {
   OPERATIONS: ["UPLOAD_BATCH", "VIEW_AUDIT", "GENERATE_PAYMENT_FILE"],
-  CREDIT_OFFICER: ["APPROVE_EXCEPTION", "CHANGE_LIMIT", "VIEW_AUDIT"],
+  // Credit / Risk / Relationship Manager start VIEW-ONLY (audit + all read-only
+  // dashboards, no actions). The Portfolio Manager or Admin can grant more on the
+  // Roles & Access screen at any time.
+  CREDIT_OFFICER: ["VIEW_AUDIT"],
   PRODUCT_MANAGER: ["UPLOAD_BATCH", "APPROVE_EXCEPTION", "CHANGE_LIMIT", "VIEW_REPORTS", "VIEW_AUDIT", "GENERATE_PAYMENT_FILE", "MANAGE_ROLES", "CREATOR_MODE"],
-  RELATIONSHIP_MANAGER: ["UPLOAD_BATCH"],
-  RISK_MANAGER: ["APPROVE_EXCEPTION", "CHANGE_LIMIT", "VIEW_AUDIT"],
+  RELATIONSHIP_MANAGER: ["VIEW_AUDIT"],
+  RISK_MANAGER: ["VIEW_AUDIT"],
   ADMIN: [
     "UPLOAD_BATCH",
     "APPROVE_EXCEPTION",

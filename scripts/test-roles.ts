@@ -21,4 +21,19 @@ ok("delete blocked while a user is assigned", removeRole("LOAN_OPS_LEAD").ok ===
 setUserRole(u.id, originalRole);
 ok("delete succeeds once unassigned", removeRole("LOAN_OPS_LEAD").ok === true && !listRoleKeys().includes("LOAN_OPS_LEAD"));
 
+// Credit / Risk / Relationship Manager start VIEW-ONLY (audit only, no actions),
+// while Portfolio Manager + Admin keep the action permissions (four-eyes intact).
+for (const r of ["CREDIT_OFFICER", "RISK_MANAGER", "RELATIONSHIP_MANAGER"]) {
+  ok(`${r} is view-only (no CHANGE_LIMIT)`, roleHasPermission(r, "CHANGE_LIMIT") === false);
+  ok(`${r} is view-only (no APPROVE_EXCEPTION)`, roleHasPermission(r, "APPROVE_EXCEPTION") === false);
+  ok(`${r} is view-only (no UPLOAD_BATCH)`, roleHasPermission(r, "UPLOAD_BATCH") === false);
+  ok(`${r} can view audit`, roleHasPermission(r, "VIEW_AUDIT") === true);
+}
+ok("Portfolio Manager can still approve exceptions (four-eyes intact)", roleHasPermission("PRODUCT_MANAGER", "APPROVE_EXCEPTION") === true);
+ok("Admin can still change limits", roleHasPermission("ADMIN", "CHANGE_LIMIT") === true);
+// A view-only role can be granted more access at any time (the usual way).
+setRolePermission("CREDIT_OFFICER", "CHANGE_LIMIT", true);
+ok("PM/Admin can grant a view-only role more access", roleHasPermission("CREDIT_OFFICER", "CHANGE_LIMIT") === true);
+setRolePermission("CREDIT_OFFICER", "CHANGE_LIMIT", false); // restore view-only
+
 console.log(`\n${pass} passed, ${fail} failed`); process.exit(fail?1:0);

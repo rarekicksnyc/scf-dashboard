@@ -236,6 +236,16 @@ export function runMigrations(): void {
       store.rolePermissions[role] = (store.rolePermissions[role] ?? []).filter((p) => p !== "VIEW_REPORTS");
     }
   });
+
+  // Credit / Risk / Relationship Manager start VIEW-ONLY (read-only dashboards +
+  // audit, no actions). Reset them once in persisted state; any access the
+  // Portfolio Manager / Admin grants afterwards on the Roles & Access screen wins
+  // (this migration never runs again).
+  once("credit-risk-rm-view-only-2026-08", () => {
+    for (const role of ["CREDIT_OFFICER", "RISK_MANAGER", "RELATIONSHIP_MANAGER"] as Role[]) {
+      store.rolePermissions[role] = ["VIEW_AUDIT"];
+    }
+  });
 }
 
 // ---------------------------------------------------------------------------
