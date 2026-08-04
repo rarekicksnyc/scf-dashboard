@@ -175,7 +175,7 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
     // booked on the credit limit is booked on the swingline (same amount). So it
     // is tested against the credit line's consumed, not a separate pool.
     const sellerConsumed = sl ? viewLimit(sl, window).consumed : 0;
-    const ssw = entitySwingline("SELLER", seller.id);
+    const ssw = entitySwingline("SELLER", seller.id, txn.valueDate);
     if (ssw) {
       const swlView = viewLimit(ssw, window);
       const swlUsed = sellerConsumed + swinglineAdjustmentNet("SELLER", seller.id, "REGULAR", window);
@@ -279,7 +279,7 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
     }
 
     // Obligor swingline — same rule: always tested when the obligor has one.
-    const osw = entitySwingline("OBLIGOR", obligor.id);
+    const osw = entitySwingline("OBLIGOR", obligor.id, txn.valueDate);
     if (osw) {
       const v = viewLimit(osw, window);
       capacity("OBLIGOR", "Obligor swingline", v.available, v.approvedLimit, v.consumed, advanceAmount);

@@ -630,6 +630,11 @@ export function markReceivableDefault(
   // write-off sets settledAt without a real full collection).
   const collected = (t.collections ?? []).reduce((a, c) => a + c.amount, 0);
   if (collected >= t.amount) return undefined;
+  // WRITE_OFF and INSURANCE_CLAIM are mutually exclusive recovery routes for the
+  // same principal: a write-off sets settledAt (collapsing outstanding to 0), which
+  // would silently zero a subsequent claim payout. Refuse to write off while a
+  // non-DENIED claim is open — clear the claim/default first.
+  if (input.workout === "WRITE_OFF" && t.insuranceClaim && t.insuranceClaim.status !== "DENIED") return undefined;
   t.defaultedAt = today();
   t.defaultReason = input.reason;
   t.workout = input.workout;
@@ -692,6 +697,10 @@ export function decideInsuranceClaim(
   // no-op — otherwise a second PAID would book the insured amount AGAIN, recovering
   // principal beyond the insured allocation (double-recovery).
   if (t.insuranceClaim.status !== "FILED") return t;
+  // A PAID claim must actually recover live principal. If nothing is outstanding
+  // (the receivable was written off / settled), there is nothing to recover —
+  // refuse rather than book a $0 collection and record it as an insurance recovery.
+  if (status === "PAID" && (t.settledAt || (t.collections ?? []).reduce((a, c) => a + c.amount, 0) >= t.amount)) return undefined;
   t.insuranceClaim.status = status;
   t.insuranceClaim.decidedAt = today();
   if (reference) t.insuranceClaim.reference = reference;
@@ -2356,14 +2365,16 @@ export function removeObligor(id: string): void {
 export function entitySwingline(
   entityType: "SELLER" | "OBLIGOR",
   entityId: string,
+  asOf?: string,
 ): Limit | undefined {
-  return store.limits.find(
-    (l) =>
-      l.type === "SWINGLINE" &&
-      l.entityType === entityType &&
-      l.entityId === entityId &&
-      limitLive(l),
+  // Resolve the GOVERNING swingline for the date (mirrors findLimit), so at a
+  // swingline renewal overlap it picks the same record as the seller/obligor line
+  // it mirrors — not just the first live one.
+  const cands = store.limits.filter(
+    (l) => l.type === "SWINGLINE" && l.entityType === entityType && l.entityId === entityId && limitLive(l),
   );
+  if (cands.length <= 1) return cands[0];
+  return governingLimit(cands, asOf ?? new Date().toISOString().slice(0, 10));
 }
 
 // Toggle a swingline on/off for an entity, creating the limit on first enable.

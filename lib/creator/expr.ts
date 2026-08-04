@@ -166,9 +166,11 @@ function ev(n: Node, ctx: Context): Value {
     }
     case "un": return n.op === "!" ? !toBool(ev(n.e, ctx)) : -toNumber(ev(n.e, ctx));
     case "call": {
-      const fn = FUNCTIONS[n.name.toLowerCase()];
-      if (!fn) throw new ExprError(`Unknown function "${n.name}".`);
-      return fn(n.args.map((a) => toNumber(ev(a, ctx))));
+      // hasOwnProperty (not bracket access alone) so an inherited member —
+      // constructor, hasOwnProperty, toString — is never dispatched as a function.
+      const key = n.name.toLowerCase();
+      if (!Object.prototype.hasOwnProperty.call(FUNCTIONS, key)) throw new ExprError(`Unknown function "${n.name}".`);
+      return FUNCTIONS[key](n.args.map((a) => toNumber(ev(a, ctx))));
     }
     case "bin": {
       const op = n.op;

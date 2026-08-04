@@ -1,4 +1,4 @@
-import { getReservations, getBatches, listBookedTransactions } from "@/lib/data/store";
+import { getReservations, listBookedTransactions } from "@/lib/data/store";
 import type { ScheduleEvent } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -69,32 +69,12 @@ export function buildScheduleEvents(): ScheduleEvent[] {
     events.push({ date: t.maturityDate, type: "REPAYMENT", amount: t.amount, sellerId: t.sellerId, obligorId: t.obligorId, refId: t.id, label: `Repayment ${t.reference}` });
   }
 
-  // Funded batch invoices contribute a funding (value date) and an expected
-  // repayment (due date).
-  for (const batch of getBatches()) {
-    for (const res of batch.results) {
-      if (!res.funding) continue;
-      const inv = res.invoice;
-      events.push({
-        date: inv.requestedDiscountDate,
-        type: "FUNDING",
-        amount: inv.amount,
-        sellerId: inv.sellerId,
-        obligorId: inv.obligorId,
-        refId: inv.invoiceNumber,
-        label: `Funded ${inv.invoiceNumber}`,
-      });
-      events.push({
-        date: inv.dueDate,
-        type: "REPAYMENT",
-        amount: inv.amount,
-        sellerId: inv.sellerId,
-        obligorId: inv.obligorId,
-        refId: inv.invoiceNumber,
-        label: `Expected repayment ${inv.invoiceNumber}`,
-      });
-    }
-  }
+  // NOTE: funded batch invoices are NOT iterated from store.batches here — every
+  // funded batch result is materialized into bookedTransactions (source "BATCH")
+  // and already emitted by the loop above. Iterating getBatches() too would
+  // double-count each deal (two funding + two repayment events, face vs coverage),
+  // inflating the calendar's funding/repayment cards ~2x and disagreeing with the
+  // peak-outstanding card (which derives from the single ledger). Single source.
 
   return events;
 }

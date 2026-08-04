@@ -25,7 +25,7 @@ export async function startPersistence() {
 
   // Auto-persist: every few seconds, write the snapshot back if it changed.
   let last = snapshotJson();
-  setInterval(async () => {
+  const flush = async (reason: string) => {
     try {
       const current = snapshotJson();
       if (current !== last) {
@@ -33,7 +33,25 @@ export async function startPersistence() {
         last = current;
       }
     } catch (err) {
-      console.error("[persistence] autosave failed:", err);
+      console.error(`[persistence] ${reason} flush failed:`, err);
     }
-  }, 3000);
+  };
+  setInterval(() => { void flush("autosave"); }, 3000);
+
+  // Durability on shutdown: a 3s poll alone would lose any committed booking /
+  // collection / claim payout made in the gap before the next tick if the process
+  // is stopped (Render redeploy → SIGTERM, then a grace period before SIGKILL).
+  // Flush the latest snapshot, THEN exit, so an acknowledged ledger mutation always
+  // survives a restart. Guarded so it runs once even if two signals arrive.
+  let shuttingDown = false;
+  const onShutdown = (sig: string) => async () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`[persistence] ${sig} — flushing snapshot before exit`);
+    await flush(sig);
+    process.exit(0);
+  };
+  process.once("SIGTERM", onShutdown("SIGTERM"));
+  process.once("SIGINT", onShutdown("SIGINT"));
+  process.once("beforeExit", () => { void flush("beforeExit"); }); // backstop for a clean event-loop drain
 }

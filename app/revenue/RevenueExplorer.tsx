@@ -67,7 +67,10 @@ export default function RevenueExplorer({
     const map = new Map<string, { id: string; name: string; earned: number; deals: number }>();
     for (const d of deals) {
       const e = earned(d, window.from, window.to);
-      if (e <= 0) continue;
+      // Skip only deals with no earnings in the window (no overlap / zero income).
+      // A negative-earned slice (rate-swap leg, COF below SOFR) MUST still count, or
+      // the per-entity total overstates earnings and diverges from the FYTD headline.
+      if (e === 0) continue;
       const id = dim === "seller" ? d.sellerId : d.obligorId;
       const name = dim === "seller" ? d.sellerName : d.obligorName;
       const row = map.get(id) ?? { id, name, earned: 0, deals: 0 };

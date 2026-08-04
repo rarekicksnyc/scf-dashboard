@@ -56,7 +56,7 @@ export function sellerExposure(asOf?: string): ExposureRow[] {
     // so at a renewal boundary the row's approvedLimit and its consumption both
     // come from the limit that governs that window (single-source of truth).
     const main = findLimit("SELLER", s.id, asOf);
-    const swl = entitySwingline("SELLER", s.id);
+    const swl = entitySwingline("SELLER", s.id, asOf);
     const rrl = findLimit("RRL", s.id, asOf);
     const rrlSwl = findLimit("RRL_SWINGLINE", s.id, asOf);
     const mainView = main ? viewLimit(main, asOf) : undefined;
@@ -79,7 +79,7 @@ export function obligorExposure(asOf?: string): ExposureRow[] {
   return allObligors().map((o) => {
     // Governing limit picked for the same window the consumption is measured on.
     const main = findLimit("OBLIGOR", o.id, asOf);
-    const swl = entitySwingline("OBLIGOR", o.id);
+    const swl = entitySwingline("OBLIGOR", o.id, asOf);
     const mainView = main ? viewLimit(main, asOf) : undefined;
     return {
       id: o.id,

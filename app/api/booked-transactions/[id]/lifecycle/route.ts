@@ -57,7 +57,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         return NextResponse.json({ error: "Choose a workout route." }, { status: 400 });
       }
       const defaulted = markReceivableDefault(id, { reason, workout }, user.name);
-      if (!defaulted) return NextResponse.json({ error: "This receivable is fully repaid — a settled receivable cannot be declared in default." }, { status: 400 });
+      if (!defaulted) return NextResponse.json({ error: "This receivable cannot be defaulted here — it is already fully repaid/settled, or you tried to write it off while an insurance claim is open (clear the claim or default first)." }, { status: 400 });
       audit(`Declared default on ${t.reference} (${workout}): ${reason}.`, "RECEIVABLE_DEFAULT");
       return NextResponse.json({ ok: true });
     }

@@ -180,19 +180,22 @@ function buildWorkingSet(seller: Seller, window?: DateWindow): WorkingSet {
   // Swingline is per-entity now — the seller's own swingline (if it has one).
   const swinglineLimit = findLimit("SWINGLINE", seller.id, window?.from);
 
+  // Time-phase investor/insurance capacity to the SAME batch window as the credit
+  // lines (parity with the interactive engine, which windows them) — selecting the
+  // governing limit at the window's value date and viewing consumption over it.
   const investors: InvestorSlot[] = activeInvestors()
     .map((master) => {
-      const limit = findLimit("INVESTOR", master.id);
+      const limit = findLimit("INVESTOR", master.id, window?.from);
       if (!limit) return null;
-      return { master, working: makeWorking(viewLimit(limit)) } satisfies InvestorSlot;
+      return { master, working: makeWorking(viewLimit(limit, window)) } satisfies InvestorSlot;
     })
     .filter((s): s is InvestorSlot => s !== null);
 
   const policies: PolicySlot[] = activePolicies()
     .map((master) => {
-      const limit = findLimit("INSURANCE", master.id);
+      const limit = findLimit("INSURANCE", master.id, window?.from);
       if (!limit) return null;
-      return { master, working: makeWorking(viewLimit(limit)) } satisfies PolicySlot;
+      return { master, working: makeWorking(viewLimit(limit, window)) } satisfies PolicySlot;
     })
     .filter((s): s is PolicySlot => s !== null);
 
@@ -417,8 +420,16 @@ export function runBatch(
       if (!sol) {
         checks.push({ checkName: "ASR_SUBLIMIT_CHECK", status: "FAIL", severity: "RED", message: `Obligor '${invoice.obligorId}' is not on ${seller.name}'s ASR approved list.` });
       } else if (sol.approval?.status === "PENDING") {
-        checks.push({ checkName: "ASR_SUBLIMIT_CHECK", status: "EXCEPTION", severity: "ORANGE", message: "ASR sublimit is pending four-eyes approval — grants no capacity until approved." });
+        // A governance-PENDING sublimit grants no capacity and is NOT a breach a
+        // checker may override — hard reject (RED), matching the interactive engine
+        // (eligibility.ts). ORANGE would let an exception override fund it.
+        checks.push({ checkName: "ASR_SUBLIMIT_CHECK", status: "FAIL", severity: "RED", message: "ASR sublimit is pending four-eyes approval — it grants no capacity until a second user approves it." });
       } else {
+        // Tenor gate against the pair sublimit's own approved tenor (parity with
+        // eligibility.ts) — a deal over sol.maxTenorDays is a hard reject.
+        if (tenorDays > sol.maxTenorDays) {
+          checks.push({ checkName: "ASR_SUBLIMIT_CHECK", status: "FAIL", severity: "RED", message: `Tenor ${tenorDays}d exceeds the ASR sublimit max ${sol.maxTenorDays}d by ${tenorDays - sol.maxTenorDays}d.` });
+        }
         const avail = sol.approvedLimit - sellerObligorUsage(seller.id, invoice.obligorId, win);
         if (coverage > avail) {
           checks.push({ checkName: "ASR_SUBLIMIT_CHECK", status: "EXCEPTION", severity: "ORANGE", message: `ASR sublimit: draws ${Math.round(coverage)} but only ${Math.round(Math.max(avail, 0))} available — exceeds by ${Math.round(coverage - avail)}.` });
@@ -452,11 +463,14 @@ export function runBatch(
         tenorDays,
         ws.alloc,
       );
-      // Swingline funds the bank-held portion temporarily pending distribution.
+      // The swingline MIRRORS the seller credit line — whatever books on the credit
+      // limit books on the swingline at the SAME amount (parity with the interactive
+      // engine at eligibility.ts:174-182 and the store's swingline consumption,
+      // which mirror the full seller booking, NOT the post-distribution residual).
       const swinglineCheck = capacityCheck(
         "SWINGLINE_LIMIT_CHECK",
         ws.swingline,
-        funding.bankHeld,
+        coverage,
         false,
       );
       if (swinglineCheck) checks.push(swinglineCheck);
@@ -494,7 +508,7 @@ export function runBatch(
       if (ws.asr) consume(ws.asr, coverage);
       if (obligorWorking) consume(obligorWorking, coverage);
       if (funding) {
-        if (ws.swingline) consume(ws.swingline, funding.bankHeld);
+        if (ws.swingline) consume(ws.swingline, coverage); // swingline mirrors the seller line at full amount
         for (const leg of funding.legs) {
           if (leg.source === "INVESTOR" && leg.sourceId) {
             const slot = ws.alloc.investors.find(

@@ -37,10 +37,19 @@ export default function EditAsrSublimitRow({
   const [sub, setSub] = useState(String(approvedLimit));
   const [tenor, setTenor] = useState(String(maxTenorDays));
   const [expiry, setExpiry] = useState(groupExpiry);
+  const [reference, setReference] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
+  // A change to a live sublimit's amount/tenor is staged for a second approver and
+  // needs a GCARS reference (the expiry edit is a separate obligor-group record).
+  const amountOrTenorChanged = Number(sub) !== approvedLimit || Number(tenor) !== maxTenorDays;
+
   async function save() {
+    if (amountOrTenorChanged && !reference.trim()) {
+      setMsg("A GCARS reference is required — the change is staged for a second approver.");
+      return;
+    }
     setBusy(true);
     setMsg(null);
     // Sublimit amount/tenor and the obligor-group expiry are separate records.
@@ -48,7 +57,7 @@ export default function EditAsrSublimitRow({
       fetch("/api/asr-sublimit", {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ sellerId, obligorId: group.id, approvedLimit: Number(sub), maxTenorDays: Number(tenor), rev: subRev }),
+        body: JSON.stringify({ sellerId, obligorId: group.id, approvedLimit: Number(sub), maxTenorDays: Number(tenor), reference: reference.trim(), rev: subRev }),
       }),
       expiry !== groupExpiry
         ? fetch(`/api/obligors/${group.id}`, {
@@ -64,9 +73,11 @@ export default function EditAsrSublimitRow({
       return;
     }
     if (!subRes.ok || (grpRes && !grpRes.ok)) {
-      setMsg("Failed");
+      setMsg((await subRes.json().catch(() => ({}))).error ?? "Failed");
       return;
     }
+    const body = await subRes.json().catch(() => ({}));
+    if (body.pending) { setMsg("Staged for approval ✓"); setReference(""); router.refresh(); return; }
     setMsg("Saved ✓");
     router.refresh();
   }
@@ -111,9 +122,18 @@ export default function EditAsrSublimitRow({
           <Link href={`/data?seller=${sellerId}&group=${group.id}`} style={{ color: "var(--brand)", fontWeight: 600 }}>
             view entities →
           </Link>
+          {canEdit && amountOrTenorChanged && (
+            <input
+              style={{ ...inp, width: 150, textAlign: "left" }}
+              value={reference}
+              onChange={(e) => setReference(e.target.value)}
+              placeholder="GCARS ref (staged)"
+              aria-label="GCARS reference"
+            />
+          )}
           {canEdit && (
             <button className="btn" style={{ padding: "4px 10px", fontSize: 12 }} onClick={save} disabled={busy} type="button">
-              {busy ? "…" : "Save"}
+              {busy ? "…" : amountOrTenorChanged ? "Request change" : "Save"}
             </button>
           )}
           {canEdit && (

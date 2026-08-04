@@ -41,7 +41,7 @@ export function checkSwinglineReservation(
   window?: DateWindow,
 ): ReservationDecision {
   const checks: CheckResult[] = [];
-  const swl = swinglineKind === "RRL" ? findLimit("RRL_SWINGLINE", entityId) : entitySwingline(entityType, entityId);
+  const swl = swinglineKind === "RRL" ? findLimit("RRL_SWINGLINE", entityId, window?.from) : entitySwingline(entityType, entityId, window?.from);
   const label = swinglineKind === "RRL" ? "RRL" : entityType === "SELLER" ? "Seller" : "Obligor";
   if (!swl) {
     checks.push({
@@ -173,14 +173,14 @@ export function checkReservation(input: ReservationInput, window?: DateWindow): 
 
   // Swingline is a core limit: if the seller or obligor line carries one, the
   // reservation always draws on it, so it is always tested.
-  const ss = entitySwingline("SELLER", input.sellerId);
+  const ss = entitySwingline("SELLER", input.sellerId, window?.from);
   if (ss) {
     const v = viewLimit(ss, window);
     checks.push(
       capacityCheck("SELLER_SWINGLINE_CHECK", v.available, v.approvedLimit, v.consumed, v.limit.warnThreshold, input.amount),
     );
   }
-  const os = entitySwingline("OBLIGOR", input.obligorId);
+  const os = entitySwingline("OBLIGOR", input.obligorId, window?.from);
   if (os) {
     const v = viewLimit(os, window);
     checks.push(
