@@ -1,6 +1,6 @@
 // Regressions for assignable per-seller / per-obligor domicile + engine enforceability
 // + insurance country limit keyed to the booking entity's domicile.
-import { store, resetExposure, addCountry, removeCountry, getObligor, getObligorEntity } from "@/lib/data/store";
+import { store, resetExposure, addCountry, removeCountry, getObligor, getObligorEntity, runMigrations } from "@/lib/data/store";
 import { checkDiscount } from "@/lib/engine/eligibility";
 import { runBatch } from "@/lib/engine";
 import { effectiveObligorDomicile, sellerDomicileFinding } from "@/lib/engine/domicile";
@@ -56,6 +56,19 @@ ok("effectiveObligorDomicile falls back to group country when no entity", effect
 oe.domicile = origOeDom;
 
 removeCountry("ZZ");
+
+// --- Backfill migration: a seller persisted before facility-domicile existed ----
+// (the real-world bug: engine flagged "no domicile" while the UI showed a default).
+const s001 = store.sellers.find((x) => x.id === "SELLER001")!;
+const savedDom = s001.domicile;
+s001.domicile = undefined; // simulate legacy persisted seller with no facility domicile
+ok("legacy seller (no domicile) is flagged 'no domicile on file'", sellerDomicileFinding(s001).message.includes("No domicile on file"));
+store.migrations = (store.migrations ?? []).filter((m) => m !== "seller-domicile-backfill-2026-08");
+runMigrations();
+ok("backfill migration restores a real seller domicile (US entity -> GREEN)", !!s001.domicile && sellerDomicileFinding(s001).severity === "GREEN", String(s001.domicile));
+ok("every seller has a domicile after migrations", store.sellers.every((x) => !!x.domicile && x.domicile.trim().length > 0));
+s001.domicile = savedDom;
+
 resetExposure();
 console.log(fail === 0 ? "\nALL PASS" : `\n${fail} FAILED`);
 if (fail) process.exit(1);

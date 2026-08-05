@@ -246,6 +246,19 @@ export function runMigrations(): void {
       store.rolePermissions[role] = ["VIEW_AUDIT"];
     }
   });
+
+  // Seller facility-level domicile was added after the initial data was persisted,
+  // so existing sellers carry no domicile and the engine flags "no domicile on
+  // file". Backfill each seller's domicile from one of its legal entities (they
+  // already carry a domicile), else "US", so the enforceability check reads a real
+  // jurisdiction. Runs once; later edits on the seller facility win.
+  once("seller-domicile-backfill-2026-08", () => {
+    for (const s of store.sellers) {
+      if (s.domicile && s.domicile.trim()) continue;
+      const ent = store.sellerEntities.find((e) => e.facilityId === s.id && e.domicile && e.domicile.trim());
+      s.domicile = ent?.domicile ?? "US";
+    }
+  });
 }
 
 // ---------------------------------------------------------------------------
