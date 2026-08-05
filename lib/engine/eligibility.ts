@@ -446,7 +446,7 @@ export function checkDiscount(txn: DiscountTransaction): EligibilityReport {
         // Key the country limit off the BOOKING entity's domicile (the named legal
         // entity when present, else the obligor group's country) — entities under
         // one group can sit in different jurisdictions.
-        const bookingDomicile = effectiveObligorDomicile(obligor, txn.obligorEntityId);
+        const bookingDomicile = effectiveObligorDomicile(obligor.id, txn.obligorEntityId);
         const cl = insuranceCountryLimit(policy.id, bookingDomicile);
         if (!cl) {
           add("INSURANCE", `Country limit — ${tag}`, `${bookingDomicile} covered`, bookingDomicile, "RED", "Country not covered under this policy.");

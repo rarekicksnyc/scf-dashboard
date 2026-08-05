@@ -1,10 +1,10 @@
 // Regressions for assignable per-seller / per-obligor domicile + engine enforceability
 // + insurance country limit keyed to the booking entity's domicile.
-import { store, resetExposure, addCountry, removeCountry, getObligor, getObligorEntity, runMigrations } from "@/lib/data/store";
+import { store, resetExposure, addCountry, removeCountry, getObligor, getObligorEntity, runMigrations, domicileExceptions, reservedInsurance, materializeBatchBookings, listBookedTransactions, removeBatchBookings } from "@/lib/data/store";
 import { checkDiscount } from "@/lib/engine/eligibility";
 import { runBatch } from "@/lib/engine";
 import { effectiveObligorDomicile, sellerDomicileFinding } from "@/lib/engine/domicile";
-import type { DiscountTransaction, Invoice } from "@/lib/types";
+import type { DiscountTransaction, Invoice, BatchResult, InvoiceResult } from "@/lib/types";
 
 let pass = 0, fail = 0;
 const ok = (n: string, c: boolean, x = "") => { c ? (pass++, console.log("  ok  " + n)) : (fail++, console.log("FAIL  " + n + "  " + x)); };
@@ -51,9 +51,47 @@ ok("group domicile check suppressed when an entity is named", sev(checkDiscount(
 const oe = getObligorEntity("OE-001A")!;
 const origOeDom = oe.domicile;
 oe.domicile = "NL"; // entity sits in a different jurisdiction than the group (US)
-ok("effectiveObligorDomicile uses the named entity's domicile", effectiveObligorDomicile(obligor, "OE-001A") === "NL", effectiveObligorDomicile(obligor, "OE-001A"));
-ok("effectiveObligorDomicile falls back to group country when no entity", effectiveObligorDomicile(obligor) === origCountry, effectiveObligorDomicile(obligor));
+ok("effectiveObligorDomicile uses the named entity's domicile", effectiveObligorDomicile(obligor.id, "OE-001A") === "NL", effectiveObligorDomicile(obligor.id, "OE-001A"));
+ok("effectiveObligorDomicile falls back to group country when no entity", effectiveObligorDomicile(obligor.id) === origCountry, effectiveObligorDomicile(obligor.id));
 oe.domicile = origOeDom;
+
+// --- A. Monitoring parity: domicileExceptions covers the seller FACILITY and the
+// obligor GROUP (not just legal entities), matching what the engine flags. --------
+{
+  const s = store.sellers.find((x) => x.id === "SELLER001")!;
+  const o = getObligor("OBL001")!;
+  const sDom = s.domicile, oCountry = o.country;
+  s.domicile = "ZZ"; o.country = "ZZ";
+  const ex = domicileExceptions();
+  ok("domicileExceptions surfaces a non-enforceable SELLER facility", ex.some((e) => e.kind === "Seller" && e.name === s.name));
+  ok("domicileExceptions surfaces a non-enforceable OBLIGOR group", ex.some((e) => e.kind === "Obligor" && e.name === o.name));
+  s.domicile = sDom; o.country = oCountry;
+  ok("no domicile exceptions once jurisdictions are enforceable again", !domicileExceptions().some((e) => (e.kind === "Seller" || e.kind === "Obligor") && (e.name === s.name || e.name === o.name)));
+}
+
+// --- C. reservedInsurance keys off the BOOKING entity's domicile, not the group
+// country — so it offsets the same country limit the engine checks. ---------------
+{
+  const oe = getObligorEntity("OE-001A")!;
+  const origOeDom = oe.domicile;
+  oe.domicile = "NL"; // entity in a different jurisdiction than the OBL001 group (US)
+  const seller = store.sellers.find((x) => x.id === "SELLER001")!;
+  const iv: InvoiceResult = {
+    invoice: { invoiceNumber: "DOM-C", sellerId: seller.id, obligorId: "OBL001", obligorEntityId: "OE-001A", amount: 3_000_000, currency: seller.currency, issueDate: "2026-03-01", dueDate: "2026-06-30", requestedDiscountDate: "2026-04-01", coverageAmount: 3_000_000, advanceRate: 1, marginBps: 150, productType: "DTR" },
+    tenorDays: 90, discountRate: 0.06, discountFee: 0, netProceeds: 3_000_000, checks: [], status: "ELIGIBLE", breachAmount: 0,
+    funding: { legs: [{ source: "BANK_HOLD", amount: 3_000_000 }], bankHeld: 3_000_000, insuredAmount: 0, uninsuredResidual: 3_000_000 }, settlementStatus: "PENDING",
+  };
+  const batch: BatchResult = { batchId: "BDOMC", sellerId: seller.id, uploadedAt: "2026-04-01T00:00:00Z", fileName: "c.csv", makerUserId: "test", summary: {} as never, results: [iv], postBatchLimits: [] };
+  materializeBatchBookings(batch, "test");
+  const t = listBookedTransactions().find((x) => x.batchId === "BDOMC")!;
+  t.obligorEntityId = "OE-001A";
+  t.insurerAllocations = [{ policyId: "POL-1", insurerName: "Test", amount: 2_000_000 } as never];
+  const win = { from: "2026-04-01", to: "2026-06-30" };
+  ok("reservedInsurance matches the booking under its ENTITY domicile (NL)", Math.round(reservedInsurance("POL-1", { country: "NL" }, win)) === 2_000_000, String(reservedInsurance("POL-1", { country: "NL" }, win)));
+  ok("reservedInsurance does NOT count it under the GROUP country (US)", reservedInsurance("POL-1", { country: "US" }, win) === 0, String(reservedInsurance("POL-1", { country: "US" }, win)));
+  removeBatchBookings("BDOMC");
+  oe.domicile = origOeDom;
+}
 
 removeCountry("ZZ");
 

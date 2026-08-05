@@ -1,5 +1,9 @@
-import { getObligor, getObligorEntity, isCountryEligible } from "@/lib/data/store";
-import type { Seller, Obligor } from "@/lib/types";
+import { getObligor, isCountryEligible, effectiveObligorDomicile } from "@/lib/data/store";
+import type { Seller } from "@/lib/types";
+
+// Re-exported from the store so there is ONE definition of "which jurisdiction
+// governs an obligor booking" shared by the engines and reservedInsurance.
+export { effectiveObligorDomicile };
 
 // ---------------------------------------------------------------------------
 // Domicile enforceability — the single source of the "is this counterparty's
@@ -21,17 +25,6 @@ export interface DomicileFinding {
   txnValue: string;
   severity: DomicileSeverity;
   message: string;
-}
-
-// The jurisdiction that actually governs an obligor booking: the named legal
-// entity's domicile when a specific entity is booked, else the obligor group's
-// country. This is what the insurance country limit must key off.
-export function effectiveObligorDomicile(obligor: Obligor, obligorEntityId?: string): string {
-  if (obligorEntityId) {
-    const oe = getObligorEntity(obligorEntityId);
-    if (oe && oe.groupId === obligor.id && oe.domicile) return oe.domicile;
-  }
-  return obligor.country;
 }
 
 function finding(key: string, label: string, domicile: string | undefined): DomicileFinding {

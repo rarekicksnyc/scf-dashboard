@@ -259,6 +259,20 @@ export function runMigrations(): void {
       s.domicile = ent?.domicile ?? "US";
     }
   });
+
+  // Safety floor for the monotonic id counter. Ids are minted as `<prefix>-<seq>`
+  // (5+ digit, zero-padded). A snapshot taken before store.seq existed would
+  // restore no seq, leaving the counter below already-issued ids and risking a
+  // COLLISION on the next mint. Bump seq to at least the highest suffix ever
+  // persisted so a freed/last id is never handed out again. Runs once.
+  once("seq-floor-guard-2026-08", () => {
+    let max = store.seq ?? 0;
+    for (const m of snapshotJson().matchAll(/-(\d{5,})"/g)) {
+      const n = Number(m[1]);
+      if (Number.isFinite(n) && n > max) max = n;
+    }
+    store.seq = max;
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -292,6 +306,20 @@ export function obligorEntitiesOf(groupId: string): ObligorEntity[] {
 
 export function getObligorEntity(id: string): ObligorEntity | undefined {
   return store.obligorEntities.find((e) => e.id === id);
+}
+
+// The jurisdiction that governs an obligor booking: the named legal entity's
+// domicile when a specific entity is booked (entities under one group can sit in
+// different jurisdictions), else the obligor group's country. Single source —
+// used by the eligibility engines (via lib/engine/domicile) AND reservedInsurance,
+// so the insurance country limit and the reserved amount that offsets it always
+// key off the same domicile.
+export function effectiveObligorDomicile(obligorId: string, obligorEntityId?: string): string {
+  if (obligorEntityId) {
+    const oe = getObligorEntity(obligorEntityId);
+    if (oe && oe.groupId === obligorId && oe.domicile) return oe.domicile;
+  }
+  return getObligor(obligorId)?.country ?? "";
 }
 
 // Mark a seller's legal-doc checklist item RECEIVED (called when a matching
@@ -1035,6 +1063,10 @@ export function domicileExceptions(): Array<{
   const flag = (kind: string, name: string, domicile: string) => {
     if (domicile && !isCountryEligible(domicile)) out.push({ kind, name, domicile });
   };
+  // Facility/group jurisdictions the eligibility engine now checks — surfaced here
+  // too so the monitoring view matches what a deal would be flagged for.
+  for (const s of store.sellers) flag("Seller", s.name, s.domicile ?? "");
+  for (const o of store.obligors) flag("Obligor", o.name, o.country);
   for (const e of store.sellerEntities) flag("Seller entity", e.name, e.domicile);
   for (const e of store.obligorEntities) flag("Obligor entity", e.name, e.domicile);
   for (const i of store.investors) flag("Investor", i.name, i.domicile);
@@ -1609,9 +1641,12 @@ export function reservedInsurance(
 ): number {
   const w = toWindow(asOf);
   let total = 0;
-  const matches = (r: { obligorId: string }) => {
+  const matches = (r: { obligorId: string; obligorEntityId?: string }) => {
     if (filter.obligorId && r.obligorId !== filter.obligorId) return false;
-    if (filter.country && getObligor(r.obligorId)?.country !== filter.country) return false;
+    // Match the country filter on the record's EFFECTIVE domicile (booking entity's
+    // domicile when named, else group country), so the reserved amount offsets the
+    // same country limit the eligibility engine checks it against.
+    if (filter.country && effectiveObligorDomicile(r.obligorId, r.obligorEntityId) !== filter.country) return false;
     return true;
   };
   // Reserved forward book holds the full allocation.

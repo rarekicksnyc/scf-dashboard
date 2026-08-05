@@ -551,7 +551,7 @@ export function runBatch(
         } else {
           checks.push({ checkName: "INSURANCE_BUYER_SUBLIMIT_CHECK", status: "PASS", severity: "GREEN", message: `Within the buyer sublimit (${fmt(buyer.cap - buyer.consumed)} available).` });
         }
-        const domicile = obligor ? effectiveObligorDomicile(obligor, invoice.obligorEntityId) : undefined;
+        const domicile = obligor ? effectiveObligorDomicile(obligor.id, invoice.obligorEntityId) : undefined;
         const country = domicile ? workingInsCountry(ws, funding.policyId, domicile) : undefined;
         if (domicile && !country) {
           checks.push({ checkName: "INSURANCE_COUNTRY_LIMIT_CHECK", status: "FAIL", severity: "RED", message: `${domicile} not covered under policy ${funding.policyId}.`, breachAmount: ins });
@@ -613,7 +613,7 @@ export function runBatch(
           // invoice to the same buyer/country in this batch sees reduced headroom.
           const buyer = ws.insBuyer.get(`${funding.policyId}|${invoice.obligorId}`);
           if (buyer) buyer.consumed += funding.insuredAmount;
-          const domicile = obligor ? effectiveObligorDomicile(obligor, invoice.obligorEntityId) : undefined;
+          const domicile = obligor ? effectiveObligorDomicile(obligor.id, invoice.obligorEntityId) : undefined;
           const country = domicile ? ws.insCountry.get(`${funding.policyId}|${domicile}`) : undefined;
           if (country) country.consumed += funding.insuredAmount;
         }
