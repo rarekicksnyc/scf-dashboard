@@ -40,6 +40,11 @@ export const REPORTS: Array<{ key: string; title: string; description: string }>
     title: "Audit log export",
     description: "Every state-changing action with actor and timestamp.",
   },
+  {
+    key: "four-eyes-evidence",
+    title: "Four-eyes evidence report",
+    description: "Every completed maker-checker approval — limits, ASR sublimits, and booking exceptions — with requester, approver, reference, and reason.",
+  },
 ];
 
 export function buildReport(key: string): { filename: string; csv: string } | null {
@@ -134,6 +139,34 @@ export function buildReport(key: string): { filename: string; csv: string } | nu
           ]),
         ),
       };
+
+    case "four-eyes-evidence": {
+      // Every completed four-eyes approval, from the structured governance records
+      // (not free-text audit). Requester and approver are always different users
+      // (enforced at approval time), so this is the auditor's segregation-of-duties
+      // evidence in one place.
+      type Row = [string, string, string, string, string, string, string, number, string];
+      const rows: Row[] = [];
+      for (const l of store.limits) {
+        if (l.approval?.status !== "APPROVED") continue;
+        rows.push(["Limit", `${l.type} · ${l.entityId}`, l.approval.reference ?? "", l.approval.requestedByName ?? "", l.approval.approvedByName ?? "", l.approval.requestedAt ?? "", l.approval.approvedAt ?? "", Math.round(l.approvedLimit), ""]);
+      }
+      for (const s of store.sellerObligorLimits) {
+        if (s.approval?.status !== "APPROVED") continue;
+        rows.push(["ASR sublimit", `${s.sellerId} · ${s.obligorId}`, s.approval.reference ?? "", s.approval.requestedByName ?? "", s.approval.approvedByName ?? "", s.approval.requestedAt ?? "", s.approval.approvedAt ?? "", Math.round(s.approvedLimit), ""]);
+      }
+      for (const wf of store.transactionWorkflows) {
+        if (!wf.exceptionApprovedBy) continue;
+        rows.push(["Booking exception", wf.reference ?? wf.id, "", wf.exceptionRequestedByName ?? "", wf.exceptionApprovedByName ?? "", "", wf.exceptionApprovedAt ?? "", Math.round(wf.coverage ?? wf.amount ?? 0), wf.exceptionReason ?? ""]);
+      }
+      return {
+        filename: "four-eyes-evidence.csv",
+        csv: toCsv(
+          ["control", "item", "reference", "requested_by", "approved_by", "requested_at", "approved_at", "amount", "reason"],
+          rows,
+        ),
+      };
+    }
 
     case "exceptions":
       return {
