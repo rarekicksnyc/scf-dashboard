@@ -7,7 +7,7 @@ import { snapshotJson, hydrateStore, runMigrations, store } from "@/lib/data/sto
 import { initDocSchema } from "@/lib/documents";
 import { captureError } from "@/lib/observability";
 import { initAuditSchema, auditTableCount, loadAuditEntries, backfillAuditEntries, flushAuditQueue } from "@/lib/data/repositories/auditRepo";
-import { registerReferenceCollections } from "@/lib/data/collections";
+import { registerReferenceCollections, registerTransactionalCollections } from "@/lib/data/collections";
 import { initCollectionSchemas, loadCollections, flushCollections } from "@/lib/data/repositories/collectionRepo";
 
 export async function startPersistence() {
@@ -53,9 +53,10 @@ export async function startPersistence() {
   // never blocks boot.
   try {
     registerReferenceCollections();
+    registerTransactionalCollections();
     await initCollectionSchemas();
     await loadCollections();
-    console.log("[persistence] reference collections initialized (write-through)");
+    console.log("[persistence] collections initialized (write-through)");
   } catch (err) {
     captureError(err, { area: "collection-persistence", phase: "boot" });
   }

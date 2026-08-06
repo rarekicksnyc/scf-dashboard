@@ -6,7 +6,7 @@ import { store, addAudit, getAuditLog } from "@/lib/data/store";
 import { enqueueAudit, flushAuditQueue, pendingAuditCount, loadAuditEntries, auditTableCount, initAuditSchema } from "@/lib/data/repositories/auditRepo";
 import { persistenceEnabled } from "@/lib/data/persistence";
 import { diffCollection, initCollectionSchemas, loadCollections, flushCollections, registeredCollectionNames } from "@/lib/data/repositories/collectionRepo";
-import { registerReferenceCollections } from "@/lib/data/collections";
+import { registerReferenceCollections, registerTransactionalCollections } from "@/lib/data/collections";
 
 let pass = 0, fail = 0;
 const ok = (n: string, c: boolean, x = "") => { c ? (pass++, console.log("  ok  " + n)) : (fail++, console.log("FAIL  " + n + "  " + x)); };
@@ -43,10 +43,17 @@ async function main() {
   ok("diff: removed id -> delete", d3.deletes.join() === "b" && d3.upserts.length === 0);
 
   registerReferenceCollections();
+  registerTransactionalCollections();
   const names = registeredCollectionNames();
   ok("reference collections registered", names.includes("sellers") && names.includes("obligors") && names.includes("countries"));
+  ok("transactional collections registered (limits, ledger, utilizations)", names.includes("limits") && names.includes("booked_transactions") && names.includes("utilizations") && names.includes("seller_obligor_limits"));
   registerReferenceCollections();
+  registerTransactionalCollections();
   ok("registration is idempotent (no duplicate names)", new Set(names).size === names.length);
+
+  // utilizations adapts a Map<->array without loss.
+  const utilSpecName = "utilizations";
+  ok("utilizations registered as a collection", names.includes(utilSpecName));
 
   await initCollectionSchemas();
   await loadCollections();

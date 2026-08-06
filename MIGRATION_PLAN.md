@@ -48,12 +48,18 @@ cache slice. Remove the single‑instance pin. Drop the whole‑object snapshot.
 
 ## Status
 - [x] Phase 1 — audit log write‑through (dual‑source, snapshot safety net)
-- [x] Phase 3 — reference/config domains via the generic collection repo (20 collections; dual‑source)
-- [ ] Phase 2 — audit cutover (table authoritative, out of snapshot) — after live‑DB staging verification
-- [ ] Phase 4 — limits & utilizations (register with the generic repo) — after staging verification
-- [ ] Phase 5 — transactional ledger (booked transactions, batches, reservations) — after staging verification
-- [ ] Phase 6 — multi‑instance coherence (LISTEN/NOTIFY), drop snapshot
+- [x] Phase 3 — reference/config domains (20 collections; dual‑source)
+- [x] Phase 4 — limits & utilizations write‑through (limits, seller‑obligor limits, rates, utilizations map; dual‑source)
+- [x] Phase 5 — transactional ledger write‑through (booked transactions, batches, reservations, workflows, exceptions, notifications; dual‑source)
+- [ ] Phase 2 — **cutover:** make tables authoritative + drop each collection from the snapshot — **after live‑DB staging verification** (use `GET /api/admin/db-status` to confirm `table === memory` per collection)
+- [ ] Phase 6 — multi‑instance coherence (LISTEN/NOTIFY), remove the snapshot + single‑instance pin
 - [ ] Phase 7 — hardening + load test
+
+All write‑through is now **implemented and additive/dual‑source** — every store
+collection persists per‑row alongside the snapshot. What remains is the **cutover**
+(remove the snapshot safety net, make tables authoritative) and **multi‑instance
+coherence**, both gated on verifying the live‑DB path on Neon staging via
+`/api/admin/db-status`.
 
 > **Gate before Phases 2/4/5/6:** the write‑through SQL (schema/upsert/load/backfill)
 > runs for the first time only on a real database — it can't be exercised in the

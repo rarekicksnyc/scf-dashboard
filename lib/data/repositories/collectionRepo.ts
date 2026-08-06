@@ -35,6 +35,24 @@ export function registeredCollectionNames(): string[] {
   return specs.map((s) => s.name);
 }
 
+// Diagnostic: table row count vs in-memory record count per collection, for
+// verifying that write-through populated correctly on a live database.
+export async function collectionStatus(): Promise<Array<{ name: string; table: number; memory: number }>> {
+  const p = getPool();
+  const out: Array<{ name: string; table: number; memory: number }> = [];
+  for (const s of specs) {
+    let table = 0;
+    if (p) {
+      try {
+        const res = await p.query(`SELECT count(*)::int AS n FROM coll_${s.name}`);
+        table = res.rows[0]?.n ?? 0;
+      } catch { table = -1; }
+    }
+    out.push({ name: s.name, table, memory: s.get().length });
+  }
+  return out;
+}
+
 // Pure diff — the testable core. Returns which ids to upsert (new/changed) and
 // which to delete (present last time, gone now).
 export function diffCollection(shadow: Map<string, string>, current: Map<string, string>): { upserts: string[]; deletes: string[] } {

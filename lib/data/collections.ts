@@ -45,3 +45,34 @@ export function registerReferenceCollections(): void {
   c({ name: "template_fields", keyOf: (r) => r.id, get: () => store.templateFields, set: (rows) => { store.templateFields = rows; } });
   c({ name: "coverage", keyOf: (r) => r.id, get: () => store.coverage, set: (rows) => { store.coverage = rows; } });
 }
+
+// Phase 4-5: the capacity spine (limits + utilizations) and the transactional
+// ledger. Registered the same way; still DUAL-SOURCE (snapshot retained) until a
+// table is made authoritative after live-DB verification. Capacity itself is never
+// stored — only the inputs (approved limits, consumption events, deals) persist.
+let doneTx = false;
+export function registerTransactionalCollections(): void {
+  if (doneTx) return;
+  doneTx = true;
+  const c = registerCollection;
+
+  // Phase 4 — limits & utilizations.
+  c({ name: "limits", keyOf: (r) => r.id, get: () => store.limits, set: (rows) => { store.limits = rows; } });
+  c({ name: "seller_obligor_limits", keyOf: (r) => `${r.sellerId}:${r.obligorId}`, get: () => store.sellerObligorLimits, set: (rows) => { store.sellerObligorLimits = rows; } });
+  c({ name: "rates", keyOf: (r) => `${r.rateType}:${r.startDate}:${r.maturityDate}`, get: () => store.rates, set: (rows) => { store.rates = rows; } });
+  // utilizations is a Map keyed by limitId — adapt to/from an array of its values.
+  c({
+    name: "utilizations",
+    keyOf: (r) => r.limitId,
+    get: () => [...store.utilizations.values()],
+    set: (rows) => { store.utilizations = new Map(rows.map((u) => [u.limitId, u])); },
+  });
+
+  // Phase 5 — transactional ledger.
+  c({ name: "booked_transactions", keyOf: (r) => r.id, get: () => store.bookedTransactions, set: (rows) => { store.bookedTransactions = rows; } });
+  c({ name: "batches", keyOf: (r) => r.batchId, get: () => store.batches, set: (rows) => { store.batches = rows; } });
+  c({ name: "reservations", keyOf: (r) => r.id, get: () => store.reservations, set: (rows) => { store.reservations = rows; } });
+  c({ name: "transaction_workflows", keyOf: (r) => r.id, get: () => store.transactionWorkflows, set: (rows) => { store.transactionWorkflows = rows; } });
+  c({ name: "exceptions", keyOf: (r) => r.id, get: () => store.exceptions, set: (rows) => { store.exceptions = rows; } });
+  c({ name: "notifications", keyOf: (r) => r.id, get: () => store.notifications, set: (rows) => { store.notifications = rows; } });
+}
