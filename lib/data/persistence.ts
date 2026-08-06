@@ -25,6 +25,15 @@ export function persistenceEnabled(): boolean {
   return Boolean(process.env.DATABASE_URL);
 }
 
+// Cutover flag (MIGRATION_PLAN.md Phase 2). OFF (default): dual-source — the whole
+// snapshot AND the per-row tables are written; boot already reads tables when
+// populated. ON: the per-row tables are authoritative and the snapshot shrinks to
+// a small `meta` blob (the collections stop bloating it). Enable ONLY after
+// /api/admin/db-status confirms table === memory for every collection. Reversible.
+export function persistAuthoritative(): boolean {
+  return persistenceEnabled() && process.env.PERSISTENCE_AUTHORITATIVE === "1";
+}
+
 // --- Health + single-instance divergence detection -------------------------
 // The whole-store snapshot model is safe ONLY on a single instance; two writers
 // silently diverge (last-writer-wins). We can't prevent that here, but we CAN
@@ -55,6 +64,44 @@ export async function initSchema(): Promise<void> {
      )`,
   );
   await p.query(`ALTER TABLE app_state ADD COLUMN IF NOT EXISTS generation bigint NOT NULL DEFAULT 0`);
+  // `meta` holds the small non-collection state (settings, roles, counters) once the
+  // per-row tables are authoritative; `data` then freezes as a pre-cutover backup.
+  await p.query(`ALTER TABLE app_state ADD COLUMN IF NOT EXISTS meta jsonb`);
+}
+
+// Write just the small meta blob, leaving `data` (the frozen full backup) intact.
+// Bumps the same generation as saveSnapshot so single-instance divergence
+// detection keeps working in authoritative mode.
+export async function saveMeta(json: string): Promise<void> {
+  const p = getPool();
+  if (!p) return;
+  try {
+    const res = await p.query(
+      `INSERT INTO app_state (id, data, meta, updated_at, generation) VALUES (1, '{}'::jsonb, $1::jsonb, now(), 1)
+       ON CONFLICT (id) DO UPDATE SET meta = EXCLUDED.meta, updated_at = now(),
+         generation = app_state.generation + 1
+       RETURNING generation`,
+      [json],
+    );
+    const newGen = Number(res.rows[0]?.generation ?? 0);
+    if (_lastWrittenGen !== null && newGen !== _lastWrittenGen + 1) {
+      _divergence = `Snapshot generation jumped ${_lastWrittenGen} -> ${newGen}: another instance is writing state. This model must run on exactly ONE instance until multi-instance coherence is in place.`;
+      console.error("[persistence] DIVERGENCE:", _divergence);
+    }
+    _lastWrittenGen = newGen;
+    _lastAt = new Date().toISOString();
+    _lastError = null;
+  } catch (e) {
+    _lastError = (e as Error).message;
+    throw e;
+  }
+}
+
+export async function loadMeta(): Promise<unknown | null> {
+  const p = getPool();
+  if (!p) return null;
+  const res = await p.query("SELECT meta FROM app_state WHERE id = 1");
+  return res.rows[0]?.meta ?? null;
 }
 
 // Read the saved snapshot, or null if nothing has been saved yet.

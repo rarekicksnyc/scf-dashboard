@@ -185,6 +185,22 @@ export function hydrateStore(data: Record<string, unknown>): void {
   Object.assign(store, data, { utilizations: util });
 }
 
+// The small non-collection state that stays in the snapshot after cutover (every
+// id-keyed collection lives in its own table). Records, counters, and config only.
+const META_KEYS = ["rolePermissions", "roleLabels", "settings", "customFieldValues", "hiddenReportColumns", "rev", "recordRevs", "seq", "migrations"] as const;
+
+export function metaSnapshotJson(): string {
+  const out: Record<string, unknown> = {};
+  for (const k of META_KEYS) out[k] = (store as unknown as Record<string, unknown>)[k];
+  return JSON.stringify(out);
+}
+
+// Apply ONLY the meta fields (used in authoritative mode, where collections come
+// from their tables and must not be clobbered by the snapshot).
+export function hydrateMeta(data: Record<string, unknown>): void {
+  for (const k of META_KEYS) if (k in data) (store as unknown as Record<string, unknown>)[k] = data[k];
+}
+
 // One-time data fixes applied on top of a hydrated snapshot. Each runs at most
 // once (tracked in store.migrations) so it corrects existing persisted state but
 // never fights a later change made through the UI.

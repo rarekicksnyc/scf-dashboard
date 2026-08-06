@@ -51,15 +51,27 @@ cache slice. Remove the single‑instance pin. Drop the whole‑object snapshot.
 - [x] Phase 3 — reference/config domains (20 collections; dual‑source)
 - [x] Phase 4 — limits & utilizations write‑through (limits, seller‑obligor limits, rates, utilizations map; dual‑source)
 - [x] Phase 5 — transactional ledger write‑through (booked transactions, batches, reservations, workflows, exceptions, notifications; dual‑source)
-- [ ] Phase 2 — **cutover:** make tables authoritative + drop each collection from the snapshot — **after live‑DB staging verification** (use `GET /api/admin/db-status` to confirm `table === memory` per collection)
-- [ ] Phase 6 — multi‑instance coherence (LISTEN/NOTIFY), remove the snapshot + single‑instance pin
+- [x] Phase 2 — **cutover implemented, flag‑gated.** With `PERSISTENCE_AUTHORITATIVE=1` the per‑row tables are the source of truth and the snapshot shrinks to a small `meta` blob (settings/roles/counters); the last full snapshot **freezes as a recoverable backup**, and boot **falls back** to it for any table that isn't populated. Default OFF = today's dual‑source. **Flip the env var on Render only after `/api/admin/db-status` shows `table === memory` for every collection.**
+- [ ] Phase 6 — multi‑instance coherence (LISTEN/NOTIFY) + lift the single‑instance pin — **deferred: needs real multi‑instance testing.** Single‑instance is safe now (divergence detection works in both modes).
 - [ ] Phase 7 — hardening + load test
 
-All write‑through is now **implemented and additive/dual‑source** — every store
-collection persists per‑row alongside the snapshot. What remains is the **cutover**
-(remove the snapshot safety net, make tables authoritative) and **multi‑instance
-coherence**, both gated on verifying the live‑DB path on Neon staging via
-`/api/admin/db-status`.
+**State:** every collection persists per‑row; the cutover to table‑authoritative is
+implemented and reversible behind one env flag; `/api/admin/db-status` reports the
+mode + per‑collection `table` vs `memory` counts. Enabling the flag is the operational
+"gate" — safe because the frozen snapshot + fallback mean a premature flip can't lose
+data. The only genuinely remaining piece is **multi‑instance** (Phase 6), which
+requires horizontal‑scaling tests; until then, run **one** instance (already safe).
+
+## How to activate the cutover (operator steps)
+1. Deploy is running in dual‑source (default). Let it run so every `coll_*` table
+   and `audit_entries` fully populates.
+2. As a Portfolio Manager/Admin, open `GET /api/admin/db-status`. Confirm every
+   collection shows `table === memory` and `audit.chainIntact === true`.
+3. Set `PERSISTENCE_AUTHORITATIVE=1` in the Render environment and redeploy.
+4. Re‑check `/api/admin/db-status`: `persistence.authoritative` should be `true`,
+   mode "tables authoritative". The snapshot now stops growing with the ledger.
+5. To roll back, unset the env var and redeploy — it returns to dual‑source. The
+   frozen `data` backup plus the live tables mean no data is lost either way.
 
 > **Gate before Phases 2/4/5/6:** the write‑through SQL (schema/upsert/load/backfill)
 > runs for the first time only on a real database — it can't be exercised in the

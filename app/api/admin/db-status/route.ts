@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, roleHas } from "@/lib/auth";
-import { persistenceEnabled, lastPersistError, lastPersistAt } from "@/lib/data/persistence";
+import { persistenceEnabled, persistAuthoritative, lastPersistError, lastPersistAt } from "@/lib/data/persistence";
 import { auditTableCount, pendingAuditCount } from "@/lib/data/repositories/auditRepo";
 import { collectionStatus } from "@/lib/data/repositories/collectionRepo";
 import { getAuditLog, verifyAuditChain } from "@/lib/data/store";
@@ -19,6 +19,8 @@ export async function GET() {
   return NextResponse.json({
     persistence: {
       enabled: persistenceEnabled(),
+      authoritative: persistAuthoritative(),
+      mode: persistAuthoritative() ? "tables authoritative (snapshot frozen as backup)" : "dual-source (snapshot + tables)",
       lastSaveAt: lastPersistAt(),
       lastError: lastPersistError(),
     },

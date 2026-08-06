@@ -2,7 +2,8 @@
 // (local/CI/tests): the repository is fully inert without DATABASE_URL, so the
 // audit log behaves exactly as the pure in-memory implementation. The live-DB
 // path (insert/backfill/load) is verified in staging against Neon.
-import { store, addAudit, getAuditLog } from "@/lib/data/store";
+import { store, addAudit, getAuditLog, metaSnapshotJson, hydrateMeta } from "@/lib/data/store";
+import { persistAuthoritative } from "@/lib/data/persistence";
 import { enqueueAudit, flushAuditQueue, pendingAuditCount, loadAuditEntries, auditTableCount, initAuditSchema } from "@/lib/data/repositories/auditRepo";
 import { persistenceEnabled } from "@/lib/data/persistence";
 import { diffCollection, initCollectionSchemas, loadCollections, flushCollections, registeredCollectionNames } from "@/lib/data/repositories/collectionRepo";
@@ -59,6 +60,20 @@ async function main() {
   await loadCollections();
   await flushCollections();
   ok("collection repo is a safe no-op without a DB", true);
+
+  // --- Phase 2 cutover: thin meta snapshot ------------------------------------
+  console.log("\nPhase 2 (cutover) — meta snapshot / hydrate");
+  ok("authoritative mode is OFF by default (safe dual-source)", persistAuthoritative() === false);
+  const meta = JSON.parse(metaSnapshotJson());
+  ok("meta snapshot carries the small non-collection state", "seq" in meta && "rolePermissions" in meta && "settings" in meta && "recordRevs" in meta);
+  ok("meta snapshot EXCLUDES the migrated collections", !("sellers" in meta) && !("limits" in meta) && !("bookedTransactions" in meta) && !("auditLog" in meta));
+  // hydrateMeta applies meta but must NOT clobber collections.
+  const sellerCount = store.sellers.length;
+  const savedSeq = store.seq;
+  hydrateMeta({ seq: 987654, sellers: [] });
+  ok("hydrateMeta applies meta fields (seq)", store.seq === 987654);
+  ok("hydrateMeta does NOT clobber collections (sellers untouched)", store.sellers.length === sellerCount);
+  store.seq = savedSeq;
 
   console.log(fail === 0 ? "\nALL PASS" : `\n${fail} FAILED`);
   if (fail) process.exit(1);

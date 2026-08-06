@@ -2,8 +2,8 @@
 // runtime). Loads saved state from Postgres and auto-saves it when it changes.
 // With DATABASE_URL unset, this is a no-op and the app runs purely in memory.
 
-import { persistenceEnabled, initSchema, loadSnapshot, saveSnapshot } from "@/lib/data/persistence";
-import { snapshotJson, hydrateStore, runMigrations, store } from "@/lib/data/store";
+import { persistenceEnabled, persistAuthoritative, initSchema, loadSnapshot, saveSnapshot, saveMeta, loadMeta } from "@/lib/data/persistence";
+import { snapshotJson, metaSnapshotJson, hydrateStore, hydrateMeta, runMigrations, store } from "@/lib/data/store";
 import { initDocSchema } from "@/lib/documents";
 import { captureError } from "@/lib/observability";
 import { initAuditSchema, auditTableCount, loadAuditEntries, backfillAuditEntries, flushAuditQueue } from "@/lib/data/repositories/auditRepo";
@@ -12,20 +12,17 @@ import { initCollectionSchemas, loadCollections, flushCollections } from "@/lib/
 
 export async function startPersistence() {
   if (!persistenceEnabled()) return;
+  const authoritative = persistAuthoritative();
 
   await initSchema();
   await initDocSchema(); // document repository table (separate from the snapshot)
+  // ALWAYS full-hydrate from the snapshot first — even in authoritative mode this is
+  // the safety fallback: if a per-row table is empty (e.g. cutover enabled before
+  // backfill), the collection is served from the frozen full snapshot rather than
+  // lost. The per-row tables then override below when populated.
   const loaded = await loadSnapshot();
-  if (loaded) {
-    hydrateStore(loaded as Record<string, unknown>);
-    runMigrations(); // apply one-time fixes to the persisted state
-    await saveSnapshot(snapshotJson()); // persist any migration changes
-    console.log("[persistence] loaded state from Postgres");
-  } else {
-    runMigrations();
-    await saveSnapshot(snapshotJson()); // first boot: persist the seeded state
-    console.log("[persistence] seeded Postgres with initial state");
-  }
+  if (loaded) hydrateStore(loaded as Record<string, unknown>);
+  runMigrations(); // apply one-time fixes
 
   // Phase 1 migration (MIGRATION_PLAN.md): the audit log has its own table. On
   // first run the table is empty but the snapshot may carry history — backfill it;
@@ -55,22 +52,45 @@ export async function startPersistence() {
     registerReferenceCollections();
     registerTransactionalCollections();
     await initCollectionSchemas();
-    await loadCollections();
+    await loadCollections(); // per-row tables override the snapshot for their collections when populated
     console.log("[persistence] collections initialized (write-through)");
   } catch (err) {
     captureError(err, { area: "collection-persistence", phase: "boot" });
   }
 
-  // Auto-persist: every few seconds, write the snapshot back if it changed.
+  // In authoritative mode the small meta blob (settings/roles/counters) is the live
+  // source; override the frozen-snapshot values with it and seed the meta row.
+  if (authoritative) {
+    try {
+      const meta = await loadMeta();
+      if (meta) hydrateMeta(meta as Record<string, unknown>);
+      await saveMeta(metaSnapshotJson());
+      console.log("[persistence] AUTHORITATIVE mode — tables are source of truth; snapshot frozen as backup");
+    } catch (err) {
+      captureError(err, { area: "meta-persistence", phase: "boot" });
+    }
+  } else {
+    // Dual-source: refresh the full snapshot (captures any migration changes).
+    await saveSnapshot(snapshotJson());
+    console.log(loaded ? "[persistence] loaded state (dual-source)" : "[persistence] seeded state (dual-source)");
+  }
+
+  // Auto-persist. Authoritative: audit + collections (per-row) + a tiny meta blob;
+  // the full snapshot is NOT rewritten (it stays frozen as a backup, so the ledger
+  // no longer bloats it). Dual-source: audit + collections + the full snapshot.
   let last = snapshotJson();
   const flush = async (reason: string) => {
     try {
-      await flushAuditQueue(); // Phase 1: drain write-through audit inserts
-      await flushCollections(); // Phase 3: persist changed reference/config records
-      const current = snapshotJson();
-      if (current !== last) {
-        await saveSnapshot(current);
-        last = current;
+      await flushAuditQueue();
+      await flushCollections();
+      if (authoritative) {
+        await saveMeta(metaSnapshotJson());
+      } else {
+        const current = snapshotJson();
+        if (current !== last) {
+          await saveSnapshot(current);
+          last = current;
+        }
       }
     } catch (err) {
       captureError(err, { area: "persistence", reason }); // structured + alertable
