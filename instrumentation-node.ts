@@ -7,6 +7,8 @@ import { snapshotJson, hydrateStore, runMigrations, store } from "@/lib/data/sto
 import { initDocSchema } from "@/lib/documents";
 import { captureError } from "@/lib/observability";
 import { initAuditSchema, auditTableCount, loadAuditEntries, backfillAuditEntries, flushAuditQueue } from "@/lib/data/repositories/auditRepo";
+import { registerReferenceCollections } from "@/lib/data/collections";
+import { initCollectionSchemas, loadCollections, flushCollections } from "@/lib/data/repositories/collectionRepo";
 
 export async function startPersistence() {
   if (!persistenceEnabled()) return;
@@ -44,11 +46,26 @@ export async function startPersistence() {
     captureError(err, { area: "audit-persistence", phase: "boot" });
   }
 
+  // Phase 3 migration: reference/config collections get per-row tables. On first
+  // run the tables are empty, so the snapshot-loaded data is kept and backfilled on
+  // the first flush; thereafter the tables are the read source. Dual-source (the
+  // snapshot still carries them) until a later phase. Wrapped so a table failure
+  // never blocks boot.
+  try {
+    registerReferenceCollections();
+    await initCollectionSchemas();
+    await loadCollections();
+    console.log("[persistence] reference collections initialized (write-through)");
+  } catch (err) {
+    captureError(err, { area: "collection-persistence", phase: "boot" });
+  }
+
   // Auto-persist: every few seconds, write the snapshot back if it changed.
   let last = snapshotJson();
   const flush = async (reason: string) => {
     try {
       await flushAuditQueue(); // Phase 1: drain write-through audit inserts
+      await flushCollections(); // Phase 3: persist changed reference/config records
       const current = snapshotJson();
       if (current !== last) {
         await saveSnapshot(current);

@@ -48,9 +48,17 @@ cache slice. Remove the single‑instance pin. Drop the whole‑object snapshot.
 
 ## Status
 - [x] Phase 1 — audit log write‑through (dual‑source, snapshot safety net)
-- [ ] Phase 2 — audit cutover (table authoritative, out of snapshot)
-- [ ] Phase 3 — reference/config domains
-- [ ] Phase 4 — limits & utilizations
-- [ ] Phase 5 — transactional ledger
+- [x] Phase 3 — reference/config domains via the generic collection repo (20 collections; dual‑source)
+- [ ] Phase 2 — audit cutover (table authoritative, out of snapshot) — after live‑DB staging verification
+- [ ] Phase 4 — limits & utilizations (register with the generic repo) — after staging verification
+- [ ] Phase 5 — transactional ledger (booked transactions, batches, reservations) — after staging verification
 - [ ] Phase 6 — multi‑instance coherence (LISTEN/NOTIFY), drop snapshot
 - [ ] Phase 7 — hardening + load test
+
+> **Gate before Phases 2/4/5/6:** the write‑through SQL (schema/upsert/load/backfill)
+> runs for the first time only on a real database — it can't be exercised in the
+> no‑`DATABASE_URL` dev/CI environment. Verify on Neon staging that the `coll_*` and
+> `audit_entries` tables populate and reload correctly before making any table
+> authoritative or dropping a collection from the snapshot. Phases 1 and 3 are
+> **additive and dual‑source**, so they deploy with no risk to the running app even
+> before that verification (a table failure is caught and the snapshot keeps working).
