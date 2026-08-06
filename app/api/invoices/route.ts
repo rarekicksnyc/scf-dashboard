@@ -58,7 +58,12 @@ export async function POST(request: Request) {
     detail: `Generated ${kind} invoice ${number} for ${spec.billToName} (${spec.lineItems.length} line item(s)).`,
   });
 
-  const bytes = await renderInvoicePdf(spec);
+  let bytes: Uint8Array;
+  try {
+    bytes = await renderInvoicePdf(spec);
+  } catch (err) {
+    return NextResponse.json({ error: `Could not render the invoice PDF: ${(err as Error).message}` }, { status: 422 });
+  }
   void total;
   return new NextResponse(Buffer.from(bytes), {
     status: 200,

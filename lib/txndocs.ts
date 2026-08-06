@@ -12,6 +12,9 @@ import type { EmlAttachment } from "@/lib/email";
 function documentCustomTokens(wf: TransactionWorkflow): DocTokens {
   const defs = listTemplateFields("DOCUMENT");
   if (defs.length === 0) return {};
+  // NB: skim is deliberately NOT in this context — a {{cf_*}} formula must not be
+  // able to resolve the confidential skim into an (investor-facing) document. A
+  // formula that references skim_bps therefore evaluates to an error → blank.
   const ctx = {
     coverage: wf.coverage,
     amount: wf.amount,
@@ -20,7 +23,6 @@ function documentCustomTokens(wf: TransactionWorkflow): DocTokens {
     base_rate: wf.baseRate ?? 0,
     tenor_days: daysBetween(wf.valueDate, wf.maturityDate),
     investor_amount: wf.investorAmount ?? 0,
-    skim_bps: wf.skimBps ?? 0,
   };
   const out: DocTokens = {};
   for (const f of defs) {

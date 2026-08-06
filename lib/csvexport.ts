@@ -1,6 +1,15 @@
 // Shared CSV builder used by every export/report endpoint.
-function field(v: string | number): string {
+// Neutralizes spreadsheet formula injection: a cell that a bank-ops user opens in
+// Excel/Sheets is parsed as a formula if it starts with = + - @ (or a tab/CR),
+// regardless of CSV quoting (quotes are stripped on import). Prefix such cells
+// with an apostrophe so the content is always treated as literal text.
+export function csvSafe(v: string | number): string {
   const s = String(v ?? "");
+  return /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+}
+
+function field(v: string | number): string {
+  const s = csvSafe(v);
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 

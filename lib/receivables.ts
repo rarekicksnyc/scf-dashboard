@@ -72,9 +72,13 @@ export const AGE_BUCKET_LABEL: Record<AgeBucket, string> = {
   D90_PLUS: "Over 90 days",
 };
 
-// Aging bucket by days past due (current = not yet overdue).
+// Aging bucket by days past due (current = not yet overdue). A still-open
+// defaulted receivable (defaultedAt set, not yet closed) still carries live
+// exposure and ages by days past its maturity — it must NOT read as "Current".
 export function ageBucket(t: BookedTransaction, asOf: string): AgeBucket {
-  const od = overdueDays(t, asOf);
+  const od = t.defaultedAt && !isSettled(t)
+    ? Math.max(0, daysBetween(t.maturityDate, asOf))
+    : overdueDays(t, asOf);
   if (od <= 0) return "CURRENT";
   if (od <= 30) return "D1_30";
   if (od <= 60) return "D31_60";

@@ -195,15 +195,21 @@ export function parseRateRows(rows: Record<string, unknown>[], rateType: BaseRat
     const startDate = get(["start_days", "startdays", "start_date", "value_date", "valuedate", "start"]);
     const maturityDate = get(["maturity", "maturity_date", "maturitydate", "end_date"]);
     if (!startDate || !maturityDate) continue;
+    // Offer is the used rate. A blank or non-numeric offer must NOT silently become
+    // a valid 0% — flag the row as errored so rate resolution excludes it rather
+    // than pricing every deal in that tenor bucket at zero.
+    const offerRaw = get(["offer"]).replace(/%/g, "").trim();
+    const offerNum = Number(offerRaw);
+    const offerBad = offerRaw === "" || !Number.isFinite(offerNum);
     out.push({
       rateType,
       startDate,
       maturityDate,
       tenorDays: daysBetween(startDate, maturityDate),
       bid: Number(get(["bid"]).replace(/%/g, "")) || 0,
-      offer: Number(get(["offer"]).replace(/%/g, "")) || 0,
+      offer: offerBad ? 0 : offerNum,
       calcRate: Number(get(["calcrate", "calc_rate", "calculated_rate"]).replace(/%/g, "")) || undefined,
-      error: get(["error"]) || undefined,
+      error: get(["error"]) || (offerBad ? "unreadable offer rate" : undefined),
     });
   }
   return out;

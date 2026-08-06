@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     action: "RESET_EXPOSURE",
     entityType: "SYSTEM",
     entityId: "exposure",
-    detail: `Reset all exposure to full availability — cleared ${counts.utilizations} booked utilization(s), ${counts.reservations} reservation(s), and ${counts.batches} batch(es).`,
+    detail: `Reset all exposure to full availability — cleared ${counts.utilizations} booked utilization(s), ${counts.reservations} reservation(s), ${counts.batches} batch(es), and ${counts.bookedTransactions} booked transaction(s).`,
   });
 
   return NextResponse.json({ ok: true, cleared: counts });

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { listDocTemplates, upsertDocTemplate, deleteDocTemplate, addAudit } from "@/lib/data/store";
 import { getCurrentUser, roleHas } from "@/lib/auth";
-import type { DocTemplateType } from "@/lib/types";
+import { DOC_TEMPLATE_TYPES } from "@/lib/types";
 
-const TYPES: DocTemplateType[] = ["PURCHASE_REQUEST", "COMMITMENT_REQUEST", "CLIENT_EMAIL", "BOOKING_EMAIL"];
+const TYPES = DOC_TEMPLATE_TYPES;
 
 export async function GET() {
   const user = await getCurrentUser();

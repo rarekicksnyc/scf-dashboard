@@ -90,6 +90,11 @@ export default function ScheduleCalendar({
   const firstWeekday = new Date(Date.UTC(year, month - 1, 1)).getUTCDay();
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
   // Peak expected outstanding across the visible month (funded principal).
+  // NOTE: outstandingByDate is computed full-book server-side; the seller/obligor
+  // chips filter only the event list, not this series. So when a filter is active
+  // the peak + per-day outstanding are still FULL BOOK — labeled as such rather
+  // than shown as if scoped.
+  const filterActive = selSellers.size > 0 || selObligors.size > 0;
   let monthPeak = 0;
   for (let d = 1; d <= daysInMonth; d++) {
     const v = outstandingByDate[`${ym}-${String(d).padStart(2, "0")}`] ?? 0;
@@ -137,7 +142,7 @@ export default function ScheduleCalendar({
         <div className="card"><div className="label">Fundings this month</div><div className="value small">{mm(totals.FUNDING)}</div></div>
         <div className="card"><div className="label">Expected repayments</div><div className="value small">{mm(totals.REPAYMENT)}</div></div>
         <div className="card"><div className="label">Swingline movements</div><div className="value small">{mm(totals.SWINGLINE_DRAW)}</div></div>
-        <div className="card"><div className="label">Peak expected outstanding</div><div className="value small">{mm(monthPeak)}</div><div className="muted" style={{ fontSize: 11, marginTop: 4 }}>funded principal · this month</div></div>
+        <div className="card"><div className="label">Peak expected outstanding</div><div className="value small">{mm(monthPeak)}</div><div className="muted" style={{ fontSize: 11, marginTop: 4 }}>funded principal · this month{filterActive ? " · full book (filter not applied)" : ""}</div></div>
       </div>
 
       <div className="row-actions" style={{ justifyContent: "space-between" }}>

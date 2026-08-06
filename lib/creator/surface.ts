@@ -42,6 +42,9 @@ export const REPORT_EXPOSURE_FIELDS: FieldSpec[] = [
 ];
 
 // Per-deal surface for DOCUMENT custom-field tokens ({{cf_*}} in file templates).
+// Skim is intentionally EXCLUDED — the skim is confidential to the bank and must
+// never be reachable by a custom field/token that could land in an investor-facing
+// document (Purchase Request / Schedule A). Do not add it here.
 export const DOC_FIELDS: FieldSpec[] = [
   { key: "coverage", label: "Coverage (funded)" },
   { key: "amount", label: "Invoice / committed amount" },
@@ -50,7 +53,6 @@ export const DOC_FIELDS: FieldSpec[] = [
   { key: "base_rate", label: "Base rate (%)" },
   { key: "tenor_days", label: "Tenor (days)" },
   { key: "investor_amount", label: "Investor participation" },
-  { key: "skim_bps", label: "Skim (bps)" },
 ];
 
 // The built-in columns each report exposes, so the builder can offer show/hide.

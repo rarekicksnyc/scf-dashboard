@@ -37,6 +37,7 @@ import type {
 } from "@/lib/types";
 import type { WorkoutRoute, InvoiceResult } from "@/lib/types";
 import type { CustomFieldDef, CustomRegister, KpiTile, WatchRule, CoverageAssignment, NotificationEvent, TemplateFieldDef, LimitApproval, LimitPendingEdit } from "@/lib/types";
+import { INVESTOR_FACING_TEMPLATE_TYPES } from "@/lib/types";
 import { DEFAULT_TEMPLATES } from "@/lib/data/templates";
 import { toLimitView, computeConsumed } from "@/lib/engine/availability";
 import { daysBetween, limitActiveOn, limitNotYetEffective } from "@/lib/format";
@@ -206,8 +207,8 @@ export function runMigrations(): void {
   // investor Schedule A templates (default + per-seller overrides).
   once("investor-schedule-no-skim-2026-07", () => {
     for (const t of store.docTemplates) {
-      if (t.type !== "SCHEDULE_A_INVESTOR") continue;
-      t.body = t.body.split("\n").filter((line) => !/\|\s*skim_bps\s*$/i.test(line.trim())).join("\n");
+      if (!INVESTOR_FACING_TEMPLATE_TYPES.includes(t.type)) continue;
+      t.body = stripSkimFromTemplateBody(t.body);
     }
   });
 
@@ -422,7 +423,23 @@ export function getDocTemplate(type: DocTemplateType, sellerId?: string): DocTem
   return store.docTemplates.find((t) => t.type === type && !t.sellerId);
 }
 
+// Remove the confidential skim from a template body — drops a `| skim_bps` table
+// column and blanks any {{…skim…}} token. Single source, used on every save of an
+// investor-facing template AND by the one-time migration.
+export function stripSkimFromTemplateBody(body: string): string {
+  return body
+    .split("\n")
+    .filter((line) => !/\|\s*skim_bps\s*$/i.test(line.trim()))
+    .join("\n")
+    .replace(/\{\{[^}]*skim[^}]*\}\}/gi, "");
+}
+
 export function upsertDocTemplate(input: { type: DocTemplateType; sellerId?: string; subject?: string; body: string }): DocTemplate {
+  // Enforce skim confidentiality at the write boundary: an investor-facing template
+  // can never persist a skim column/token, regardless of what the editor submitted.
+  if (INVESTOR_FACING_TEMPLATE_TYPES.includes(input.type)) {
+    input = { ...input, body: stripSkimFromTemplateBody(input.body) };
+  }
   const key = input.sellerId ?? "";
   const existing = store.docTemplates.find((t) => t.type === input.type && (t.sellerId ?? "") === key);
   if (existing) {
@@ -2077,15 +2094,20 @@ export function fulfillReservation(id: string, invoiceNumber: string): Reservati
 // configuration. Clears current utilization (booked/outstanding), the entire
 // forward book (reservations), and historical batch runs. Availability is
 // always derived from these, so the next transaction starts from a clean slate.
-export function resetExposure(): { utilizations: number; reservations: number; batches: number } {
+export function resetExposure(): { utilizations: number; reservations: number; batches: number; bookedTransactions: number } {
   const counts = {
     utilizations: store.utilizations.size,
     reservations: store.reservations.length,
     batches: store.batches.length,
+    // The single booked-transaction ledger IS the exposure source (post batch-
+    // ledger-merge). A reset that left it behind would leave live exposure and
+    // falsely report a clean slate.
+    bookedTransactions: store.bookedTransactions.length,
   };
   store.utilizations.clear();
   store.reservations.length = 0;
   store.batches.length = 0;
+  store.bookedTransactions.length = 0;
   return counts;
 }
 
@@ -2268,7 +2290,11 @@ export function addSeller(input: {
   domicile?: string;
   approval?: { reference: string; requestedBy: string; requestedByName: string };
 }): Seller {
-  const id = `SELLER${String(store.sellers.length + 1).padStart(3, "0")}`;
+  // Mint from the monotonic counter (never store.sellers.length + 1) so an id
+  // freed by a delete is never reissued — a reused id would misattribute a new
+  // seller's exposure to an old orphaned booking. 5-pad w/ dash cannot collide
+  // with the 3-pad seed ids (SELLER001).
+  const id = nextId("SELLER");
   const seller: Seller = {
     id,
     name: input.name,
@@ -2314,7 +2340,9 @@ export function addObligor(input: {
   expiryDate: string;
   approval?: { reference: string; requestedBy: string; requestedByName: string };
 }): Obligor {
-  const id = `OBL${String(store.obligors.length + 1).padStart(3, "0")}`;
+  // Monotonic id (see addSeller) — never store.obligors.length + 1, which reuses
+  // an id after a delete and misattributes exposure to an orphaned booking.
+  const id = nextId("OBL");
   const obligor: Obligor = {
     id,
     name: input.name,
@@ -2387,10 +2415,25 @@ export function addSellerObligorLimit(
 // participation agreements — so no orphan record can point at a seller that no
 // longer exists (single source of truth). Blocked while it has an active
 // forward book; cancel or fulfill those reservations first.
+// True if any booked transaction matching `pred` is still OPEN (not settled and
+// principal not fully collected) — such a receivable is live exposure and its
+// counterparty must not be deletable (would orphan the booking in the ledger).
+function hasOpenBookings(pred: (t: BookedTransaction) => boolean): boolean {
+  return store.bookedTransactions.some((t) => {
+    if (!pred(t)) return false;
+    if (t.settledAt) return false;
+    const collected = (t.collections ?? []).reduce((a, c) => a + c.amount, 0);
+    return collected < t.amount;
+  });
+}
+
 export function removeSeller(id: string): void {
   if (!store.sellers.some((s) => s.id === id)) throw new Error("Seller not found.");
   if (store.reservations.some((r) => r.status === "RESERVED" && r.sellerId === id)) {
     throw new Error("This seller has active reservations — cancel them first.");
+  }
+  if (hasOpenBookings((t) => t.sellerId === id)) {
+    throw new Error("This seller has open booked transactions — settle or clear them first.");
   }
   const limitIds = store.limits.filter((l) => l.entityType === "SELLER" && l.entityId === id).map((l) => l.id);
   for (const lid of limitIds) store.utilizations.delete(lid);
@@ -2410,6 +2453,9 @@ export function removeObligor(id: string): void {
   if (!store.obligors.some((o) => o.id === id)) throw new Error("Obligor not found.");
   if (store.reservations.some((r) => r.status === "RESERVED" && r.obligorId === id)) {
     throw new Error("This obligor has active reservations — cancel them first.");
+  }
+  if (hasOpenBookings((t) => t.obligorId === id)) {
+    throw new Error("This obligor has open booked transactions — settle or clear them first.");
   }
   const limitIds = store.limits.filter((l) => l.entityType === "OBLIGOR" && l.entityId === id).map((l) => l.id);
   for (const lid of limitIds) store.utilizations.delete(lid);

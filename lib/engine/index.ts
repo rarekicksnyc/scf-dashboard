@@ -574,7 +574,10 @@ export function runBatch(
     });
     const discountRate = pricing.allInRatePct / 100;
     const discountFee = pricing.productType === "UTRC" ? pricing.commitmentFee : pricing.discount;
-    const netProceeds = pricing.purchasePrice;
+    // purchasePrice = coverage − DTR discount (deducts the base-rate component). A
+    // UTRC commitment is UNFUNDED and pays only the commitment fee, so its net
+    // proceeds are coverage − commitmentFee, never the DTR purchase price.
+    const netProceeds = pricing.productType === "UTRC" ? pricing.coverage - pricing.commitmentFee : pricing.purchasePrice;
 
     let status = finalStatus(checks);
     // Checker-approved override: an EXCEPTION_REQUIRED invoice whose breach a

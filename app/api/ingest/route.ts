@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createHash, timingSafeEqual } from "crypto";
 import { parseInvoiceCsv } from "@/lib/csv";
 import { runBatch } from "@/lib/engine";
 import { getBatches, saveBatch, syncExceptionsForBatch, materializeBatchBookings, addAudit } from "@/lib/data/store";
@@ -13,11 +14,26 @@ import { getBatches, saveBatch, syncExceptionsForBatch, materializeBatchBookings
 //        -H "content-type: text/csv" --data-binary @batch.csv
 // ---------------------------------------------------------------------------
 
-const DEMO_KEY = process.env.SCF_INGEST_KEY ?? "demo-ingest-key";
+// The ingest key MUST be explicitly configured in production — never fall back to
+// the public demo key (that would let anyone who knows it push bookings that
+// materialize real exposure). In development a demo key is allowed for local use.
+const CONFIGURED_KEY = process.env.SCF_INGEST_KEY;
+const INGEST_KEY = CONFIGURED_KEY ?? (process.env.NODE_ENV === "production" ? undefined : "demo-ingest-key");
 const SERVICE_MAKER = "svc_host2host";
 
+// Constant-time key comparison (hash first so unequal lengths don't leak).
+function keyMatches(provided: string, expected: string): boolean {
+  const a = createHash("sha256").update(provided).digest();
+  const b = createHash("sha256").update(expected).digest();
+  return timingSafeEqual(a, b);
+}
+
 export async function POST(request: Request) {
-  if (request.headers.get("x-api-key") !== DEMO_KEY) {
+  if (!INGEST_KEY) {
+    // Fail closed: no key configured in production.
+    return NextResponse.json({ error: "Ingestion is not configured." }, { status: 503 });
+  }
+  if (!keyMatches(request.headers.get("x-api-key") ?? "", INGEST_KEY)) {
     return NextResponse.json({ error: "Invalid API key." }, { status: 401 });
   }
   const csv = await request.text();

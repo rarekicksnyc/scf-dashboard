@@ -25,6 +25,18 @@ export function toRecipients(input?: string | string[]): string | undefined {
 
 const BOUNDARY = "----=_scf_boundary_9f2c1a7b3e";
 
+// Strip CR/LF (and other control chars) from any value written into a mail header,
+// so a counterparty name / reference containing "\r\nBcc: leak@x.com" cannot inject
+// additional headers (a silent Bcc that would exfiltrate the deal's data).
+function headerSafe(s: string): string {
+  return String(s ?? "").replace(/[\r\n\u0000-\u001f\u007f]+/g, " ").trim();
+}
+
+// A filename embedded in a quoted header param must not carry a quote or CR/LF.
+function filenameSafe(s: string): string {
+  return headerSafe(s).replace(/["\\]/g, "_");
+}
+
 function wrap76(s: string): string {
   return s.replace(/.{1,76}/g, "$&\r\n");
 }
@@ -35,8 +47,8 @@ export function emlResponse(
 ): Response {
   const lines: string[] = [];
   lines.push("X-Unsent: 1");
-  if (msg.to) lines.push(`To: ${msg.to}`);
-  lines.push(`Subject: ${msg.subject}`);
+  if (msg.to) lines.push(`To: ${headerSafe(msg.to)}`);
+  lines.push(`Subject: ${headerSafe(msg.subject)}`);
   lines.push("MIME-Version: 1.0");
   lines.push(`Content-Type: multipart/mixed; boundary="${BOUNDARY}"`);
   lines.push("");
@@ -49,9 +61,9 @@ export function emlResponse(
   // Attachments.
   for (const a of msg.attachments ?? []) {
     lines.push(`--${BOUNDARY}`);
-    lines.push(`Content-Type: ${a.mime}; name="${a.filename}"`);
+    lines.push(`Content-Type: ${a.mime}; name="${filenameSafe(a.filename)}"`);
     lines.push("Content-Transfer-Encoding: base64");
-    lines.push(`Content-Disposition: attachment; filename="${a.filename}"`);
+    lines.push(`Content-Disposition: attachment; filename="${filenameSafe(a.filename)}"`);
     lines.push("");
     lines.push(wrap76(a.base64).trimEnd());
   }

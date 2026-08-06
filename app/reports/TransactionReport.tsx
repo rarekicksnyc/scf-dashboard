@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { mm, dateShort, daysBetween, usd } from "@/lib/format";
 import { inputCompact as input, fieldLabel as field } from "@/lib/ui";
 import { evaluateExpression, toNumber } from "@/lib/creator/expr";
+import { csvSafe } from "@/lib/csvexport";
 import type { TemplateFieldDef } from "@/lib/types";
 
 interface Opt { id: string; name: string }
@@ -97,7 +98,7 @@ export default function TransactionReport({
   function downloadCsv() {
     const header = ["invoice_number", "seller_id", "seller", "obligor_id", "obligor", "amount", "advance_rate", "coverage_amount", "revenue", "booked_date", "value_date", "maturity_date", "batch", ...templateFields.map((f) => f.key)];
     const esc = (v: string | number) => {
-      const s = String(v);
+      const s = csvSafe(v); // neutralize spreadsheet formula injection first
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const lines = [header.join(",")];

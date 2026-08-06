@@ -227,6 +227,21 @@ export type DocTemplateType =
   | "INVOICE_ADDITIONAL_INTEREST" // past-due additional-interest statement
   | "INVOICE_NOTE"; // default payment-instructions / notes on an ad-hoc invoice
 
+// Canonical list of every editable template type (single source for the editor
+// AND the save-route validation, so they can never drift out of sync).
+export const DOC_TEMPLATE_TYPES: DocTemplateType[] = [
+  "PURCHASE_REQUEST", "PURCHASE_REQUEST_INVESTOR", "COMMITMENT_REQUEST",
+  "SCHEDULE_A_DTR", "SCHEDULE_A_UTRC", "SCHEDULE_A_INVESTOR",
+  "CLIENT_EMAIL", "BOOKING_EMAIL", "INVESTOR_EMAIL",
+  "INVOICE_ADDITIONAL_INTEREST", "INVOICE_NOTE",
+];
+
+// Templates that a counterparty (investor) receives — the skim must be stripped
+// from these on every save.
+export const INVESTOR_FACING_TEMPLATE_TYPES: DocTemplateType[] = [
+  "PURCHASE_REQUEST_INVESTOR", "SCHEDULE_A_INVESTOR", "INVESTOR_EMAIL",
+];
+
 export interface DocTemplate {
   id: string;
   type: DocTemplateType;
