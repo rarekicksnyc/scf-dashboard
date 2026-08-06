@@ -3,9 +3,10 @@
 // With DATABASE_URL unset, this is a no-op and the app runs purely in memory.
 
 import { persistenceEnabled, initSchema, loadSnapshot, saveSnapshot } from "@/lib/data/persistence";
-import { snapshotJson, hydrateStore, runMigrations } from "@/lib/data/store";
+import { snapshotJson, hydrateStore, runMigrations, store } from "@/lib/data/store";
 import { initDocSchema } from "@/lib/documents";
 import { captureError } from "@/lib/observability";
+import { initAuditSchema, auditTableCount, loadAuditEntries, backfillAuditEntries, flushAuditQueue } from "@/lib/data/repositories/auditRepo";
 
 export async function startPersistence() {
   if (!persistenceEnabled()) return;
@@ -24,10 +25,30 @@ export async function startPersistence() {
     console.log("[persistence] seeded Postgres with initial state");
   }
 
+  // Phase 1 migration (MIGRATION_PLAN.md): the audit log has its own table. On
+  // first run the table is empty but the snapshot may carry history — backfill it;
+  // thereafter the table is the source of truth for reads on boot. Dual-source: the
+  // snapshot still carries the log too (safety net) until Phase 2. Wrapped so an
+  // audit-table failure never blocks boot.
+  try {
+    await initAuditSchema();
+    if ((await auditTableCount()) === 0 && store.auditLog.length > 0) {
+      await backfillAuditEntries(store.auditLog);
+      console.log(`[persistence] backfilled ${store.auditLog.length} audit entries into audit_entries`);
+    } else {
+      const rows = await loadAuditEntries();
+      if (rows.length > 0) store.auditLog = rows;
+      console.log(`[persistence] loaded ${store.auditLog.length} audit entries from audit_entries`);
+    }
+  } catch (err) {
+    captureError(err, { area: "audit-persistence", phase: "boot" });
+  }
+
   // Auto-persist: every few seconds, write the snapshot back if it changed.
   let last = snapshotJson();
   const flush = async (reason: string) => {
     try {
+      await flushAuditQueue(); // Phase 1: drain write-through audit inserts
       const current = snapshotJson();
       if (current !== last) {
         await saveSnapshot(current);

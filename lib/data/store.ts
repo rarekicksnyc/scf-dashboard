@@ -39,6 +39,7 @@ import type { WorkoutRoute, InvoiceResult } from "@/lib/types";
 import type { CustomFieldDef, CustomRegister, KpiTile, WatchRule, CoverageAssignment, NotificationEvent, TemplateFieldDef, LimitApproval, LimitPendingEdit } from "@/lib/types";
 import { INVESTOR_FACING_TEMPLATE_TYPES } from "@/lib/types";
 import { createHash } from "crypto";
+import { enqueueAudit } from "@/lib/data/repositories/auditRepo";
 import { DEFAULT_TEMPLATES } from "@/lib/data/templates";
 import { toLimitView, computeConsumed } from "@/lib/engine/availability";
 import { daysBetween, limitActiveOn, limitNotYetEffective } from "@/lib/format";
@@ -1891,7 +1892,9 @@ export function addAudit(entry: Omit<AuditEntry, "id" | "timestamp">): void {
   const prevHash = store.auditLog[0]?.hash ?? "";
   const base = { ...entry, timestamp, prevHash };
   const hash = createHash("sha256").update(auditCanonical(base)).digest("hex");
-  store.auditLog.unshift({ ...base, id: nextId("AUD"), hash });
+  const full: AuditEntry = { ...base, id: nextId("AUD"), hash };
+  store.auditLog.unshift(full);
+  enqueueAudit(full); // Phase 1 write-through to the audit_entries table (no-op without a DB)
   // Every audited action is a real state change — signal it to live clients.
   bumpRevision();
 }
