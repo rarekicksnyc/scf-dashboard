@@ -8,3 +8,6 @@ next-env.d.ts
 .env
 .env.*
 !.env.example
+
+# CI workflow file is added under .github/ via the GitHub UI (needs workflow scope)
+.github/workflows/ci.yml

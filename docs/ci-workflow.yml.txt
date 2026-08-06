@@ -1,0 +1,43 @@
+name: CI
+
+# Gate every PR (and pushes to main) on type-check, the regression suite, and a
+# production build. Merges should be blocked on this workflow in branch protection.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Type-check
+        run: npm run typecheck
+      - name: Regression suite
+        run: npm test
+      - name: Production build
+        run: npm run build
+        env:
+          # Build must not depend on real secrets; persistence is a no-op without DATABASE_URL.
+          NODE_ENV: production
+          SESSION_SECRET: ci-build-only-secret
+
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # Report known vulnerabilities (high+); non-blocking until the xlsx dep is replaced.
+      - name: Dependency audit
+        run: npm audit --audit-level=high || true

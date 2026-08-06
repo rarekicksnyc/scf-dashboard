@@ -38,6 +38,7 @@ import type {
 import type { WorkoutRoute, InvoiceResult } from "@/lib/types";
 import type { CustomFieldDef, CustomRegister, KpiTile, WatchRule, CoverageAssignment, NotificationEvent, TemplateFieldDef, LimitApproval, LimitPendingEdit } from "@/lib/types";
 import { INVESTOR_FACING_TEMPLATE_TYPES } from "@/lib/types";
+import { createHash } from "crypto";
 import { DEFAULT_TEMPLATES } from "@/lib/data/templates";
 import { toLimitView, computeConsumed } from "@/lib/engine/availability";
 import { daysBetween, limitActiveOn, limitNotYetEffective } from "@/lib/format";
@@ -273,6 +274,20 @@ export function runMigrations(): void {
       if (Number.isFinite(n) && n > max) max = n;
     }
     store.seq = max;
+  });
+
+  // Seal the existing audit log into the tamper-evidence hash chain. Entries
+  // written before chaining have no hash; compute the chain once (oldest -> newest)
+  // so the historical log becomes the verifiable baseline and any later tampering
+  // is detectable. Runs once.
+  once("audit-hash-chain-backfill-2026-08", () => {
+    let prevHash = "";
+    for (let i = store.auditLog.length - 1; i >= 0; i--) {
+      const e = store.auditLog[i];
+      e.prevHash = prevHash;
+      e.hash = createHash("sha256").update(auditCanonical(e)).digest("hex");
+      prevHash = e.hash;
+    }
   });
 }
 
@@ -1862,18 +1877,45 @@ export function getApprovedOverrides(batchId: string): Set<string> {
 // Audit log
 // ---------------------------------------------------------------------------
 
+// Canonical serialization of the fields the hash covers (order fixed).
+function auditCanonical(e: Pick<AuditEntry, "timestamp" | "actorUserId" | "actorName" | "action" | "entityType" | "entityId" | "detail" | "prevHash">): string {
+  return JSON.stringify([e.prevHash ?? "", e.timestamp, e.actorUserId, e.actorName, e.action, e.entityType, e.entityId, e.detail]);
+}
+
 export function addAudit(entry: Omit<AuditEntry, "id" | "timestamp">): void {
-  store.auditLog.unshift({
-    ...entry,
-    id: nextId("AUD"),
-    timestamp: new Date().toISOString(),
-  });
+  const timestamp = new Date().toISOString();
+  // Tamper-evidence: chain each entry to the chronologically-previous one (the
+  // current newest, at index 0 since the log is newest-first). Altering or
+  // deleting any past entry breaks every subsequent hash — verifyAuditChain()
+  // detects it. Uses only the fields above, not id/hash.
+  const prevHash = store.auditLog[0]?.hash ?? "";
+  const base = { ...entry, timestamp, prevHash };
+  const hash = createHash("sha256").update(auditCanonical(base)).digest("hex");
+  store.auditLog.unshift({ ...base, id: nextId("AUD"), hash });
   // Every audited action is a real state change — signal it to live clients.
   bumpRevision();
 }
 
 export function getAuditLog(): AuditEntry[] {
   return store.auditLog;
+}
+
+// Recompute the hash chain from oldest to newest and report the first break.
+// Returns { ok:true } for an intact (or empty) log, else the id/index where the
+// stored hash disagrees with the recomputed one (tampering or reordering).
+export function verifyAuditChain(): { ok: boolean; total: number; brokenAtId?: string; brokenAtIndex?: number } {
+  const log = store.auditLog;
+  // Oldest is at the end; walk oldest -> newest so prevHash references resolve.
+  let prevHash = "";
+  for (let i = log.length - 1; i >= 0; i--) {
+    const e = log[i];
+    const expected = createHash("sha256").update(auditCanonical({ ...e, prevHash })).digest("hex");
+    if (e.hash !== expected || (e.prevHash ?? "") !== prevHash) {
+      return { ok: false, total: log.length, brokenAtId: e.id, brokenAtIndex: i };
+    }
+    prevHash = e.hash ?? "";
+  }
+  return { ok: true, total: log.length };
 }
 
 // ---------------------------------------------------------------------------

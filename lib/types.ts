@@ -1030,4 +1030,6 @@ export interface AuditEntry {
   entityType: string;
   entityId: string;
   detail: string;
+  prevHash?: string; // hash of the chronologically-previous entry (tamper-evidence)
+  hash?: string; // sha256 over this entry's content + prevHash
 }

@@ -4,6 +4,7 @@ import { signSession, verifySession, SESSION_TTL_SECONDS } from "@/lib/session";
 import { rateLimit } from "@/lib/ratelimit";
 import { winAnsiSafe } from "@/lib/pdf";
 import { csvSafe } from "@/lib/csvexport";
+import { store, addAudit, verifyAuditChain, getAuditLog } from "@/lib/data/store";
 
 let pass = 0, fail = 0;
 const ok = (n: string, c: boolean, x = "") => { c ? (pass++, console.log("  ok  " + n)) : (fail++, console.log("FAIL  " + n + "  " + x)); };
@@ -37,6 +38,20 @@ async function main() {
   // Output safety helpers (defense in depth beyond their call sites).
   ok("csvSafe neutralizes =/+/-/@", csvSafe("=A1").startsWith("'") && csvSafe("-1").startsWith("'") && csvSafe("+x").startsWith("'") && csvSafe("@y").startsWith("'"));
   ok("winAnsiSafe never yields a non-WinAnsi code point", [...winAnsiSafe("🚀三 café Łódź")].every((c) => c.codePointAt(0)! <= 0xff || c === "?" || c === "€"));
+
+  // Tamper-evident audit chain: intact after appends; a mutated past entry is detected.
+  store.auditLog.length = 0; // isolate the chain from seed entries
+  for (let i = 0; i < 4; i++) addAudit({ actorUserId: "u_product", actorName: "PM", action: "TEST", entityType: "T", entityId: `e${i}`, detail: `d${i}` });
+  ok("audit chain verifies intact after appends", verifyAuditChain().ok === true, JSON.stringify(verifyAuditChain()));
+  ok("every entry carries a hash", getAuditLog().every((e) => typeof e.hash === "string" && e.hash.length === 64));
+  const victim = getAuditLog()[getAuditLog().length - 1]; // oldest entry
+  const savedDetail = victim.detail;
+  victim.detail = "TAMPERED";
+  const v = verifyAuditChain();
+  ok("tampering with a past entry breaks the chain", v.ok === false && v.brokenAtId === victim.id, JSON.stringify(v));
+  victim.detail = savedDetail;
+  ok("restoring the entry re-verifies the chain", verifyAuditChain().ok === true);
+  store.auditLog.length = 0;
 
   console.log(fail === 0 ? "\nALL PASS" : `\n${fail} FAILED`);
   if (fail) process.exit(1);

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { storeGetUserById } from "@/lib/data/store";
+import { storeGetUserById, addAudit } from "@/lib/data/store";
 import { verifyPassword } from "@/lib/password";
 import { signSession, SESSION_COOKIE, SESSION_TTL_SECONDS, sessionSecret } from "@/lib/session";
 import { rateLimit, clientIp } from "@/lib/ratelimit";
@@ -28,5 +28,6 @@ export async function POST(request: Request) {
     maxAge: SESSION_TTL_SECONDS, // cookie drops at the same absolute lifetime as the signed expiry
   });
 
+  addAudit({ actorUserId: user.id, actorName: user.name, action: "LOGIN", entityType: "SESSION", entityId: user.id, detail: `Signed in from ${clientIp(request)}.` });
   return NextResponse.json({ ok: true, user: { id: user.id, name: user.name, role: user.role } });
 }
