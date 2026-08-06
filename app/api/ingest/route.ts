@@ -3,6 +3,10 @@ import { createHash, timingSafeEqual } from "crypto";
 import { parseInvoiceCsv } from "@/lib/csv";
 import { runBatch } from "@/lib/engine";
 import { getBatches, saveBatch, syncExceptionsForBatch, materializeBatchBookings, addAudit } from "@/lib/data/store";
+import { rateLimit, clientIp } from "@/lib/ratelimit";
+import { MAX_BATCH_INVOICES } from "@/lib/config";
+
+const MAX_INGEST_BYTES = 8_000_000; // 8MB CSV push ceiling
 
 // ---------------------------------------------------------------------------
 // Host-to-host / API ingestion endpoint (Phase 4, stub). Real deployments
@@ -29,6 +33,10 @@ function keyMatches(provided: string, expected: string): boolean {
 }
 
 export async function POST(request: Request) {
+  const rl = rateLimit(`ingest:${clientIp(request)}`, 30, 60_000);
+  if (!rl.ok) {
+    return NextResponse.json({ error: "Rate limit exceeded." }, { status: 429, headers: { "Retry-After": String(rl.retryAfter) } });
+  }
   if (!INGEST_KEY) {
     // Fail closed: no key configured in production.
     return NextResponse.json({ error: "Ingestion is not configured." }, { status: 503 });
@@ -37,12 +45,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid API key." }, { status: 401 });
   }
   const csv = await request.text();
+  // Cap the ingest payload so a giant push can't exhaust memory.
+  if (csv.length > MAX_INGEST_BYTES) {
+    return NextResponse.json({ error: `Payload too large (max ${Math.floor(MAX_INGEST_BYTES / 1_000_000)}MB).` }, { status: 413 });
+  }
   const { invoices, errors } = parseInvoiceCsv(csv);
   if (invoices.length === 0) {
     return NextResponse.json(
       { error: errors.join(" ") || "No invoice rows found." },
       { status: 422 },
     );
+  }
+  if (invoices.length > MAX_BATCH_INVOICES) {
+    return NextResponse.json({ error: `Batch too large: ${invoices.length} rows (max ${MAX_BATCH_INVOICES}). Split it.` }, { status: 413 });
   }
 
   const seq = getBatches().length + 1;

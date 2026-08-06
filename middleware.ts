@@ -12,7 +12,7 @@ import { verifySession, SESSION_COOKIE, sessionSecret } from "@/lib/session";
 // ---------------------------------------------------------------------------
 
 // Reachable without being logged in (the guide is onboarding documentation).
-const PUBLIC_PATHS = ["/login", "/api/login", "/api/logout", "/guide"];
+const PUBLIC_PATHS = ["/login", "/api/login", "/api/logout", "/api/health", "/guide"];
 
 export async function middleware(req: NextRequest) {
   // Layer 1 — optional shared site password.

@@ -5,6 +5,7 @@
 import { persistenceEnabled, initSchema, loadSnapshot, saveSnapshot } from "@/lib/data/persistence";
 import { snapshotJson, hydrateStore, runMigrations } from "@/lib/data/store";
 import { initDocSchema } from "@/lib/documents";
+import { captureError } from "@/lib/observability";
 
 export async function startPersistence() {
   if (!persistenceEnabled()) return;
@@ -33,7 +34,7 @@ export async function startPersistence() {
         last = current;
       }
     } catch (err) {
-      console.error(`[persistence] ${reason} flush failed:`, err);
+      captureError(err, { area: "persistence", reason }); // structured + alertable
     }
   };
   setInterval(() => { void flush("autosave"); }, 3000);

@@ -14,28 +14,42 @@ function base64url(bytes: Uint8Array): string {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-async function sign(userId: string, secret: string): Promise<string> {
+// Absolute session lifetime. A cookie older than this is rejected (the user must
+// log in again), and the cookie's max-age matches, so a stolen cookie is not valid
+// forever.
+export const SESSION_TTL_SECONDS = 12 * 60 * 60; // 12 hours
+
+async function sign(payload: string, secret: string): Promise<string> {
   const key = await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(userId));
+  const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(payload));
   return base64url(new Uint8Array(signature));
 }
 
-export async function signSession(userId: string, secret: string): Promise<string> {
-  return `${userId}.${await sign(userId, secret)}`;
+// Token format: `${userId}.${expEpochSeconds}.${sig}` where sig = HMAC(userId.exp).
+// The expiry is inside the signed payload so it cannot be tampered with.
+export async function signSession(userId: string, secret: string, ttlSeconds = SESSION_TTL_SECONDS): Promise<string> {
+  const exp = Math.floor(Date.now() / 1000) + ttlSeconds;
+  const payload = `${userId}.${exp}`;
+  return `${payload}.${await sign(payload, secret)}`;
 }
 
-// Returns the userId if the signature is valid, else null.
+// Returns the userId if the signature is valid AND the token has not expired, else
+// null. Legacy 2-part (unexpiring) tokens are rejected so everyone re-authenticates
+// once with an expiring session.
 export async function verifySession(value: string | undefined, secret: string): Promise<string | null> {
   if (!value) return null;
-  const dot = value.lastIndexOf(".");
-  if (dot < 0) return null;
-  const userId = value.slice(0, dot);
-  const signature = value.slice(dot + 1);
-  const expected = await sign(userId, secret);
+  const parts = value.split(".");
+  if (parts.length !== 3) return null; // reject legacy/malformed tokens
+  const [userId, expStr, signature] = parts;
+  const payload = `${userId}.${expStr}`;
+  const expected = await sign(payload, secret);
   if (signature.length !== expected.length) return null;
   let diff = 0;
   for (let i = 0; i < signature.length; i++) diff |= signature.charCodeAt(i) ^ expected.charCodeAt(i);
-  return diff === 0 ? userId : null;
+  if (diff !== 0) return null;
+  const exp = Number(expStr);
+  if (!Number.isFinite(exp) || exp * 1000 <= Date.now()) return null; // expired
+  return userId;
 }
 
 export const SESSION_COOKIE = "scf_session";

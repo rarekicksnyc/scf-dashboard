@@ -8,21 +8,24 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "for f in scripts/test-*.ts; do echo \"== $f\"; tsx \"$f\" || exit 1; done",
+    "verify": "npm run typecheck && npm run test && npm run build"
   },
   "dependencies": {
-    "next": "15.1.6",
+    "next": "^15.5.22",
     "pdf-lib": "^1.17.1",
     "pg": "^8.22.0",
     "react": "19.0.0",
     "react-dom": "19.0.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@types/node": "22.10.7",
     "@types/pg": "^8.20.0",
     "@types/react": "19.0.7",
     "@types/react-dom": "19.0.3",
+    "tsx": "^4.19.2",
     "typescript": "5.7.3"
   }
 }

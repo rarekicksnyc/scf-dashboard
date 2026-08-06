@@ -38,3 +38,7 @@ export const ADVANCE_RATE_CAP: Record<InvoiceType, number> = {
   PROVISIONAL: 0.9,
   PIPELINE: 0.85,
 };
+
+// Maximum invoices accepted in a single batch (upload or host-to-host ingest).
+// A guard so an oversized push cannot exhaust memory / hang the single instance.
+export const MAX_BATCH_INVOICES = 5000;

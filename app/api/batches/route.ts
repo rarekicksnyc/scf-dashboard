@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { parseCsvFlexible, parseXlsx } from "@/lib/upload";
 import { runBatch } from "@/lib/engine";
+import { MAX_BATCH_INVOICES } from "@/lib/config";
 import {
   getBatches,
   saveBatch,
@@ -52,6 +53,9 @@ export async function POST(request: Request) {
       { error: errors.length ? errors.join(" ") : "No invoice rows found." },
       { status: 422 },
     );
+  }
+  if (invoices.length > MAX_BATCH_INVOICES) {
+    return NextResponse.json({ error: `Batch too large: ${invoices.length} rows (max ${MAX_BATCH_INVOICES}). Split it into smaller files.` }, { status: 413 });
   }
 
   const seq = getBatches().length + 1;

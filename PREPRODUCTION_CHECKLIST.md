@@ -6,6 +6,27 @@ Current architecture (baseline being hardened): Next.js 15 App Router on Render,
 
 ---
 
+## ✅ Shipped in the hardening pass (code)
+
+The code/config items that don't need external accounts are done and deployed:
+
+- **CI gate** — `.github/workflows/ci.yml` runs `typecheck → test → build` on every PR/push, plus a dependency‑audit job; `npm run verify` runs the same locally. **(§8)**
+- **RBAC sweep** — every mutating API route confirmed gated; no gaps beyond the intentional public routes (login/logout/health). **(§3)**
+- **Session hardening** — sessions now carry a **signed 12‑hour expiry** (legacy non‑expiring tokens rejected) and the cookie sets `max-age` alongside HttpOnly/Secure/SameSite; `SESSION_SECRET` already fails closed in prod. **(§2)**
+- **Security headers** — CSP, HSTS, `X-Content-Type-Options`, `X-Frame-Options: DENY`, Referrer‑Policy, Permissions‑Policy on every response (`next.config.js`). **(§4)**
+- **Rate limiting** — per‑IP throttle on `/api/login` (10/min) and `/api/ingest` (30/min). **(§4)**
+- **Input/size limits** — batch capped at `MAX_BATCH_INVOICES` (5000) on both upload and ingest; 8 MB ingest payload ceiling. **(§4, §9)**
+- **Dependency audit** — replaced the abandoned, vulnerable `xlsx@0.18.5` (prototype‑pollution/ReDoS, exploitable via a crafted upload) with SheetJS `0.20.3`; upgraded Next `15.1.6 → 15.5.22` (clears the critical Next advisories). Remaining highs are `sharp`/`postcss` (image/build tooling, low runtime risk) — tracked. **(§4)**
+- **Health endpoint** — public `/api/health` reports liveness + persistence health (last‑save/error) for uptime monitoring. **(§6)**
+- **Error capture** — `lib/observability.ts` structured `captureError`/`captureWarning` with a Sentry seam; persistence‑flush failures now emit structured, alertable lines. **(§6)**
+- **Single‑instance divergence detection** — the snapshot row now carries a monotonic `generation`; a concurrent second writer is detected and surfaced (health `degraded` + logged), so the single‑instance constraint fails loudly instead of silently diverging. **(§1 interim)**
+- **id/counter hardening** — seller/obligor ids minted from the monotonic counter (+ seq‑floor guard) so a deleted id is never reused. **(§1)**
+- **Secrets hygiene** — repo scan clean; no secrets committed; `.env*` gitignored. **(§4)**
+
+**Still needs your accounts/decisions** (can't be completed in code alone): the DB‑vs‑single‑instance decision (**§1**), SSO/Azure AD (**§2**), Neon PITR/backups (**§1**), real email/payment/SOFR integrations (**§7**), a Sentry DSN (**§6**), pen test + stakeholder sign‑offs (**§5, §10**).
+
+---
+
 ## 1. Persistence & data integrity — **the #1 blocker**
 
 - [ ] **P0 — Replace the single‑instance in‑memory store as the system of record, OR guarantee single‑instance.**
